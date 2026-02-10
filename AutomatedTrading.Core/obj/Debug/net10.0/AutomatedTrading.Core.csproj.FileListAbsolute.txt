@@ -1,0 +1,11 @@
+C:\dev\AutomatedTradeStrategies\AutomatedTrading.Core\bin\Debug\net10.0\AutomatedTrading.Core.deps.json
+C:\dev\AutomatedTradeStrategies\AutomatedTrading.Core\bin\Debug\net10.0\AutomatedTrading.Core.dll
+C:\dev\AutomatedTradeStrategies\AutomatedTrading.Core\bin\Debug\net10.0\AutomatedTrading.Core.pdb
+C:\dev\AutomatedTradeStrategies\AutomatedTrading.Core\obj\Debug\net10.0\AutomatedTrading.Core.GeneratedMSBuildEditorConfig.editorconfig
+C:\dev\AutomatedTradeStrategies\AutomatedTrading.Core\obj\Debug\net10.0\AutomatedTrading.Core.AssemblyInfoInputs.cache
+C:\dev\AutomatedTradeStrategies\AutomatedTrading.Core\obj\Debug\net10.0\AutomatedTrading.Core.AssemblyInfo.cs
+C:\dev\AutomatedTradeStrategies\AutomatedTrading.Core\obj\Debug\net10.0\AutomatedTrading.Core.csproj.CoreCompileInputs.cache
+C:\dev\AutomatedTradeStrategies\AutomatedTrading.Core\obj\Debug\net10.0\AutomatedTrading.Core.dll
+C:\dev\AutomatedTradeStrategies\AutomatedTrading.Core\obj\Debug\net10.0\refint\AutomatedTrading.Core.dll
+C:\dev\AutomatedTradeStrategies\AutomatedTrading.Core\obj\Debug\net10.0\AutomatedTrading.Core.pdb
+C:\dev\AutomatedTradeStrategies\AutomatedTrading.Core\obj\Debug\net10.0\ref\AutomatedTrading.Core.dll
