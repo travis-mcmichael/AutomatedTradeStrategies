@@ -11,7 +11,7 @@ public class InTradeDaySignalTest
     {
         var bars = new List<Bar>
         {
-            new (80000, 100, 105, 99, 104, 1000)
+            new (80100, 100, 105, 99, 104, 1000)
         };
 
         var signal = new InTradeDay();
