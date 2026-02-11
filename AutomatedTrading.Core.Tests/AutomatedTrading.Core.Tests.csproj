@@ -1,11 +1,11 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-    <IsPackable>false</IsPackable>
-  </PropertyGroup>
+ <PropertyGroup>
+  <TargetFramework>net48</TargetFramework>
+  <LangVersion>latest</LangVersion>
+  <Nullable>enable</Nullable>
+  <ImplicitUsings>disable</ImplicitUsings>
+</PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="coverlet.collector" Version="6.0.4" />

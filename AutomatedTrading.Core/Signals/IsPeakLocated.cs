@@ -1,10 +1,10 @@
-using System.Drawing;
+using System.Collections.Generic;
 using System.Linq;
 using AutomatedTrading.Core.Models;
 
 namespace AutomatedTrading.Core.Signals;
 
-public class PeakSignal : ISignal
+public class IsPeakLocated : ISignal
 {
     /// <summary>
     /// Number of bars to look ahead/behind when considering a bar as a peak
@@ -26,7 +26,7 @@ public class PeakSignal : ISignal
     /// </summary>
     public List<Bar> Peaks { get; } = new List<Bar>();
 
-    public PeakSignal(int strength, int ignoreThreshold, int pointMovementThreshold)
+    public IsPeakLocated(int strength, int ignoreThreshold, int pointMovementThreshold)
     {
         this.strength = strength;
         this.ignoreThreshold = ignoreThreshold;

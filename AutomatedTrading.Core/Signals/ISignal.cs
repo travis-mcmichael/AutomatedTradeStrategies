@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using AutomatedTrading.Core.Models;
 
 namespace AutomatedTrading.Core.Signals;
