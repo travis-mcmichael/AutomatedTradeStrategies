@@ -10,11 +10,11 @@
         "projectUniqueName": "C:\\dev\\AutomatedTradeStrategies\\AutomatedTrading.Core\\AutomatedTrading.Core.csproj",
         "projectName": "AutomatedTrading.Core",
         "projectPath": "C:\\dev\\AutomatedTradeStrategies\\AutomatedTrading.Core\\AutomatedTrading.Core.csproj",
-        "packagesPath": "C:\\Users\\Gaming pc\\.nuget\\packages\\",
+        "packagesPath": "C:\\Users\\tpmcm\\.nuget\\packages\\",
         "outputPath": "C:\\dev\\AutomatedTradeStrategies\\AutomatedTrading.Core\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
-          "C:\\Users\\Gaming pc\\AppData\\Roaming\\NuGet\\NuGet.Config"
+          "C:\\Users\\tpmcm\\AppData\\Roaming\\NuGet\\NuGet.Config"
         ],
         "originalTargetFrameworks": [
           "net10.0"
@@ -59,7 +59,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.101/PortableRuntimeIdentifierGraph.json",
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.103/PortableRuntimeIdentifierGraph.json",
           "packagesToPrune": {
             "Microsoft.CSharp": "(,4.7.32767]",
             "Microsoft.VisualBasic": "(,10.4.32767]",
