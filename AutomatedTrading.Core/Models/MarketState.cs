@@ -5,10 +5,10 @@ namespace AutomatedTrading.Core.Models;
 
 public class MarketState : IMarketState
 {
-    private List<Bar> peaks { get; } = new();
-    private List<Bar> valleys { get; } = new();
-    public Bar DayHigh { get; private set; }
-    public Bar DayLow { get; private set; }
+    public IList<Bar> Peaks { get; } = new List<Bar>();
+    public IList<Bar> Valleys { get; } = new List<Bar>();
+    public Bar? DayHigh { get; private set; }
+    public Bar? DayLow { get; private set; }
 
     public void OnNewBar(Bar bar)
     {
@@ -26,17 +26,17 @@ public class MarketState : IMarketState
     {
         DayHigh = bar;
         DayLow = bar;
-        peaks.Clear();
-        valleys.Clear();
+        Peaks.Clear();
+        Valleys.Clear();
     }
 
     public void MarkSignalPeak(Bar bar)
     {
-        peaks.Add(bar);
+        Peaks.Add(bar);
     }
 
     public void MarkSignalValley(Bar bar)
     {
-        valleys.Add(bar);
+        Valleys.Add(bar);
     }
 }

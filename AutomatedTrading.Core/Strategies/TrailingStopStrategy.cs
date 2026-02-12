@@ -1,4 +1,5 @@
 using AutomatedTrading.Core.Models;
+
 namespace AutomatedTrading.Core.Strategies;
 
 /// <summary>

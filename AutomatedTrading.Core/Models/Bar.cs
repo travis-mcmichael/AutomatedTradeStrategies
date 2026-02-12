@@ -7,9 +7,9 @@ public class Bar
     public double High { get; set; }
     public double Low { get; set; }
     public double Close { get; set; }
-    public long Volume { get; set; }
+    public double Volume { get; set; }
 
-    public Bar(int time, double open, double high, double low, double close, long volume)
+    public Bar(int time, double open, double high, double low, double close, double volume)
     {
         Time = time;
         Open = open;

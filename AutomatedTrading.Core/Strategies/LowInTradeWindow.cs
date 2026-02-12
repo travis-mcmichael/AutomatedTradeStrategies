@@ -1,3 +1,4 @@
+using AutomatedTrading.Core.Framework;
 using AutomatedTrading.Core.Models;
 using AutomatedTrading.Core.Signals;
 using System.Collections.Generic;
@@ -7,7 +8,7 @@ namespace AutomatedTrading.Core.Strategies;
 /// <summary>
 /// Strategy to enter the market when the low hits in the trade window.
 /// </summary>
-public class LowBeforeLunch : TrailingStopStrategy
+public class LowInTradeWindow : TrailingStopStrategy, IHasLog
 {    
     private IMarketState marketState;
 
@@ -22,6 +23,11 @@ public class LowBeforeLunch : TrailingStopStrategy
     public int TradeWindowEnd { get; private set; }
 
     /// <summary>
+    /// Log.
+    /// </summary>
+    public string Log { get; private set; } = "";
+
+    /// <summary>
     /// Default constructor.
     /// </summary>
     /// <param name="tradeWindowStart"></param>
@@ -29,7 +35,7 @@ public class LowBeforeLunch : TrailingStopStrategy
     /// <param name="initialStopLoss"></param>
     /// <param name="trailTrigger"></param>
     /// <param name="trailDistance"></param>
-    public LowBeforeLunch(int tradeWindowStart, int tradeWindowEnd, int initialStopLoss, int trailTrigger, int trailDistance)
+    public LowInTradeWindow(int tradeWindowStart, int tradeWindowEnd, int initialStopLoss, int trailTrigger, int trailDistance)
     : base(initialStopLoss, trailTrigger, trailDistance)
     {
         TradeWindowStart = tradeWindowStart;
@@ -55,7 +61,25 @@ public class LowBeforeLunch : TrailingStopStrategy
     {
         marketState.OnNewBar(bar);
         var bars = new List<Bar> { bar };
-        return new InTradeWindow(TradeWindowStart, TradeWindowEnd).IsTriggered(bars) &&
-            new IsSessionLow(marketState.DayLow.Low).IsTriggered(bars);
+
+        var inTradeWindow = new InTradeWindow(TradeWindowStart, TradeWindowEnd);
+        var isSessionLow = new IsSessionLow(marketState.DayLow?.Low ?? 0L);
+
+        var inTradeWindowSignalled = inTradeWindow.IsTriggered(bars);
+        var isSessionLowSignalled = isSessionLow.IsTriggered(bars);
+
+        Log = LogBuilder.GetEvaluationResultLog(
+            bar.Time, 
+            "LowInTradeWindow.Evaluate", 
+            new Dictionary<string, object>
+            {
+                { "inTradeWindow", inTradeWindow.Log },
+                { "isSessionLow", isSessionLow.Log } 
+            });
+
+        if (inTradeWindowSignalled)
+            marketState.OnNewSession(bar);
+        
+        return inTradeWindowSignalled && isSessionLowSignalled;
     }
 }
