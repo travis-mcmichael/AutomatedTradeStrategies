@@ -12,18 +12,18 @@ public static class LogBuilder
         var s = time.ToString();
         while (s.Length < 6)
             s = "0" + s;
-        return $"{s.Substring(0, 2)}:{s.Substring(2,4)}:{s.Substring(4)}";
+        return $"{s.Substring(0, 2)}:{s.Substring(2, 2)}:{s.Substring(4)}";
     }
 
-    public static string GetEvaluationResultLog(int currentTime, string logHeader, Dictionary<string, object> logValues)
+    public static string GetEvaluationResultLog(Bar bar, string logHeader, Dictionary<string, object> logValues)
     {
-        return $"[{TimeIntToString(currentTime)}] {logHeader} - {string.Join(",", logValues.Select(x => $"{x.Key}:{x.Value}"))}";;
+        return $"[{TimeIntToString(bar.Time)}] {logHeader}\r\n\t{bar.ToLog()}\r\n\t{string.Join("\r\n\t", logValues.Select(x => x.Value.ToString()))}"; ;
     }
 
     public static string GetSessionSummaryLog(IMarketState marketState)
     {
-        var outliers = marketState.Peaks.Select(x => new { Type = "Peak", Bar = x})
-            .Concat(marketState.Valleys.Select(x => new { Type = "Valley", Bar = x}))
+        var outliers = marketState.Peaks.Select(x => new { Type = "Peak", Bar = x })
+            .Concat(marketState.Valleys.Select(x => new { Type = "Valley", Bar = x }))
             .OrderBy(x => x.Bar.Time);
         var sb = new StringBuilder();
 

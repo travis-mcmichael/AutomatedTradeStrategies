@@ -10,11 +10,11 @@
         "projectUniqueName": "C:\\dev\\AutomatedTradeStrategies\\AutomatedTrading.Core.Tests\\AutomatedTrading.Core.Tests.csproj",
         "projectName": "AutomatedTrading.Core.Tests",
         "projectPath": "C:\\dev\\AutomatedTradeStrategies\\AutomatedTrading.Core.Tests\\AutomatedTrading.Core.Tests.csproj",
-        "packagesPath": "C:\\Users\\Gaming pc\\.nuget\\packages\\",
+        "packagesPath": "C:\\Users\\tpmcm\\.nuget\\packages\\",
         "outputPath": "C:\\dev\\AutomatedTradeStrategies\\AutomatedTrading.Core.Tests\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
-          "C:\\Users\\Gaming pc\\AppData\\Roaming\\NuGet\\NuGet.Config"
+          "C:\\Users\\tpmcm\\AppData\\Roaming\\NuGet\\NuGet.Config"
         ],
         "originalTargetFrameworks": [
           "net48"
@@ -71,7 +71,7 @@
               "version": "[3.1.4, )"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.101\\RuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.103\\RuntimeIdentifierGraph.json"
         }
       }
     },
@@ -81,11 +81,11 @@
         "projectUniqueName": "C:\\dev\\AutomatedTradeStrategies\\AutomatedTrading.Core\\AutomatedTrading.Core.csproj",
         "projectName": "AutomatedTrading.Core",
         "projectPath": "C:\\dev\\AutomatedTradeStrategies\\AutomatedTrading.Core\\AutomatedTrading.Core.csproj",
-        "packagesPath": "C:\\Users\\Gaming pc\\.nuget\\packages\\",
+        "packagesPath": "C:\\Users\\tpmcm\\.nuget\\packages\\",
         "outputPath": "C:\\dev\\AutomatedTradeStrategies\\AutomatedTrading.Core\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
-          "C:\\Users\\Gaming pc\\AppData\\Roaming\\NuGet\\NuGet.Config"
+          "C:\\Users\\tpmcm\\AppData\\Roaming\\NuGet\\NuGet.Config"
         ],
         "originalTargetFrameworks": [
           "net48"
@@ -122,7 +122,7 @@
               "autoReferenced": true
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.101\\RuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.103\\RuntimeIdentifierGraph.json"
         }
       }
     }

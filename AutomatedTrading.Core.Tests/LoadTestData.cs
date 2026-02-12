@@ -9,11 +9,11 @@ namespace AutomatedTrading.Core.Tests;
 
 public class LoadTestData
 {
-    private readonly string basePath;
+    private readonly string? basePath;
 
     public LoadTestData(string? basePath = null)
     {
-        this.basePath = basePath; 
+        this.basePath = basePath;
     }
 
     public List<Bar> LoadAll()
@@ -21,7 +21,7 @@ public class LoadTestData
         var bars = new List<Bar>();
         if (!Directory.Exists(basePath))
             throw new DirectoryNotFoundException($"Directory not found: {basePath}.");
-        
+
         var files = Directory.GetFiles(basePath, "*.dat");
         foreach (var file in files)
         {
@@ -31,8 +31,9 @@ public class LoadTestData
         return bars;
     }
 
-    public List<Bar> LoadFile(string filePath, string date = null)
+    public List<Bar> LoadFile(string file, string date = null)
     {
+        var filePath = Path.Combine(basePath, file);
         var bars = new List<Bar>();
 
         foreach (var line in File.ReadAllLines(filePath))
@@ -42,15 +43,21 @@ public class LoadTestData
 
             var parts = line.Split(';');
             if (parts.Length != 6)
-                continue;            
-            
+                continue;
+
             var dateTime = DateTime.ParseExact(parts[0], "yyyyMMdd HHmmss", CultureInfo.InvariantCulture);
-            
+
             // if date has a value and the line date doesn't match, skip
             if (!string.IsNullOrEmpty(date) && parts[0].Split(' ').First() != date)
             {
                 continue;
             }
+
+            // var time = int.Parse(parts[0].Split(' ')[1]);
+            // if (time < 80000 || time > 83000)
+            // {
+            //     continue;
+            // }
 
             var open = double.Parse(parts[1], CultureInfo.InvariantCulture);
             var high = double.Parse(parts[2], CultureInfo.InvariantCulture);

@@ -9,23 +9,29 @@ public class MarketState : IMarketState
     public IList<Bar> Valleys { get; } = new List<Bar>();
     public Bar? DayHigh { get; private set; }
     public Bar? DayLow { get; private set; }
+    public int BarCount { get; set; } = 0;
 
     public void OnNewBar(Bar bar)
     {
-        if (bar.Low < DayLow?.Low)
+        if (bar.Time < AppConstants.TRADE_DAY_START || bar.Time > AppConstants.TRADE_DAY_END)
+            return;
+
+        if ((DayLow?.Close ?? 0) == 0 || bar.Close < DayLow?.Close)
         {
             DayLow = bar;
         }
-        if (bar.High > DayHigh?.High)
+        if ((DayHigh?.Close ?? 0) == 0 || bar.Close > DayHigh?.Close)
         {
             DayHigh = bar;
         }
+        BarCount++;
     }
 
     public void OnNewSession(Bar bar)
     {
-        DayHigh = bar;
-        DayLow = bar;
+        BarCount = 0;
+        //DayHigh = bar;
+        //DayLow = bar;
         Peaks.Clear();
         Valleys.Clear();
     }

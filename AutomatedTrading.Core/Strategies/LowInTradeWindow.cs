@@ -9,14 +9,15 @@ namespace AutomatedTrading.Core.Strategies;
 /// Strategy to enter the market when the low hits in the trade window.
 /// </summary>
 public class LowInTradeWindow : TrailingStopStrategy, IHasLog
-{    
+{
     private IMarketState marketState;
+    private bool firstBarOfTradeWindow = true;
 
     /// <summary>
     /// Trade window start.
     /// </summary>
     public int TradeWindowStart { get; private set; }
-    
+
     /// <summary>
     /// Trade window end.
     /// </summary>
@@ -63,23 +64,26 @@ public class LowInTradeWindow : TrailingStopStrategy, IHasLog
         var bars = new List<Bar> { bar };
 
         var inTradeWindow = new InTradeWindow(TradeWindowStart, TradeWindowEnd);
-        var isSessionLow = new IsSessionLow(marketState.DayLow?.Low ?? 0L);
+        var isSessionLow = new IsSessionLow(marketState.DayLow?.Time ?? 0, marketState.DayLow?.Close ?? 0L, marketState.BarCount);
 
         var inTradeWindowSignalled = inTradeWindow.IsTriggered(bars);
         var isSessionLowSignalled = isSessionLow.IsTriggered(bars);
 
         Log = LogBuilder.GetEvaluationResultLog(
-            bar.Time, 
-            "LowInTradeWindow.Evaluate", 
+            bar,
+            "LowInTradeWindow.Evaluate",
             new Dictionary<string, object>
             {
                 { "inTradeWindow", inTradeWindow.Log },
-                { "isSessionLow", isSessionLow.Log } 
+                { "isSessionLow", isSessionLow.Log }
             });
 
-        if (inTradeWindowSignalled)
+        if (inTradeWindowSignalled && firstBarOfTradeWindow)
+        {
+            firstBarOfTradeWindow = false;
             marketState.OnNewSession(bar);
-        
+        }
+
         return inTradeWindowSignalled && isSessionLowSignalled;
     }
 }

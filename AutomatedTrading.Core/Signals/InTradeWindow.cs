@@ -20,11 +20,11 @@ public class InTradeWindow : ISignal, IHasLog
     {
         if (bars.Count == 0)
             return false;
-        
+
         var bar = bars.First();
         var result = bar.Time > TradeWindowStart && bar.Time < TradeWindowEnd;
-        Log = $"InTradeWindow - isTriggered: {result} barTime:{bar.Time}, tradeWindowStart: {TradeWindowStart}, tradeWindowEnd: {TradeWindowEnd}";
-        
+        Log = $"InTradeWindow.isTriggered: result={result}, barTime={bar.Time}, tradeWindowStart={TradeWindowStart}, tradeWindowEnd={TradeWindowEnd}";
+
         return result;
     }
 }
