@@ -18,6 +18,11 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
+<ItemGroup>
+  <None Include="TestData\**\*">
+    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+  </None>
+</ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\AutomatedTrading.Core\AutomatedTrading.Core.csproj" />
   </ItemGroup>

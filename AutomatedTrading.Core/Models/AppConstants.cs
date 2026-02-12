@@ -21,4 +21,9 @@ public class AppConstants
     /// Minimum # of Bars required to perform moderate complexity logical operations on day's trading data.
     /// </summary>
     public const int MINIMUM_BARS_TO_EVALUATE = 30;
+
+    /// <summary>
+    /// Directory where all the test data files are stored.
+    /// </summary>
+    public const string TEST_BASE_DIRECTORY = "TestData";
 }
