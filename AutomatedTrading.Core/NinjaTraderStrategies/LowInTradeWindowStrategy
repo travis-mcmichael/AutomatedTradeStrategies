@@ -109,6 +109,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 					break;
 				case State.Terminated:
 					var summary = LogBuilder.GetSessionSummaryLog(strategy.MarketState);
+					strategyInitialized = false;
 					if (!string.IsNullOrEmpty(summary))
 						Print(summary);
 					break;

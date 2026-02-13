@@ -20,12 +20,9 @@ public class IsSessionLowSignalTest
             .LoadFile(TEST_FILE)
             .Take(18);
 
-        foreach (var bar in bars)
-            Console.WriteLine(bar.ToLog());
         var expected = bars.Select(x => x.Time == SESSION_LOW_TIME);
         var sessionLow = bars.Select(x => x.Close).Distinct().Min();
         var signalResults = bars.Select(x => new IsSessionLow(SESSION_LOW_TIME, sessionLow, bars.Count()).IsTriggered(new List<Bar> { x }));
-
         Assert.Equal(expected, signalResults);
     }
 }

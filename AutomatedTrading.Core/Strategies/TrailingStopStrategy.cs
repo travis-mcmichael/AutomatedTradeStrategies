@@ -46,6 +46,11 @@ public class TrailingStopStrategy
         CurrentStopLoss = initialStopLoss;
     }
 
+    public virtual void Initialize(Bar bar)
+    {
+        CurrentStopLoss = 0;
+    }
+
     /// <summary>
     /// Sets stop-loss value if not already set.  Updates stop-loss if value has increased the requisite amount.
     /// </summary>
@@ -54,7 +59,7 @@ public class TrailingStopStrategy
     /// <returns></returns>
     public bool EvaluateStopLoss(Bar bar, double positionAveragePrice)
     {
-        HighestPrice = System.Math.Max(HighestPrice, bar.High);
+        HighestPrice = System.Math.Max(HighestPrice, bar.Close);
         if (CurrentStopLoss == 0)
         {
             CurrentStopLoss = InitialStopLoss;

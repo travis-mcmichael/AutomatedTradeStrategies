@@ -25,7 +25,7 @@ public class AppConstants
     /// <summary>
     /// Directory where all the test data files are stored.
     /// </summary>
-    public const string TEST_BASE_DIRECTORY = "Tests/TestData";
+    public const string TEST_BASE_DIRECTORY = "TestData";
     
     /// <summary>
     /// Test data was exported in UTC. This is to correct that (easier than editing exported data).

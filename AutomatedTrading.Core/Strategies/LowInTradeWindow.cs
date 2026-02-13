@@ -48,8 +48,9 @@ public class LowInTradeWindow : TrailingStopStrategy, IHasLog
     /// Sets defaults.
     /// </summary>
     /// <param name="bar"></param>
-    public void Initialize(Bar bar)
+    public override void Initialize(Bar bar)
     {
+        base.Initialize(bar);
         marketState.OnNewSession(bar);
     }
 
