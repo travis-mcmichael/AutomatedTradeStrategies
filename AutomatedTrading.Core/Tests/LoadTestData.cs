@@ -45,19 +45,16 @@ public class LoadTestData
             if (parts.Length != 6)
                 continue;
 
-            var dateTime = DateTime.ParseExact(parts[0], "yyyyMMdd HHmmss", CultureInfo.InvariantCulture);
+            // This is specifically to correct the UTC offset from exported NinjaScript files from an instrument on Central Time.  
+            // If this is being modified to import from another data source, the offset would need to be reassessed.
+            var dateTime = DateTime.ParseExact(parts[0], "yyyyMMdd HHmmss", CultureInfo.InvariantCulture)
+                .AddHours(AppConstants.TEST_DATA_OFFSET_HOURS);
 
             // if date has a value and the line date doesn't match, skip
             if (!string.IsNullOrEmpty(date) && parts[0].Split(' ').First() != date)
             {
                 continue;
             }
-
-            // var time = int.Parse(parts[0].Split(' ')[1]);
-            // if (time < 80000 || time > 83000)
-            // {
-            //     continue;
-            // }
 
             var open = double.Parse(parts[1], CultureInfo.InvariantCulture);
             var high = double.Parse(parts[2], CultureInfo.InvariantCulture);

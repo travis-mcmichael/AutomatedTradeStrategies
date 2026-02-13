@@ -1,4 +1,0 @@
-<Solution>
-  <Project Path="AutomatedTrading.Core.Tests/AutomatedTrading.Core.Tests.csproj" />
-  <Project Path="AutomatedTrading.Core/AutomatedTrading.Core.csproj" />
-</Solution>

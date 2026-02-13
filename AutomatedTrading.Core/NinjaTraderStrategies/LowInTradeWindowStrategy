@@ -26,9 +26,21 @@ using AutomatedTrading.Core.Signals;
 using AutomatedTrading.Core.Strategies;
 #endregion
 
+#region README IMPORTANT
+
+/*
+    This is the full strategy code necessary to run in the NinjaScript Editor.  This file doesn't have the .cs extension so the compiler won't 
+    attempt to build this into the output libary. I included the NinjaScript strategy files in this manner to include the code in my project's source control.
+*/
+
+#endregion
+
 //This namespace holds Strategies in this folder and is required. Do not change it. 
 namespace NinjaTrader.NinjaScript.Strategies
 {
+    /// <summary>
+    /// 
+    /// </summary>
 	public class LowInTradeWindowStrategy : Strategy
 	{
 		private bool strategyInitialized = false;

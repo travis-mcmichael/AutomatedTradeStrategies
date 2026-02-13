@@ -26,8 +26,7 @@ public class LowInTradeWindowTest
             .LoadFile(TEST_FILE, DATA_DATE)
             .Where(x => x.Time >= tradeWindowStart && x.Time < tradeWindowEnd);
 
-        // Bar data for this day hit a low for the time period from 8:00 AM (beginning of trade day)
-        var expected = bars.Select(x => new int[] { 82900, 85400, 85500, 85600 }.Contains(x.Time));
+        var expected = bars.Select(x => new int[] { 81600, 81700, 81900, 82200, 83100, 83200 }.Contains(x.Time));
         var actual = new List<bool>();
 
         var strategy = new LowInTradeWindow(tradeWindowStart, tradeWindowEnd, initialStopLoss, trailTrigger, trailDistance);
@@ -35,12 +34,8 @@ public class LowInTradeWindowTest
         foreach (var bar in bars)
         {
             actual.Add(strategy.Evaluate(bar));
-            Console.WriteLine(strategy.Log);
         }
-
-        Console.WriteLine($"Expected: [{string.Join(",", expected)}]");
-        Console.WriteLine($"Actual:   [{string.Join(",", actual)}]");
-
+        
         Assert.Equal(expected, actual);
     }
 }
