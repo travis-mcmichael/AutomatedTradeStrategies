@@ -25,32 +25,30 @@ public class TrailingStopStrategyTest
           var bars = new LoadTestData(path)
             .LoadFile(testFile, dataDate)
             .Where(x => x.Time >= tradeWindowStart && x.Time < tradeWindowEnd);
+        var buyInPrice = bars.First().Close; // assume we buy at the end of the first bar
 
-        var strategy = new TrailingStopStrategy(initialStopLoss, trailTrigger, trailDistance);
-        var positionAveragePrice = bars.First().Close; // assume we buy at the end of the first bar
-        var results = new List<bool> { false }; // false on first bar
+        var strategy = new TrailingStopStrategy(initialStopLoss, trailTrigger, trailDistance, buyInPrice);
+        var results = new List<bool>(); // false on first bar
         var stopLosses = new List<double> { strategy.CurrentStopLoss };
         var stopHits = new List<int>(); // log the time the updates stops would get hit
 
-        var expectedResults = bars.Select(x => new int[] { 101600, 102000, 102300 }.Contains(x.Time));
-        var expectedStopLosses = new List<double> { strategy.CurrentStopLoss, 6814, 6823.25, 6831.75 };
-        var expectedStopHits = new List<int> { 102400 };
+        var expectedResults = bars.Select(x => new int[] { 101900, 102300 }.Contains(x.Time));
+        var expectedStopLosses = new List<double> { 6812.25, 6821.5, 6831.75 };
 
-        foreach (var bar in bars.Skip(1))
+        foreach (var bar in bars)
         {
             // These aren't enforced in this test, still good to track.
             if (bar.Close <= strategy.CurrentStopLoss)
                 stopHits.Add(bar.Time);
 
-            var result = strategy.EvaluateStopLoss(bar, positionAveragePrice);
+            var result = strategy.EvaluateStopLoss(bar);
             if (result)
                 stopLosses.Add(strategy.CurrentStopLoss);
             
             results.Add(result);
         }
 
-        Assert.Equal(results, expectedResults);
-        //Assert.Equal(stopLosses, expectedStopLosses);
-        //Assert.Equal(stopHits, expectedStopHits);
+        Assert.Equal(expectedResults, results);
+        Assert.Equal(expectedStopLosses, stopLosses);
     }
 }

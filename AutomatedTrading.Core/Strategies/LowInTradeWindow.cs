@@ -36,8 +36,8 @@ public class LowInTradeWindow : TrailingStopStrategy, IHasLog
     /// <param name="initialStopLoss"></param>
     /// <param name="trailTrigger"></param>
     /// <param name="trailDistance"></param>
-    public LowInTradeWindow(int tradeWindowStart, int tradeWindowEnd, int initialStopLoss, int trailTrigger, int trailDistance)
-    : base(initialStopLoss, trailTrigger, trailDistance)
+    public LowInTradeWindow(int tradeWindowStart, int tradeWindowEnd, int initialStopLoss, int trailTrigger, int trailDistance, double positionAverage)
+    : base(initialStopLoss, trailTrigger, trailDistance, positionAverage)
     {
         TradeWindowStart = tradeWindowStart;
         TradeWindowEnd = tradeWindowEnd;

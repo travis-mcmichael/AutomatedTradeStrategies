@@ -29,9 +29,9 @@ public class LowInTradeWindowTest
         var expected = bars.Select(x => new int[] { 81600, 81700, 81900, 82200, 83100, 83200 }.Contains(x.Time));
         var actual = new List<bool>();
 
-        var strategy = new LowInTradeWindow(tradeWindowStart, tradeWindowEnd, initialStopLoss, trailTrigger, trailDistance);
+        var strategy = new LowInTradeWindow(tradeWindowStart, tradeWindowEnd, initialStopLoss, trailTrigger, trailDistance, bars.First().Close);
         strategy.Initialize(bars.First());
-        foreach (var bar in bars.Skip(1))
+        foreach (var bar in bars)
         {
             actual.Add(strategy.Evaluate(bar));
         }
