@@ -22,7 +22,7 @@ public class TrailingStopStrategyTest
         var trailDistance = 2;
 
         var path = Path.Combine(AppContext.BaseDirectory, AppConstants.TEST_BASE_DIRECTORY);
-          var bars = new LoadTestData(path)
+        var bars = new LoadTestData(path)
             .LoadFile(testFile, dataDate)
             .Where(x => x.Time >= tradeWindowStart && x.Time < tradeWindowEnd);
         var buyInPrice = bars.First().Close; // assume we buy at the end of the first bar
