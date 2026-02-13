@@ -1,10 +1,14 @@
+using System.Collections.Generic;
+
 namespace AutomatedTrading.Core.Models;
 
 public interface IMarketState
 {
-    Bar DayHigh { get; }
-    Bar DayLow { get; }
-
+    IList<Bar> Peaks { get; }
+    IList<Bar> Valleys { get; }
+    Bar? DayHigh { get; }
+    Bar? DayLow { get; }
+    int BarCount { get; set; }
     void OnNewBar(Bar bar);
     void OnNewSession(Bar bar);
     void MarkSignalPeak(Bar bar);

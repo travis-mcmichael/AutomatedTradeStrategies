@@ -1,4 +1,5 @@
 using AutomatedTrading.Core.Models;
+
 namespace AutomatedTrading.Core.Strategies;
 
 /// <summary>
@@ -37,30 +38,35 @@ public class TrailingStopStrategy
     /// <param name="initialStopLoss"></param>
     /// <param name="trailTrigger"></param>
     /// <param name="trailDistance"></param>
-    public TrailingStopStrategy(int initialStopLoss, int trailTrigger, int trailDistance)
+    public TrailingStopStrategy(int initialStopLoss, int trailTrigger, int trailDistance, double buyInPrice)
     {
         InitialStopLoss = initialStopLoss;
         TrailTrigger = trailTrigger;
         TrailDistance = trailDistance;
-        CurrentStopLoss = initialStopLoss;
+        CurrentStopLoss = buyInPrice - initialStopLoss;
+    }
+
+    public virtual void Initialize(Bar bar)
+    {
+        CurrentStopLoss = 0;
     }
 
     /// <summary>
     /// Sets stop-loss value if not already set.  Updates stop-loss if value has increased the requisite amount.
     /// </summary>
     /// <param name="bar"></param>
-    /// <param name="positionAveragePrice"></param>
+    /// <param name="buyInPrice"></param>
     /// <returns></returns>
-    public bool EvaluateStopLoss(Bar bar, double positionAveragePrice)
+    public bool EvaluateStopLoss(Bar bar)
     {
-        HighestPrice = System.Math.Max(HighestPrice, bar.High);
+        HighestPrice = System.Math.Max(HighestPrice, bar.Close);
         if (CurrentStopLoss == 0)
         {
-            CurrentStopLoss = InitialStopLoss;
+            CurrentStopLoss = HighestPrice - InitialStopLoss;
             return true;
         }
 
-        var profitPoints = HighestPrice - positionAveragePrice;
+        var profitPoints = HighestPrice - CurrentStopLoss;
         if (profitPoints >= TrailTrigger)
         {
             var newStop = HighestPrice - TrailDistance;
