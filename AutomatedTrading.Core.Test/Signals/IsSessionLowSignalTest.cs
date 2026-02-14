@@ -9,20 +9,19 @@ namespace AutomatedTrading.Core.Tests.Signals;
 
 public class IsSessionLowSignalTest
 {
-    private const string TEST_FILE = "MES.20260202.dat";
-    private const int SESSION_LOW_TIME = 1800;
-
     [Fact]
     public void ReturnsTrue_WhenIsSessionLow()
     {
+        var testFile = "MES.20260202.dat";
+
         var path = Path.Combine(AppContext.BaseDirectory, AppConstants.TEST_BASE_DIRECTORY);
         var bars = new LoadTestData(path)
-            .LoadFile(TEST_FILE)
+            .LoadFile(testFile)
             .Take(18);
 
-        var expected = bars.Select(x => x.Time == SESSION_LOW_TIME);
-        var sessionLow = bars.Select(x => x.Close).Distinct().Min();
-        var signalResults = bars.Select(x => new IsSessionLow(SESSION_LOW_TIME, sessionLow, bars.Count()).IsTriggered(new List<Bar> { x }));
+        var expected = bars.Select(x => x.Time == 180000);
+        var sessionLow = bars.Min(x => x.Close);
+        var signalResults = bars.Select(x => new IsSessionLow(180000, sessionLow, bars.Count()).IsTriggered(new List<Bar> { x }));
         Assert.Equal(expected, signalResults);
     }
 }

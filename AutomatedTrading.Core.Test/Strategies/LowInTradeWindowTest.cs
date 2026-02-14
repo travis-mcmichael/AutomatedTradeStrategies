@@ -12,8 +12,8 @@ public class LowInTradeWindowTest
     [Fact]
     public void ReturnsTrue_WhenLowInTradeWindow()
     {
-        var testFile = "MES.20260202.dat";
-        var dataDate = "20260205";
+        var testFile = "MES.20260209.dat";
+        var dataDate = "20260213";
 
         var tradeWindowStart = 80000;
         var tradeWindowEnd = 90000;
@@ -29,7 +29,7 @@ public class LowInTradeWindowTest
         var expected = bars.Select(x => new int[] { 81600, 81700, 81900, 82200, 83100, 83200 }.Contains(x.Time));
         var actual = new List<bool>();
 
-        var strategy = new LowInTradeWindow(tradeWindowStart, tradeWindowEnd, initialStopLoss, trailTrigger, trailDistance, bars.First().Close);
+        var strategy = new LowInTradeWindow(tradeWindowStart, tradeWindowEnd, initialStopLoss, trailTrigger, trailDistance);
         strategy.Initialize(bars.First());
         foreach (var bar in bars)
         {

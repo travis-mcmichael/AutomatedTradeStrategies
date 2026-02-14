@@ -38,12 +38,12 @@ public class TrailingStopStrategy
     /// <param name="initialStopLoss"></param>
     /// <param name="trailTrigger"></param>
     /// <param name="trailDistance"></param>
-    public TrailingStopStrategy(int initialStopLoss, int trailTrigger, int trailDistance, double buyInPrice)
+    public TrailingStopStrategy(int initialStopLoss, int trailTrigger, int trailDistance)
     {
         InitialStopLoss = initialStopLoss;
         TrailTrigger = trailTrigger;
         TrailDistance = trailDistance;
-        CurrentStopLoss = buyInPrice - initialStopLoss;
+        CurrentStopLoss = 0;
     }
 
     public virtual void Initialize(Bar bar)

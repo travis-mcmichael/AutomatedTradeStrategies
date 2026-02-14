@@ -1,5 +1,6 @@
 using AutomatedTrading.Core.Models;
 using AutomatedTrading.Core.Signals;
+using AutomatedTrading.Core.Framework;
 
 namespace AutomatedTrading.Core.Tests.Signals;
 
@@ -9,8 +10,6 @@ public class IsTrendingSignalTest
     public void ReturnsTrue_WhenIncreasing()
     {
         var strength = 3;
-        var increasing = true;
-
         var bars = new List<Bar>
         {
             new (81100, 6902.75, 6905.25, 6902.5, 6903.25, 283),
@@ -18,7 +17,7 @@ public class IsTrendingSignalTest
             new (81300, 6904.25, 6905.25, 6900.25, 6905.25, 467),
         };
 
-        var signal = new IsTrending(strength, increasing);
+        var signal = new IsTrending(strength, PriceDirection.INCREASING);
         Assert.True(signal.IsTriggered(bars));
     }
 
@@ -26,8 +25,6 @@ public class IsTrendingSignalTest
     public void ReturnsTrue_WhenDecreasing()
     {
         var strength = 3;
-        var increasing = false;
-
         var bars = new List<Bar>
         {
             new (81100, 6906.25, 6905.25, 6900.25, 6905.25, 467),
@@ -35,7 +32,7 @@ public class IsTrendingSignalTest
             new (81300, 6904.75, 6905.25, 6902.5, 6903.25, 283),
         };
 
-        var signal = new IsTrending(strength, increasing);
+        var signal = new IsTrending(strength, PriceDirection.DECREASING);
         Assert.True(signal.IsTriggered(bars));
     }
 
@@ -52,8 +49,8 @@ public class IsTrendingSignalTest
             new (081600, 6902.75, 6905, 6903.25, 6904, 332),
         };
 
-        var signal = new IsTrending(strength, increasing);
-        var signal2 = new IsTrending(strength, !increasing);
+        var signal = new IsTrending(strength, PriceDirection.INCREASING);
+        var signal2 = new IsTrending(strength, PriceDirection.DECREASING);
         
         Assert.False(signal.IsTriggered(bars));
         Assert.False(signal2.IsTriggered(bars));

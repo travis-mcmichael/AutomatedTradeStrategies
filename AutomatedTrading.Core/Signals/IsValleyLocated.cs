@@ -1,10 +1,11 @@
 using AutomatedTrading.Core.Models;
+using AutomatedTrading.Core.Framework;
 using System.Collections.Generic;
 using System.Linq;
 
 namespace AutomatedTrading.Core.Signals;
 
-public class IsValleyLocated : ISignal
+public class IsValleyLocated : ISignal, IHasLog
 {
     /// <summary>
     /// Number of bars to look ahead/behind when considering a bar as a peak
@@ -20,7 +21,7 @@ public class IsValleyLocated : ISignal
     /// Bars that satisfy the valley-detection logic in the supplied range.
     /// </summary>
     public List<Bar> Valleys { get; } = new List<Bar>();
-
+    public string Log { get; set; } = "";
     public IsValleyLocated(int strength, int pointMovementThreshold)
     {
         this.strength = strength;
@@ -65,6 +66,8 @@ public class IsValleyLocated : ISignal
         }
 
         Valleys.AddRange(valleys);
+
+        Log = "IsValleyLocated.IsTriggered: Valleys detected - " + string.Join(",", valleys.Select(x => $"{x.Close:#.##} @ {x.Time}" ));
         return valleys.Count > 0;
     }
 
