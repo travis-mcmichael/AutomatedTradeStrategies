@@ -40,20 +40,25 @@ public class IsPeakLocated : ISignal
     /// <returns>Boolean whether subset has any peaks (sets Peaks property if true).</returns>
     public bool IsTriggered(List<Bar> bars)
     {
-        if (bars.Count < strength * 2 + 1)
+        var segmentLength = strength * 2 + 1;
+        if (bars.Count < segmentLength)
             return false;
-
-        for (var i = 0; i < bars.Count; i++)
+        
+        var peaks = new List<Bar>();
+        for (var i = strength; i < bars.Count - strength; i++)
         {
             var skip = false;
+            var barToEvaluate = bars[i];
+            System.Console.WriteLine($"Evaluating bar {barToEvaluate.ToLog()}");
 
-            // evaluate each High value {strength} records before and after the current bar.
-            var subset = bars.GetRange(i - strength, i + strength);
+            // evaluate each bar's value {strength} records before and after the current bar.
+            var subset = bars.GetRange(i - strength, segmentLength);
+
+            // if another bar within {strength} bars has a higher High than the current bar,
+            // mark it for skipping. 
             for (var j = 0; j < subset.Count; j++)
             {
-                // if another bar within {strength} bars has a higher High than the current bar,
-                // mark it for skipping. 
-                if (bars[j].High > bars[i].High - ignoreThreshold)
+                if (subset[j].Close > barToEvaluate.Close) // - ignoreThreshold)
                 {
                     skip = true;
                     break;
@@ -64,12 +69,13 @@ public class IsPeakLocated : ISignal
                 continue;
 
             // if the price movement in this set isn't above the threshold
-            if (bars[i].High - subset.Min(x => x.Low) > pointMovementThreshold)
+            if (barToEvaluate.Close - subset.Min(x => x.Close) < pointMovementThreshold)
                 continue;
 
-            Peaks.Add(bars[i]);
+            peaks.Add(barToEvaluate);
         }
 
-        return Peaks.Count > 0;
+        Peaks.AddRange(peaks);
+        return peaks.Count > 0;
     }
 }
