@@ -5,7 +5,7 @@ using System.Linq;
 using AutomatedTrading.Core.Models;
 using AutomatedTrading.Core.Signals;
 
-namespace AutomatedTrading.Core.Tests.Signals;
+namespace AutomatedTrading.Core.Test.Signals;
 
 public class IsSessionLowSignalTest
 {
@@ -19,9 +19,15 @@ public class IsSessionLowSignalTest
             .LoadFile(testFile)
             .Take(18);
 
-        var expected = bars.Select(x => x.Time == 180000);
+        var expected = bars.Select(x => x.Time == 1800);
         var sessionLow = bars.Min(x => x.Close);
-        var signalResults = bars.Select(x => new IsSessionLow(180000, sessionLow, bars.Count()).IsTriggered(new List<Bar> { x }));
+
+        foreach (var bar in bars)
+        {
+            Console.WriteLine(bar.ToLog());
+        }
+
+        var signalResults = bars.Select(x => new IsSessionLow(1800, sessionLow, bars.Count()).IsTriggered(new List<Bar> { x }));
         Assert.Equal(expected, signalResults);
     }
 }

@@ -1,7 +1,7 @@
 using AutomatedTrading.Core.Models;
 using AutomatedTrading.Core.Signals;
 
-namespace AutomatedTrading.Core.Tests.Signals;
+namespace AutomatedTrading.Core.Test.Signals;
 
 public class IsPeakLocatedSignalTest
 {

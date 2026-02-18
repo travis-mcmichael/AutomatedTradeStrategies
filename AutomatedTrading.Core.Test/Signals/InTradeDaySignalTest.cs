@@ -2,7 +2,7 @@ using AutomatedTrading.Core.Models;
 using AutomatedTrading.Core.Signals;
 using System.Collections.Generic;
 
-namespace AutomatedTrading.Core.Tests.Signals;
+namespace AutomatedTrading.Core.Test.Signals;
 
 public class InTradeDaySignalTest
 {

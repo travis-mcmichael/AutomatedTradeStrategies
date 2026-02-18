@@ -53,7 +53,7 @@ public class IsTrending : ISignal, IHasLog
             // If the segment's Close is greater than last segment's close OR if the segment's Close is higher than it's open.
             if (bars[i].Close > bars[i - 1].Close || bars[i].Close > bars[i].Open)
             {
-                Log = $"IsTrending(decreasing).Evaluate: results=false, current={bars[i].ToLog()}, last={bars[i].ToLog}";
+                Log = $"IsTrending(decreasing).Evaluate: results=false, current={bars[i].ToLog()}, last={bars[i - 1].ToLog()}";
                 return false;
             }
         }

@@ -44,10 +44,10 @@ public class BarChange : ISignal, IHasLog
             segment = bars;
         }
 
-        var close = bars.First().Close;
+        var close = bars.Last().Close;
         if (priceDirection == PriceDirection.INCREASING)
         {
-            var min = segment.Min(x => x.Close);
+            var min = segment.First().Open;
             if (close - min < pointsChangeThreshold)
             {
                 Log = $"BarChange.IsTriggered: result=false, close={close}, min={min}";
@@ -56,7 +56,7 @@ public class BarChange : ISignal, IHasLog
         }
         else
         {
-            var max = segment.Max(x => x.Close);
+            var max = segment.First().Open;
             if (max - close < pointsChangeThreshold)
             {
                 Log = $"BarChange.IsTriggered: result=false, close={close}, max={max}";

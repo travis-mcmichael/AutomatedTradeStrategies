@@ -2,7 +2,7 @@ using AutomatedTrading.Core.Models;
 using AutomatedTrading.Core.Signals;
 using AutomatedTrading.Core.Framework;
 
-namespace AutomatedTrading.Core.Tests.Signals;
+namespace AutomatedTrading.Core.Test.Signals;
 
 public class BarChangeSignalTest
 {
@@ -11,7 +11,6 @@ public class BarChangeSignalTest
     {
         var pointChangeThreshold = 10;
         var barMax = 5;
-        var increase = true;
 
         var bars = new List<Bar>
         {
@@ -21,7 +20,7 @@ public class BarChangeSignalTest
             new (85200, 6986, 6987.5, 6983.25, 6986.75, 4442),
             new (85300, 6986.75, 6989.25, 6983.75, 6988.75, 4158),
             new (85400, 6988.5, 6991, 6987.25, 6990.25, 4487), 
-            new (85500, 6990.5, 6994.5, 6998.75, 6994.25, 4505),
+            new (85500, 6990.5, 6994.5, 6998.75, 6997, 4505),
         };
 
         var signal = new BarChange(pointChangeThreshold, barMax, PriceDirection.INCREASING);

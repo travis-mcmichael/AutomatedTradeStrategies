@@ -5,7 +5,7 @@ using System.Linq;
 using AutomatedTrading.Core.Models;
 using AutomatedTrading.Core.Strategies;
 
-namespace AutomatedTrading.Core.Tests.Strategies;
+namespace AutomatedTrading.Core.Test.Strategies;
 
 public class TrailingStopStrategyTest
 {

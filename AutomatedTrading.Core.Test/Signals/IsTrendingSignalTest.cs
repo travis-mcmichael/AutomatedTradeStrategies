@@ -2,7 +2,7 @@ using AutomatedTrading.Core.Models;
 using AutomatedTrading.Core.Signals;
 using AutomatedTrading.Core.Framework;
 
-namespace AutomatedTrading.Core.Tests.Signals;
+namespace AutomatedTrading.Core.Test.Signals;
 
 public class IsTrendingSignalTest
 {
@@ -40,7 +40,6 @@ public class IsTrendingSignalTest
     public void ReturnsFalse_WhenNotIncreasingOrDecreasing()
     {
         var strength = 3;
-        var increasing = true;
 
         var bars = new List<Bar>
         {

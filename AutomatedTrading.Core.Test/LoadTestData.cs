@@ -5,7 +5,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using AutomatedTrading.Core.Models;
-namespace AutomatedTrading.Core.Tests;
+namespace AutomatedTrading.Core.Test;
 
 public class LoadTestData
 {

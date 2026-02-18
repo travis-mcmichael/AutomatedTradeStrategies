@@ -24,15 +24,10 @@ public class ThreeRedBarsTenPointDrop : TrailingStopStrategy, IHasLog
 
     public bool Evaluate(List<Bar> bars)
     {
-        if (bars.Any() && bars.First().Time >= AppConstants.TRADE_DAY_START && bars.First().Time <= AppConstants.TRADE_DAY_END)
-            return false; 
-        
-        bars = bars.Where(x => x.Time >= AppConstants.TRADE_DAY_START && x.Time <= AppConstants.TRADE_DAY_END).ToList();
-
         if (!bars.Any())
             return false;
 
-        marketState.OnNewBar(bars.First());
+        marketState.OnNewBar(bars.Last());
         var lastThreeBarsRed = new IsTrending(3, PriceDirection.DECREASING);
         var tenPointDrop = new BarChange(10, 3, PriceDirection.DECREASING);
 
@@ -40,7 +35,7 @@ public class ThreeRedBarsTenPointDrop : TrailingStopStrategy, IHasLog
         var tenPointDropSignal = tenPointDrop.IsTriggered(bars);
 
         Log = LogBuilder.GetEvaluationResultLog(
-            bars.First(),
+            bars.Last(),
             "ThreeRedBarsTenPointDrop.Evaluate",
             new Dictionary<string, object>
             {
@@ -50,5 +45,10 @@ public class ThreeRedBarsTenPointDrop : TrailingStopStrategy, IHasLog
         );
 
         return lastThreeBarsRedSignal && tenPointDropSignal;
+    }
+
+    public string GetSessionSummaryLog()
+    {
+        return LogBuilder.GetSessionSummaryLog(marketState);
     }
 }
