@@ -7,11 +7,11 @@ namespace AutomatedTrading.Core.Test.Signals;
 public class InTradeDaySignalTest
 {
     [Fact]
-    public void ReturnsTrue_WhenBetween8and4()
+    public void ReturnsTrue_WhenBetweenEightThirtyandFour()
     {
         var bars = new List<Bar>
         {
-            new (80100, 100, 105, 99, 104, 1000)
+            new (83100, 100, 105, 99, 104, 1000)
         };
 
         var signal = new InTradeDay();
