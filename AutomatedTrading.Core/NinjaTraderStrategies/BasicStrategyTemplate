@@ -1,0 +1,165 @@
+#region Using declarations
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.ComponentModel.DataAnnotations;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Xml.Serialization;
+using NinjaTrader.Cbi;
+using NinjaTrader.Gui;
+using NinjaTrader.Gui.Chart;
+using NinjaTrader.Gui.SuperDom;
+using NinjaTrader.Gui.Tools;
+using NinjaTrader.Data;
+using NinjaTrader.NinjaScript;
+using NinjaTrader.Core.FloatingPoint;
+using NinjaTrader.NinjaScript.Indicators;
+using NinjaTrader.NinjaScript.DrawingTools;
+
+using AutomatedTrading.Core.Framework;
+using AutomatedTrading.Core.Models;
+using AutomatedTrading.Core.Signals;
+using AutomatedTrading.Core.Strategies;
+
+#endregion
+
+//This namespace holds Strategies in this folder and is required. Do not change it. 
+namespace NinjaTrader.NinjaScript.Strategies
+{
+    public class BenchmarkStrategy1 : Strategy
+    {
+        const string STRATEGY_ID = "TMcMBenchMarkStrategy1.0";
+
+        TrailingStopStrategy strategy;
+        bool strategyInitialized = false;
+        int segmentLookback = 10;
+
+        MarketState marketState;
+
+        /// <summary>
+        /// The time when the strategy is allowed to enter a trade.
+        /// </summary>
+        [NinjaScriptProperty]
+        [Range(1, int.MaxValue)]
+        [Display(Name = "Trade Start Time", Order = 1)]
+        public int TradeStart { get; set; }
+
+        /// <summary>
+        /// The time when the strategy is no longer allowed to enter a trade.
+        /// </summary>
+        [NinjaScriptProperty]
+        [Range(1, int.MaxValue)]
+        [Display(Name = "Trade End Time", Order = 2)]
+        public int TradeEnd { get; set; }
+
+        /// <summary>
+        /// The starting stop-loss value when entering a trade.
+        /// </summary>
+        [NinjaScriptProperty]
+        [Range(1, int.MaxValue)]
+        [Display(Name = "Initial Stop Loss", Order = 3)]
+        public int InitialStopLoss { get; set; }
+
+        /// <summary>
+        /// The profit amount to trigger the logic to update the stop-loss amount. 
+        /// </summary>
+        [NinjaScriptProperty]
+        [Range(1, int.MaxValue)]
+        [Display(Name = "Trail Trigger", Order = 4)]
+        public int TrailTrigger { get; set; }
+
+        /// <summary>
+        /// The increments used when updating the stop-loss amount. 
+        /// </summary>
+        [NinjaScriptProperty]
+        [Range(1, int.MaxValue)]
+        [Display(Name = "Trail Distance", Order = 5)]
+        public int TrailDistance { get; set; }
+
+        protected override void OnStateChange()
+        {
+            if (State == State.SetDefaults)
+            {
+                Description = @"Enter the description for your new custom Strategy here.";
+                Name = STRATEGY_ID;
+                Calculate = Calculate.OnBarClose;
+                EntriesPerDirection = 1;
+                EntryHandling = EntryHandling.AllEntries;
+                IsExitOnSessionCloseStrategy = true;
+                ExitOnSessionCloseSeconds = 30;
+                IsFillLimitOnTouch = false;
+                MaximumBarsLookBack = MaximumBarsLookBack.TwoHundredFiftySix;
+                OrderFillResolution = OrderFillResolution.Standard;
+                Slippage = 0;
+                StartBehavior = StartBehavior.WaitUntilFlat;
+                TimeInForce = TimeInForce.Gtc;
+                TraceOrders = false;
+                RealtimeErrorHandling = RealtimeErrorHandling.StopCancelClose;
+                StopTargetHandling = StopTargetHandling.PerEntryExecution;
+                BarsRequiredToTrade = 20;
+                // Disable this property for performance gains in Strategy Analyzer optimizations
+                // See the Help Guide for additional information
+                IsInstantiatedOnEachOptimizationIteration = true;
+
+                TradeStart = 84500;
+                TradeEnd = 110000;
+                InitialStopLoss = 20;
+                TrailTrigger = 5;
+                TrailDistance = 2;
+
+                strategy = new TrailingStopStrategy(InitialStopLoss, TrailTrigger, TrailDistance);
+                strategyInitialized = false;
+
+                marketState = new MarketState();
+            }
+            else if (State == State.Configure)
+            {
+            }
+        }
+
+        protected override void OnBarUpdate()
+        {
+            if (CurrentBar < segmentLookback)
+                return;
+
+            var currentTime = ToTime(Time[0]);
+            var bars = GetBars(Time, Open, High, Low, Close, Volume, segmentLookback);
+            var bar = bars.First();
+
+            if (!new InTradeDay().IsTriggered(bars))
+                return;
+
+            Print($"Evaluating at latest bar {bar.ToLog()}");
+
+            if (!strategyInitialized)
+            {
+                strategy.Initialize(bar);
+                strategyInitialized = true;
+            }
+
+
+        }
+
+        private List<AutomatedTrading.Core.Models.Bar> GetBars(TimeSeries times,
+            ISeries<double> opens,
+            ISeries<double> highs,
+            ISeries<double> lows,
+            ISeries<double> closes,
+            VolumeSeries volumes,
+            int barCount = 1)
+        {
+            var list = new List<AutomatedTrading.Core.Models.Bar>();
+            for (var i = 0; i < barCount; i++)
+            {
+                var bar = new AutomatedTrading.Core.Models.Bar(ToTime(Time[i]), opens[i], highs[i], lows[i], closes[i], volumes[i]);
+                list.Add(bar);
+            }
+            return list;
+        }
+    }
+}
