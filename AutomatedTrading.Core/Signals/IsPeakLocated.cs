@@ -15,11 +15,6 @@ public class IsPeakLocated : ISignal, IHasLog
     private int strength { get; } = 0;
 
     /// <summary>
-    /// Amount the price must change between bars to recognize the change as significant.
-    /// </summary>
-    private int ignoreThreshold { get; } = 0;
-
-    /// <summary>
     /// Amount the total price change must exceed to trigger signal.
     /// </summary>
     private int pointMovementThreshold { get; } = 0;
@@ -31,10 +26,9 @@ public class IsPeakLocated : ISignal, IHasLog
 
     public string Log { get; set; } = "";
 
-    public IsPeakLocated(int strength, int ignoreThreshold, int pointMovementThreshold)
+    public IsPeakLocated(int strength, int pointMovementThreshold)
     {
         this.strength = strength;
-        this.ignoreThreshold = ignoreThreshold;
         this.pointMovementThreshold = pointMovementThreshold;
     }
 

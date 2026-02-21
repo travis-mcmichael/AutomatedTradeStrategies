@@ -44,7 +44,7 @@ public class BarChange : ISignal, IHasLog
             segment = bars;
         }
 
-        var close = bars.Last().Close;
+        var close = segment.Last().Close;
         if (priceDirection == PriceDirection.INCREASING)
         {
             var min = segment.First().Open;

@@ -1,3 +1,4 @@
+using AutomatedTrading.Core.Framework;
 using AutomatedTrading.Core.Models;
 
 namespace AutomatedTrading.Core.Strategies;
@@ -5,7 +6,7 @@ namespace AutomatedTrading.Core.Strategies;
 /// <summary>
 /// Class to keep all logic related to maintain a trailing stop strategy.
 /// </summary>
-public class TrailingStopStrategy
+public class TrailingStopStrategy : IHasLog
 {
     /// <summary>
     /// Starting stop-loss points.
@@ -31,6 +32,8 @@ public class TrailingStopStrategy
     /// Highest price since buying in.
     /// </summary>
     public double HighestPrice { get; set; } = 0;
+
+    public string Log {get; private set;} = "";
 
     /// <summary>
     /// Default constructor.
@@ -63,6 +66,8 @@ public class TrailingStopStrategy
         if (CurrentStopLoss == 0)
         {
             CurrentStopLoss = HighestPrice - InitialStopLoss;
+            
+            Log = $"TrailingStop.EvaluateStopLoss - result: TRUE, CurrentStopLoss: {CurrentStopLoss:#.##}, HighestPrice: {HighestPrice:#.##}, InitialStop: {InitialStopLoss:#.##}";
             return true;
         }
 
@@ -73,10 +78,12 @@ public class TrailingStopStrategy
             if (newStop > CurrentStopLoss)
             {
                 CurrentStopLoss = newStop;
+                Log = $"TrailingStop.EvaluateStopLoss - result: TRUE, CurrentStopLoss: {CurrentStopLoss:#.##}, HighestPrice: {HighestPrice:#.##}, TrailDistance: {TrailDistance:#.##}";
                 return true;
             }
         }
 
+        Log = $"TrailingStop.EvaluateStopLoss - result: FALSE, CurrentStopLoss: {CurrentStopLoss:#.##}, HighestPrice: {HighestPrice:#.##}";
         return false;
     }
 }
