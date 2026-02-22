@@ -76,7 +76,6 @@ public class ScalpStrategyEvaluator
         f[3] = computeZScore(ZScoreLookback, bars);
         if (bars[ReturnLookback].Close > 0)
         {
-            Console.WriteLine("bars[ReturnLookback].Close > 0");
             f[4] = (bars[0].Close - bars[ReturnLookback].Close) / bars[ReturnLookback].Close;
         }
         else
@@ -239,14 +238,14 @@ public class ScalpStrategyEvaluator
             var lines = File.ReadAllLines(ScalerPath);
             if (lines.Length < 3)
             {
-                // TODO: LOGGING
+                Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} - loadScalerParams : not enough lines to evaluate");
                 return;
             }
 
             var names = lines.First().Split(',');
             if (names.Length != FeatureCount)
             {
-                // TODO: LOGGING
+                Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} - loadScalerParams : names != FeatureCount");
                 return;
             }
             var meanParts = lines[1].Split(',');
