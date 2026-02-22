@@ -10,7 +10,7 @@ public class AppConstants
     /// <summary>
     /// Time to start the trade day.
     /// </summary>
-    public const int TRADE_DAY_START = 80000;
+    public const int TRADE_DAY_START = 83000;
 
     /// <summary>
     ///  Time to end the trade day.

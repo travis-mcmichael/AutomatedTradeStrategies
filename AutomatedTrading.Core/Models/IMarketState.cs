@@ -6,6 +6,7 @@ public interface IMarketState
 {
     IList<Bar> Peaks { get; }
     IList<Bar> Valleys { get; }
+    Bar? DayStart { get; }
     Bar? DayHigh { get; }
     Bar? DayLow { get; }
     int BarCount { get; set; }

@@ -7,6 +7,7 @@ public class MarketState : IMarketState
 {
     public IList<Bar> Peaks { get; } = new List<Bar>();
     public IList<Bar> Valleys { get; } = new List<Bar>();
+    public Bar? DayStart { get; private set; }
     public Bar? DayHigh { get; private set; }
     public Bar? DayLow { get; private set; }
     public int BarCount { get; set; } = 0;
@@ -15,6 +16,11 @@ public class MarketState : IMarketState
     {
         if (bar.Time < AppConstants.TRADE_DAY_START || bar.Time > AppConstants.TRADE_DAY_END)
             return;
+
+        if (DayStart == null)
+        {
+            DayStart = bar;
+        }
 
         if ((DayLow?.Close ?? 0) == 0 || bar.Close < DayLow?.Close)
         {
@@ -30,8 +36,6 @@ public class MarketState : IMarketState
     public void OnNewSession(Bar bar)
     {
         BarCount = 0;
-        //DayHigh = bar;
-        //DayLow = bar;
         Peaks.Clear();
         Valleys.Clear();
     }

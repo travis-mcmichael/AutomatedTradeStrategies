@@ -1,7 +1,7 @@
 using AutomatedTrading.Core.Models;
 using AutomatedTrading.Core.Signals;
 
-namespace AutomatedTrading.Core.Tests.Signals;
+namespace AutomatedTrading.Core.Test.Signals;
 
 public class IsPeakLocatedSignalTest
 {
@@ -23,7 +23,7 @@ public class IsPeakLocatedSignalTest
             .LoadFile(testFile, dataDate)
             .Where(x => x.Time >= tradeWindowStart && x.Time < tradeWindowEnd)
             .ToList();
-        var signal = new IsPeakLocated(strength, ignoreThreshold, pointMovementThreshold);
+        var signal = new IsPeakLocated(strength, pointMovementThreshold);
 
         var expected = new Dictionary<int, double> 
         { 

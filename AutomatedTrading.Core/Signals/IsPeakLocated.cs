@@ -1,20 +1,18 @@
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using AutomatedTrading.Core.Models;
+using AutomatedTrading.Core.Framework;
 
 namespace AutomatedTrading.Core.Signals;
 
-public class IsPeakLocated : ISignal
+public class IsPeakLocated : ISignal, IHasLog
 {
     /// <summary>
     /// Number of bars to look ahead/behind when considering a bar as a peak
     /// </summary>
     private int strength { get; } = 0;
-
-    /// <summary>
-    /// Amount the price must change between bars to recognize the change as significant.
-    /// </summary>
-    private int ignoreThreshold { get; } = 0;
 
     /// <summary>
     /// Amount the total price change must exceed to trigger signal.
@@ -26,10 +24,11 @@ public class IsPeakLocated : ISignal
     /// </summary>
     public List<Bar> Peaks { get; } = new List<Bar>();
 
-    public IsPeakLocated(int strength, int ignoreThreshold, int pointMovementThreshold)
+    public string Log { get; set; } = "";
+
+    public IsPeakLocated(int strength, int pointMovementThreshold)
     {
         this.strength = strength;
-        this.ignoreThreshold = ignoreThreshold;
         this.pointMovementThreshold = pointMovementThreshold;
     }
 
@@ -76,6 +75,8 @@ public class IsPeakLocated : ISignal
         }
 
         Peaks.AddRange(peaks);
+        Log = "IsPeakLocated.IsTriggered: Peaks detected - " + string.Join(",", peaks.Select(x => $"{x.Close:#.##} @ {x.Time}" ));
+
         return peaks.Count > 0;
     }
 }

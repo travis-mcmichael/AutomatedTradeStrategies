@@ -5,7 +5,7 @@ using System.Linq;
 using AutomatedTrading.Core.Models;
 using AutomatedTrading.Core.Strategies;
 
-namespace AutomatedTrading.Core.Tests.Strategies;
+namespace AutomatedTrading.Core.Test.Strategies;
 
 public class TrailingStopStrategyTest
 {
@@ -27,12 +27,12 @@ public class TrailingStopStrategyTest
             .Where(x => x.Time >= tradeWindowStart && x.Time < tradeWindowEnd);
         var buyInPrice = bars.First().Close; // assume we buy at the end of the first bar
 
-        var strategy = new TrailingStopStrategy(initialStopLoss, trailTrigger, trailDistance, buyInPrice);
+        var strategy = new TrailingStopStrategy(initialStopLoss, trailTrigger, trailDistance);
         var results = new List<bool>(); // false on first bar
-        var stopLosses = new List<double> { strategy.CurrentStopLoss };
+        var stopLosses = new List<double> { };
         var stopHits = new List<int>(); // log the time the updates stops would get hit
 
-        var expectedResults = bars.Select(x => new int[] { 101900, 102300 }.Contains(x.Time));
+        var expectedResults = bars.Select(x => new int[] { 100000, 101900, 102300 }.Contains(x.Time));
         var expectedStopLosses = new List<double> { 6812.25, 6821.5, 6831.75 };
 
         foreach (var bar in bars)

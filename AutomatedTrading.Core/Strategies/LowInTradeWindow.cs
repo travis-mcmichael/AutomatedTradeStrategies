@@ -24,11 +24,6 @@ public class LowInTradeWindow : TrailingStopStrategy, IHasLog
     public int TradeWindowEnd { get; private set; }
 
     /// <summary>
-    /// Log.
-    /// </summary>
-    public string Log { get; private set; } = "";
-
-    /// <summary>
     /// Default constructor.
     /// </summary>
     /// <param name="tradeWindowStart"></param>
@@ -36,8 +31,8 @@ public class LowInTradeWindow : TrailingStopStrategy, IHasLog
     /// <param name="initialStopLoss"></param>
     /// <param name="trailTrigger"></param>
     /// <param name="trailDistance"></param>
-    public LowInTradeWindow(int tradeWindowStart, int tradeWindowEnd, int initialStopLoss, int trailTrigger, int trailDistance, double positionAverage)
-    : base(initialStopLoss, trailTrigger, trailDistance, positionAverage)
+    public LowInTradeWindow(int tradeWindowStart, int tradeWindowEnd, int initialStopLoss, int trailTrigger, int trailDistance)
+    : base(initialStopLoss, trailTrigger, trailDistance)
     {
         TradeWindowStart = tradeWindowStart;
         TradeWindowEnd = tradeWindowEnd;
@@ -86,5 +81,10 @@ public class LowInTradeWindow : TrailingStopStrategy, IHasLog
         }
 
         return inTradeWindowSignalled && isSessionLowSignalled;
+    }
+
+    public string GetSessionSummaryLog()
+    {
+        return LogBuilder.GetSessionSummaryLog(marketState);
     }
 }

@@ -2,33 +2,69 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using AutomatedTrading.Core.Models;
+using AutomatedTrading.Core.Framework;
 
 namespace AutomatedTrading.Core.Signals;
 
-public class BarChange : ISignal
+public class BarChange : ISignal, IHasLog
 {
-    private int pointsChangeThreshold;
-    private int barMax;
-    private bool increase;
+    private readonly int pointsChangeThreshold;
+    private readonly int barMax;
+    private readonly PriceDirection priceDirection;
+    public string Log { get; set; } = "";
 
-    public BarChange(int pointsChangeThreshold, int barMax, bool increase)
+    public BarChange(int pointsChangeThreshold, int barMax, PriceDirection priceDirection)
     {
         this.pointsChangeThreshold = pointsChangeThreshold;
         this.barMax = barMax;
-        this.increase = increase;
+        this.priceDirection = priceDirection;
     }
 
     public bool IsTriggered(List<Bar> bars)
     {
-        if (bars.Count < 2)
+        var segment = new List<Bar>();
+        if (barMax < 2 || pointsChangeThreshold < 1)
+        {
+            Log = $"BarChange.IsTriggered: result=false, bad setup values (barMax={barMax}, theshold={pointsChangeThreshold})";
             return false;
+        }
 
-        var outlier = increase ? bars.Min(x => x.Close) : bars.Max(x => x.Close);
-        var close = bars.Last().Close;
+        if (bars.Count < 2 || barMax < 2)
+        {
+            Log = $"BarChange.IsTriggered: result=false, not enough data (barCount={bars.Count})";
+            return false;   
+        }
 
-        if (Math.Abs(close - outlier) < pointsChangeThreshold)
-            return false;
+        if (bars.Count > barMax)
+        {
+            segment = bars.Skip(bars.Count - barMax).ToList();;
+        }
+        else
+        {
+            segment = bars;
+        }
 
+        var close = segment.Last().Close;
+        if (priceDirection == PriceDirection.INCREASING)
+        {
+            var min = segment.First().Open;
+            if (close - min < pointsChangeThreshold)
+            {
+                Log = $"BarChange.IsTriggered: result=false, close={close}, min={min}";
+                return false;
+            }
+        }
+        else
+        {
+            var max = segment.First().Open;
+            if (max - close < pointsChangeThreshold)
+            {
+                Log = $"BarChange.IsTriggered: result=false, close={close}, max={max}";
+                return false;
+            }
+        }
+
+        Log = $"BarChange.IsTriggered: result=true, close={close}";
         return true;
     }
 }
