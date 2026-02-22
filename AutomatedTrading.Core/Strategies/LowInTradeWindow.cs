@@ -24,11 +24,6 @@ public class LowInTradeWindow : TrailingStopStrategy, IHasLog
     public int TradeWindowEnd { get; private set; }
 
     /// <summary>
-    /// Log.
-    /// </summary>
-    public string Log { get; private set; } = "";
-
-    /// <summary>
     /// Default constructor.
     /// </summary>
     /// <param name="tradeWindowStart"></param>

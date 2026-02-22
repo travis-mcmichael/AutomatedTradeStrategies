@@ -33,7 +33,7 @@ public class TrailingStopStrategy : IHasLog
     /// </summary>
     public double HighestPrice { get; set; } = 0;
 
-    public string Log {get; private set;} = "";
+    public string Log {get; protected set;} = "";
 
     /// <summary>
     /// Default constructor.
