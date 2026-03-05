@@ -31,4 +31,10 @@ public class AppConstants
     /// Test data was exported in UTC. This is to correct that (easier than editing exported data).
     /// </summary>
     public const int TEST_DATA_OFFSET_HOURS = -6;
+
+    /// <summary>
+    /// Default connection for my SQLITE database.
+    /// </summary>
+    public const string SQLITE_CONNECTION = "Data Source=C:\\dev\\data\\SQLite\\home.db;";
+
 }

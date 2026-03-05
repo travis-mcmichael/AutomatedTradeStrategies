@@ -79,3 +79,8 @@ public class InferenceResponse
 
     public InferenceResponse() { }
 }
+
+public class InsertTicksRequest
+{
+        public IList<TickData> Ticks { get; set; } = [];
+}

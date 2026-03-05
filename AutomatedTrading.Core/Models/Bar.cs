@@ -1,8 +1,9 @@
 using System;
+using AutomatedTrading.Core.Framework;
 
 namespace AutomatedTrading.Core.Models;
 
-public class Bar
+public class Bar : IBarModel
 {
     public int Time { get; set; }
     public double Open { get; set; }
@@ -10,7 +11,7 @@ public class Bar
     public double Low { get; set; }
     public double Close { get; set; }
     public double Volume { get; set; }
-    public DateTime? Date {get;set;} = null;
+    public DateTime? Timestamp { get; set; } = null;
 
     public Bar()
     {
@@ -35,10 +36,10 @@ public class Bar
         Low = low;
         Close = close;
         Volume = volume;
-        Date = date;
+        Timestamp = date;
     }
     public string ToLog()
     {
-        return $"time={Time},open={Open},high={High},low={Low},close={Close},volume={Volume}" + (Date.HasValue ? $",Date={Date:yyyyMMdd}" : "");
+        return $"time={Time},open={Open},high={High},low={Low},close={Close},volume={Volume}" + (Timestamp.HasValue ? $",Date={Timestamp:yyyyMMdd}" : "");
     }
 }
