@@ -9,16 +9,16 @@ namespace AutomatedTrading.Core.Framework;
 public class Computations
 {
     #region - Bar Computations -
-    public static double Return(List<IBarModel> bars, int i, int lookback)
+    public static double Return(List<BarData> bars, int i, int lookback)
     {
         if (i < lookback) return 0;
         return bars[i].Close / bars[i - lookback].Close;
     }
 
-    public static double TrueRange(List<IBarModel> bars, int i)
+    public static double TrueRange(List<BarData> bars, int i)
     {
         if (i == 0)
-        return bars[i].High - bars[i].Low;
+            return bars[i].High - bars[i].Low;
 
         var highLow = bars[i].High - bars[i].Low;
         var highClose = Math.Abs(bars[i].High - bars[i - 1].Close);
@@ -33,25 +33,24 @@ public class Computations
         {
             double sum = 0;
             for (int j = 1; j <= period; j++)
-            sum += bars[j].TrueRange;
-            
+                sum += bars[j].TrueRange ?? 0;
+
             return sum / period;
         }
 
-    return ((bars[i - 1].ATR_14 * (period - 1)) 
-           + bars[i].TrueRange) / period;
+        return ((bars[i - 1].ATR_14 * (period - 1)) + bars[i].TrueRange ?? 0) / period;
     }
 
-    public static double ComputeEMA(List<BarData> bars, int i, int period, Func<IBarModel, double> selector)
+    public static double ComputeEMA(List<BarData> bars, int i, int period, Func<BarData, double> selector)
     {
         var k = 2.0 / (period + 1);
         if (i == 0)
             return selector(bars[0]);
 
-        return selector(bars[i]) * k * bars[i - 1].EMA_9 * (1 - k);
+        return selector(bars[i]) * k * bars[i - 1].EMA_9 ?? 0 * (1 - k);
     }
 
-    public static double ComputeRSI(List<IBarModel> bars, int i, int period)
+    public static double ComputeRSI(List<BarData> bars, int i, int period)
     {
         if (i < period) return 0;
         double gain = 0;
@@ -69,7 +68,7 @@ public class Computations
         return 100 - (100 / (1 + rs));
     }
 
-    public static double SMA(List<IBarModel> bars, int i, int period)
+    public static double SMA(List<BarData> bars, int i, int period)
     {
         if (i < period) return 0;
         return bars.Skip(i - period + 1)
@@ -77,7 +76,7 @@ public class Computations
         .Average(b => b.Close);
     }
 
-    public static double StandardDeviation(List<IBarModel> bars, int i, int period)
+    public static double StandardDeviation(List<BarData> bars, int i, int period)
     {
         var mean = SMA(bars, i, period);
         var slice = bars.Skip(i - period + 1).Take(period);
@@ -85,32 +84,32 @@ public class Computations
         return Math.Sqrt(variance);
     }
 
-    public static double HighLowRange(IBarModel bar)
+    public static double HighLowRange(BarData bar)
     {
         return bar.High - bar.Low;
     }
 
-    public static double BodySize(IBarModel bar)
+    public static double BodySize(BarData bar)
     {
         return Math.Abs(bar.Close - bar.Open);
     }
 
-    public static double UpperWick(IBarModel bar)
+    public static double UpperWick(BarData bar)
     {
         return bar.High - Math.Max(bar.Close, bar.Open);
     }
 
-    public static double LowerWick(IBarModel bar)
+    public static double LowerWick(BarData bar)
     {
         return Math.Min(bar.Open, bar.Close) - bar.Low;
     }
 
-    public static double ClosePosition(IBarModel bar)
+    public static double ClosePosition(BarData bar)
     {
         return (bar.Close - bar.Low) / (bar.High - bar.Low == 0 ? 1 : bar.High - bar.Low);
     }
 
-    public static double RealizedVolatility(List<IBarModel> bars, int i, int period)
+    public static double RealizedVolatility(List<BarData> bars, int i, int period)
     {
         if (i < period) return 0;
         var returns = new List<double>();
@@ -124,13 +123,13 @@ public class Computations
         return Math.Sqrt(variance);
     }
 
-    public static double Momentum(List<IBarModel> bars, int i, int window = 10)
+    public static double Momentum(List<BarData> bars, int i, int window = 10)
     {
         if (i < window - 1 || bars.Count <= window) return 0;
         return bars[i].Close - bars[i - window].Close;
     }
 
-    public static double VWAP(IBarModel bar, double cumulativePv, double cumulativeVol)
+    public static double VWAP(BarData bar, double cumulativePv, double cumulativeVol)
     {
         cumulativePv += bar.Close * bar.Volume;
         cumulativeVol += bar.Volume;
@@ -138,13 +137,12 @@ public class Computations
         return cumulativePv / cumulativeVol;
     }
 
-    public static double MinutesFromOpen(IBarModel bar, DateTime sessionOpen)
+    public static double MinutesFromOpen(BarData bar, DateTime sessionOpen)
     {
-        if (!bar.Timestamp.HasValue) return 0;
-        return (bar.Timestamp.Value  - sessionOpen).TotalMinutes;
+        return (bar.Timestamp - sessionOpen).TotalMinutes;
     }
 
-    public static double FutureReturn(List<IBarModel> bars, int i, int lookahead)
+    public static double FutureReturn(List<BarData> bars, int i, int lookahead)
     {
         if (i + lookahead >= bars.Count) return 0;
         return (bars[i + lookahead].Close / bars[i].Close) - 1.0;
@@ -155,7 +153,7 @@ public class Computations
     #region - Tick Calculations - 
     public static double Return(List<TickData> ticks, int i, int lookback)
     {
-        if (i - lookback < 0) 
+        if (i - lookback < 0)
             return 0;
         return (ticks[i].LastPrice - ticks[i - lookback].LastPrice) / ticks[i - lookback].LastPrice;
     }
@@ -190,7 +188,7 @@ public class Computations
         var sum = 0.0;
         var sumSq = 0.0;
         var count = 0;
-        
+
         for (var j = i - window + 1; j <= i; j++)
         {
             var r = (ticks[j].LastPrice - ticks[j - 1].LastPrice) / ticks[j - 1].LastPrice;
@@ -205,7 +203,7 @@ public class Computations
         return Math.Sqrt(Math.Max(variance, 0));
     }
 
-        public static double RollingVolume(List<TickData> ticks, int i, int window)
+    public static double RollingVolume(List<TickData> ticks, int i, int window)
     {
         if (i - window < 0) return 0;
         var sum = 0.0;
@@ -220,7 +218,7 @@ public class Computations
     {
         if (i - window < 0)
             return 0;
-        
+
         var sum = 0.0;
         var sumSq = 0.0;
         var count = 0;
@@ -248,7 +246,7 @@ public class Computations
             return 0;
         var current = ticks[i].LastPrice;
         var previous = ticks[i - 1].LastPrice;
-        
+
         if (current > previous)
             return ticks[i].Volume;
         if (current < previous)

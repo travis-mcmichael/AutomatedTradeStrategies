@@ -9,7 +9,7 @@ public class InTradeWindowSignalTest
     [Fact]
     public void ReturnsTrue_WhenInTradeWindow()
     {
-        var bars = new List<Bar>
+        var bars = new List<BarData>
         {
             new (80000, 100, 105, 99, 104, 1000)
         };

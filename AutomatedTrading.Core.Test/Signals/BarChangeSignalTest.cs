@@ -12,14 +12,14 @@ public class BarChangeSignalTest
         var pointChangeThreshold = 10;
         var barMax = 5;
 
-        var bars = new List<Bar>
+        var bars = new List<BarData>
         {
             new (84900, 6977.25, 6983, 6977.5, 6978.25, 4119),
             new (85000, 6978.25, 6980, 6976.75, 6980, 2717),
             new (85100, 6980, 6986.25, 6979.50, 6986.25, 5994),
             new (85200, 6986, 6987.5, 6983.25, 6986.75, 4442),
             new (85300, 6986.75, 6989.25, 6983.75, 6988.75, 4158),
-            new (85400, 6988.5, 6991, 6987.25, 6990.25, 4487), 
+            new (85400, 6988.5, 6991, 6987.25, 6990.25, 4487),
             new (85500, 6990.5, 6994.5, 6998.75, 6997, 4505),
         };
 
@@ -33,7 +33,7 @@ public class BarChangeSignalTest
         var pointChangeThreshold = 10;
         var barMax = 5;
 
-        var bars = new List<Bar>
+        var bars = new List<BarData>
         {
             new (205200, 6920.5, 6921, 6916.5, 6917.75, 1968),
             new (205300, 6917.75, 6918, 6915.25, 6917.25, 1192),
@@ -52,7 +52,7 @@ public class BarChangeSignalTest
         var pointChangeThreshold = 10;
         var barMax = 5;
 
-        var bars = new List<Bar>
+        var bars = new List<BarData>
         {
             new (203100, 6920.75, 6922.5, 6919.75, 6920.5, 2179),
             new (203200, 6920.25, 6922.75, 6918.75, 6919, 1818),

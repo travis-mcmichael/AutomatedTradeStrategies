@@ -10,9 +10,9 @@ public class ComputeFeaturesRequest
     public double? Atr14 { get; set; }
     public double? VolumeAccel { get; set; }
     public double? SessionHigh { get; set; }
-    public double? SessionLow  { get; set; }
+    public double? SessionLow { get; set; }
     public int? TickCountThisBar { get; set; }
-    public List<Bar>? Bars { get; set; }
+    public List<BarData>? Bars { get; set; }
 
     public ComputeFeaturesRequest()
     { }
@@ -23,7 +23,7 @@ public class ComputeFeaturesRequest
         double sessionHigh,
         double sessionLow,
         int tickCountThisBar,
-        List<Bar> bars)
+        List<BarData> bars)
     {
         BarTime = barTime;
         Atr14 = atr14;
@@ -35,7 +35,7 @@ public class ComputeFeaturesRequest
     }
 }
 
-public class FeaturesRequest 
+public class FeaturesRequest
 {
     public double[]? Features { get; set; }
     public FeaturesRequest(double[] features)
@@ -46,7 +46,7 @@ public class FeaturesRequest
     public FeaturesRequest() { }
 }
 
-public class FeaturesResponse 
+public class FeaturesResponse
 {
     public double[]? Features { get; set; }
     public FeaturesResponse(double[] features)
@@ -55,7 +55,7 @@ public class FeaturesResponse
     }
 
     public FeaturesResponse() { }
-} 
+}
 
 public class MetaInferenceRequest
 {
@@ -82,5 +82,5 @@ public class InferenceResponse
 
 public class InsertTicksRequest
 {
-        public IList<TickData> Ticks { get; set; } = [];
+    public IList<TickData> Ticks { get; set; } = [];
 }

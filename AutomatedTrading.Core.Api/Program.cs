@@ -49,7 +49,7 @@ app.MapPost("/scalerLoaded", () =>
 
 app.MapPost("/computeFeatures20260226", () =>
 {
-    
+
 });
 
 app.MapPost("/computeFeatures", (ComputeFeaturesRequest req) =>
@@ -61,7 +61,7 @@ app.MapPost("/computeFeatures", (ComputeFeaturesRequest req) =>
         req.SessionHigh.Value,
         req.SessionLow.Value,
         req.TickCountThisBar.Value,
-        req.Bars ?? new List<Bar>());
+        req.Bars ?? new List<BarData>());
     return Results.Ok(new FeaturesResponse(features));
 });
 
@@ -86,8 +86,8 @@ app.MapPost("/predict", (AutomatedTrading.Core.Models.Requests.Request20260226.F
 
 app.MapPost("/runMetaInference", (MetaInferenceRequest req) =>
 {
-   var result = scalpEvaluator.RunMetaInference(req.Scaled, req.BaseProbability.Value);
-   return Results.Ok(new InferenceResponse(result)); 
+    var result = scalpEvaluator.RunMetaInference(req.Scaled, req.BaseProbability.Value);
+    return Results.Ok(new InferenceResponse(result));
 });
 
 app.MapPost("/cleanupTicks", async (IConfiguration config) =>
@@ -122,7 +122,7 @@ app.MapPost("/insertTicks", async (InsertTicksRequest request, IConfiguration co
         INSERT OR REPLACE INTO TickData
         (Instrument, TickTime, LastPrice, Volume, Bid, Ask)
         VALUES ($instrument, $tickTime, $lastPrice, $volume, $bid, $ask);";
-    
+
     var instrumentParam = command.CreateParameter();
     instrumentParam.ParameterName = "$instrument";
     command.Parameters.Add(instrumentParam);

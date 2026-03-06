@@ -22,7 +22,7 @@ public class IsPeakLocated : ISignal, IHasLog
     /// <summary>
     /// Bars that satisfy the peak-detection logic in the supplied range.
     /// </summary>
-    public List<Bar> Peaks { get; } = new List<Bar>();
+    public List<BarData> Peaks { get; } = new List<BarData>();
 
     public string Log { get; set; } = "";
 
@@ -37,13 +37,13 @@ public class IsPeakLocated : ISignal, IHasLog
     /// </summary>
     /// <param name="bars">Set of bars to evaluate.</param>
     /// <returns>Boolean whether subset has any peaks (sets Peaks property if true).</returns>
-    public bool IsTriggered(List<Bar> bars)
+    public bool IsTriggered(List<BarData> bars)
     {
         var segmentLength = strength * 2 + 1;
         if (bars.Count < segmentLength)
             return false;
-        
-        var peaks = new List<Bar>();
+
+        var peaks = new List<BarData>();
         for (var i = strength; i < bars.Count - strength; i++)
         {
             var skip = false;
@@ -75,7 +75,7 @@ public class IsPeakLocated : ISignal, IHasLog
         }
 
         Peaks.AddRange(peaks);
-        Log = "IsPeakLocated.IsTriggered: Peaks detected - " + string.Join(",", peaks.Select(x => $"{x.Close:#.##} @ {x.Time}" ));
+        Log = "IsPeakLocated.IsTriggered: Peaks detected - " + string.Join(",", peaks.Select(x => $"{x.Close:#.##} @ {x.Timestamp}"));
 
         return peaks.Count > 0;
     }

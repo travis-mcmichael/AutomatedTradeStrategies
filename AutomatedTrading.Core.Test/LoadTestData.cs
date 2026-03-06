@@ -16,9 +16,9 @@ public class LoadTestData
         this.basePath = basePath;
     }
 
-    public List<Bar> LoadAll()
+    public List<BarData> LoadAll()
     {
-        var bars = new List<Bar>();
+        var bars = new List<BarData>();
         if (!Directory.Exists(basePath))
             throw new DirectoryNotFoundException($"Directory not found: {basePath}.");
 
@@ -31,10 +31,10 @@ public class LoadTestData
         return bars;
     }
 
-    public List<Bar> LoadFile(string file, string date = null)
+    public List<BarData> LoadFile(string file, string date = null)
     {
         var filePath = Path.Combine(basePath, file);
-        var bars = new List<Bar>();
+        var bars = new List<BarData>();
 
         foreach (var line in File.ReadAllLines(filePath))
         {
@@ -63,7 +63,7 @@ public class LoadTestData
             var volume = double.Parse(parts[5], CultureInfo.InvariantCulture);
 
             var numericTime = int.Parse(dateTime.ToString("HHmmss"));
-            bars.Add(new Bar(numericTime, open, high, low, close, volume));
+            bars.Add(new BarData(numericTime, open, high, low, close, volume));
         }
 
         return bars;

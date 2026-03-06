@@ -5,5 +5,5 @@ namespace AutomatedTrading.Core.Signals;
 
 public interface ISignal
 {
-    public bool IsTriggered(List<Bar> bars);
+    public bool IsTriggered(List<BarData> bars);
 }

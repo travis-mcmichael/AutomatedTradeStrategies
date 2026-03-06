@@ -26,7 +26,7 @@ public class AppConstants
     /// Directory where all the test data files are stored.
     /// </summary>
     public const string TEST_BASE_DIRECTORY = "TestData";
-    
+
     /// <summary>
     /// Test data was exported in UTC. This is to correct that (easier than editing exported data).
     /// </summary>
@@ -36,5 +36,9 @@ public class AppConstants
     /// Default connection for my SQLITE database.
     /// </summary>
     public const string SQLITE_CONNECTION = "Data Source=C:\\dev\\data\\SQLite\\home.db;";
+
+    public const int TICK_DATA_BATCH_SIZE = 250;
+
+    public const int BAR_DATA_BATCH_SIZE = 250;
 
 }

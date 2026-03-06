@@ -16,7 +16,7 @@ public class IsTrending : ISignal, IHasLog
         this.priceDirection = priceDirection;
     }
 
-    public bool IsTriggered(List<Bar> bars)
+    public bool IsTriggered(List<BarData> bars)
     {
         if (bars.Count < strength)
             return false;
@@ -32,7 +32,7 @@ public class IsTrending : ISignal, IHasLog
             return checkDecreasingTrend(segment);
     }
 
-    private bool checkDecreasingTrend(List<Bar> bars)
+    private bool checkDecreasingTrend(List<BarData> bars)
     {
         for (var i = bars.Count - 1; i > 0; i--)
         {
@@ -62,7 +62,7 @@ public class IsTrending : ISignal, IHasLog
         return true;
     }
 
-    private bool checkIncreasingTrend(List<Bar> bars)
+    private bool checkIncreasingTrend(List<BarData> bars)
     {
         for (var i = bars.Count - 1; i > 0; i--)
         {

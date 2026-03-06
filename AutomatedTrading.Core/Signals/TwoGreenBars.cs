@@ -5,7 +5,7 @@ namespace AutomatedTrading.Core.Signals;
 
 public class TwoGreenBars : ISignal
 {
-    public bool IsTriggered(List<Bar> bars)
+    public bool IsTriggered(List<BarData> bars)
     {
         if (bars.Count < 2)
             return false;

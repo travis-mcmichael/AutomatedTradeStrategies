@@ -20,7 +20,7 @@ public class IsValleyLocated : ISignal, IHasLog
     /// <summary>
     /// Bars that satisfy the valley-detection logic in the supplied range.
     /// </summary>
-    public List<Bar> Valleys { get; } = new List<Bar>();
+    public List<BarData> Valleys { get; } = new List<BarData>();
     public string Log { get; set; } = "";
     public IsValleyLocated(int strength, int pointMovementThreshold)
     {
@@ -28,13 +28,13 @@ public class IsValleyLocated : ISignal, IHasLog
         this.pointMovementThreshold = pointMovementThreshold;
     }
 
-    public bool IsTriggered(List<Bar> bars)
+    public bool IsTriggered(List<BarData> bars)
     {
         var segmentLength = strength * 2 + 1;
         if (bars.Count < segmentLength)
             return false;
-        
-        var valleys = new List<Bar>();
+
+        var valleys = new List<BarData>();
         for (var i = strength; i < bars.Count - strength; i++)
         {
             var skip = false;
@@ -67,7 +67,7 @@ public class IsValleyLocated : ISignal, IHasLog
 
         Valleys.AddRange(valleys);
 
-        Log = "IsValleyLocated.IsTriggered: Valleys detected - " + string.Join(",", valleys.Select(x => $"{x.Close:#.##} @ {x.Time}" ));
+        Log = "IsValleyLocated.IsTriggered: Valleys detected - " + string.Join(",", valleys.Select(x => $"{x.Close:#.##} @ {x.Timestamp}"));
         return valleys.Count > 0;
     }
 

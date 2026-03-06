@@ -20,7 +20,7 @@ public class IsSessionLow : ISignal, IHasLog
         BarCount = barCount;
     }
 
-    public bool IsTriggered(List<Bar> bars)
+    public bool IsTriggered(List<BarData> bars)
     {
         if (BarCount < AppConstants.MINIMUM_BARS_TO_EVALUATE)
         {

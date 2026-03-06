@@ -39,11 +39,11 @@ public class ScalpStrategyEvaluator
         switch (session.ToLower().Trim())
         {
             case "meta":
-            result = metaSession != null;
-            break;
+                result = metaSession != null;
+                break;
             default:
-            result = baseSession != null;
-            break;
+                result = baseSession != null;
+                break;
         }
 
         if (!result)
@@ -58,7 +58,7 @@ public class ScalpStrategyEvaluator
          double sessionHigh,
          double sessionLow,
          int tickCountThisBar,
-         List<Bar> bars)
+         List<BarData> bars)
     {
         Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} - Evaluator.ComputeFeatures() ");
 
@@ -66,7 +66,7 @@ public class ScalpStrategyEvaluator
         var sessionPhase = computerSessionPhase(barTime);
         f[5] = sessionPhase;
         f[0] = atr14 * sessionPhase;
-        
+
         var range = bars[0].High - bars[0].Low;
         var body = Math.Abs(bars[0].Close - bars[0].Open);
         f[1] = body / (range + 0.0001);
@@ -81,9 +81,9 @@ public class ScalpStrategyEvaluator
         else
         {
             Console.WriteLine("bars[ReturnLookback].Close <= 0 returning false");
-            return null;   
+            return null;
         }
-        
+
         f[6] = tickCountThisBar;
         f[7] = volumeAccel;
 
@@ -115,7 +115,7 @@ public class ScalpStrategyEvaluator
         if (baseSession == null)
         {
             Console.WriteLine("BaseSession = null");
-            return 0;   
+            return 0;
         }
 
         try
@@ -124,7 +124,7 @@ public class ScalpStrategyEvaluator
             var inputTensor = new DenseTensor<float>(dims);
             for (var i = 0; i < FeatureCount; i++)
             {
-                inputTensor[0, i] = (float) features[i];
+                inputTensor[0, i] = (float)features[i];
             }
 
             var inputs = new List<NamedOnnxValue>
@@ -155,14 +155,14 @@ public class ScalpStrategyEvaluator
 
         try
         {
-            var dims= new int[] { 1, MetaFeatureCount };
+            var dims = new int[] { 1, MetaFeatureCount };
             var inputTensor = new DenseTensor<float>(dims);
             for (var i = 0; i < FeatureCount; i++)
             {
-                inputTensor[0, i] = (float) scaled[i];
+                inputTensor[0, i] = (float)scaled[i];
             }
 
-            inputTensor[0, FeatureCount] = (float) baseProbability;
+            inputTensor[0, FeatureCount] = (float)baseProbability;
             var inputs = new List<NamedOnnxValue>
             {
                 NamedOnnxValue.CreateFromTensor(metaInputName, inputTensor),
@@ -182,9 +182,9 @@ public class ScalpStrategyEvaluator
     public void Dispose()
     {
         if (baseSession != null)
-        baseSession.Dispose();
+            baseSession.Dispose();
         if (metaSession != null)
-        metaSession.Dispose();
+            metaSession.Dispose();
     }
 
     private void loadBaseModel()
@@ -303,7 +303,7 @@ public class ScalpStrategyEvaluator
         return Math.Max(0.0, Math.Min(1.0, phase));
     }
 
-    private double computeZScore(int lookback, List<Bar> bars)
+    private double computeZScore(int lookback, List<BarData> bars)
     {
         var sum = 0.0;
         for (var i = 0; i < lookback; i++)
@@ -321,7 +321,7 @@ public class ScalpStrategyEvaluator
         var std = Math.Sqrt(sumSq / lookback);
         if (std < 1e-10)
             return 0;
-        
+
         return (bars[0].Close - mean) / std;
     }
 
@@ -354,7 +354,7 @@ public class ScalpStrategyEvaluator
                 {
                     float prob;
                     if (classProbs.TryGetValue(1L, out prob))
-                    return prob;
+                        return prob;
                 }
             }
 
