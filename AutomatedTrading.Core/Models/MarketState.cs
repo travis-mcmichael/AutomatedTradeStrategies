@@ -1,5 +1,4 @@
 using AutomatedTrading.Core.Framework.Extensions;
-using AutomatedTrading.Core.Models;
 using System.Collections.Generic;
 
 namespace AutomatedTrading.Core.Models;

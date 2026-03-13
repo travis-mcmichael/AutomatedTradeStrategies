@@ -2,6 +2,7 @@
 using System.Globalization;
 using AutomatedTrading.Core.Framework;
 using AutomatedTrading.Core.Models;
+using AutomatedTrading.Export.Feature.Exporters.Bar.v20260313;
 using Microsoft.Data.Sqlite;
 
 namespace NinjaTickFeatureGenerator;
@@ -12,6 +13,9 @@ class Program
     static int predictionHorizon = 20;
     static async Task Main(string[] args)
     {
+        var startDate = new DateTime(2022, 1, 1);
+        var endDate = new DateTime(2026, 1, 1);
+
         Console.WriteLine("Feature Export starting...");
         if (args.Length < 2)
         {
@@ -30,62 +34,10 @@ class Program
         else
         {
             string outputPath = $"{path}\\barFeatures_{DateTime.Today:yyyyMMdd}.csv";
-            await GenerateBarFeatureStreaming(outputPath);
+            await BarExporter.GenerateFeature(outputPath, startDate, endDate);
         }
 
         Console.WriteLine("Output complete.");
-    }
-
-    static async Task GenerateBarFeatureStreaming(string outputPath, DateTime startDate, DateTime endDate)
-    {
-        using var writer = new StreamWriter(outputPath);
-        var buffer = new List<BarData>(sequenceLength + predictionHorizon + 1);
-        var sampleCount = 0;
-        var headerWritten = false;
-
-        var currentStart = startDate;
-        while (currentStart < endDate)
-        {
-            var currentEnd = currentStart.AddDays(7);
-            if (currentEnd > endDate)
-                currentEnd = endDate;
-
-            Console.WriteLine($"Loading bars {currentStart} → {currentEnd}");
-            using var reader = await SqliteDataLayer.GetBarDataReader(currentStart, currentEnd);
-            while (await reader.ReadAsync())
-            {
-                var x = 0;
-                var bar = new BarData
-                {
-                    Instrument = reader.GetString(x++),
-                    Timeframe = reader.GetString(x++),
-                    Timestamp = reader.GetDateTime(x++),
-                    SessionDate = reader.GetString(x++),
-                    Open = reader.GetDouble(x++),
-                    High = reader.GetDouble(x++),
-                    Low = reader.GetDouble(x++),
-                    Close = reader.GetDouble(x++),
-                    Volume = reader.GetDouble(x++)
-                };
-                buffer.Add(bar);
-                if (buffer.Count < sequenceLength + predictionHorizon)
-                    continue;
-                if (!headerWritten)
-                {
-                    writer.WriteLine("label");
-                    headerWritten = true;
-                }
-                sampleCount++;
-                buffer.RemoveAt(0);
-                if (sampleCount % 10000 == 0)
-                {
-                    Console.WriteLine($"Generated {sampleCount} samples...");
-                }
-            }
-            currentStart = currentEnd;
-        }
-        Console.WriteLine($"Range exported: {startDate} → {endDate}");
-        Console.WriteLine($"Generated {sampleCount} samples total.");
     }
 
     static async Task GenerateTickFeatureStreaming(string outputPath)
