@@ -11,7 +11,9 @@ public class InTradeWindowSignalTest
     {
         var bars = new List<BarData>
         {
-            new (80000, 100, 105, 99, 104, 1000)
+            new {
+                80000, 100, 105, 99, 104, 1000
+                }
         };
 
         var signal = new InTradeWindow(70000, 120000);

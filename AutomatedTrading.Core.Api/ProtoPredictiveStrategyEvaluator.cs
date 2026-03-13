@@ -3,13 +3,13 @@ using Microsoft.ML.OnnxRuntime.Tensors;
 
 public class ProtoPredictiveEvaluator : IDisposable
 {
-    readonly string ModelPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "NeuralNetwork\\20260226", "xgb_model.onnx");
-    readonly string ScalerPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "NeuralNetwork\\20260226", "scaler_params.json");
+    readonly string ModelPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "NeuralNetwork\\20260309", "xgb_model.onnx");
+    readonly string ScalerPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "NeuralNetwork\\20260309", "scaler_params.json");
 
     // =====================================================================
     // Constants
     // =====================================================================
-    private const int FeatureCount = 10;  // Update to match your flattened feature vector
+    private const int FeatureCount = 13;  // Update to match your flattened feature vector
     private string? inputName;
     private InferenceSession? session;
     private double[]? scalerMean;
@@ -21,7 +21,7 @@ public class ProtoPredictiveEvaluator : IDisposable
 
     public void LoadModel()
     {
-        Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} - TickModelEvaluator.LoadModel()");    
+        Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} - ProtoPredictiveEvaluator.LoadModel()");    
         loadXgbModel();
         loadScalerParams();
 

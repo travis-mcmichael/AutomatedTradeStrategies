@@ -1,8 +1,9 @@
 using System;
+using AutomatedTrading.Core.Framework;
 
 namespace AutomatedTrading.Core.Models;
 
-public class BarData
+public class BarData : ITradeSpan
 {
     public double Open { get; set; }
     public double High { get; set; }
@@ -20,6 +21,8 @@ public class BarData
     public double? Delta { get; set; }
     public double? CumulativeDelta { get; set; }
     public double? VWAP { get; set; }
+
+    public double? VolumeZScore { get; set; }
 
     // Volatility
     public double? TrueRange { get; set; }

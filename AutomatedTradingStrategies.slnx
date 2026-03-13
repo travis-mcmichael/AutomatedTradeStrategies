@@ -1,8 +1,8 @@
 <Solution>
   <Project Path="AutomatedTrading.Core.Api/AutomatedTrading.Core.Api.csproj" />
-  <Project Path="AutomatedTrading.Core.Test/AutomatedTrading.Core.Test.csproj" />
+  <!--<Project Path="AutomatedTrading.Core.Test/AutomatedTrading.Core.Test.csproj" />-->
   <Project Path="AutomatedTrading.Core/AutomatedTrading.Core.csproj" />
   <Project Path="AutomatedTrading.Import.Bar/AutomatedTrading.Import.Bar.csproj" />
   <Project Path="AutomatedTrading.Import.Tick/AutomatedTrading.Import.Tick.csproj" />
-  <Project Path="NinjaTickFeatureGenerator/NinjaTickFeatureGenerator.csproj" />
+  <Project Path="AutomatedTrading.Export.Feature/AutomatedTrading.Export.Feature.csproj" />
 </Solution>

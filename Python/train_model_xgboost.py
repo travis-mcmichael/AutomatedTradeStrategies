@@ -14,7 +14,7 @@ from sklearn.metrics import (
 # ==============================
 # Configuration
 # ==============================
-CSV_PATH = "/mnt/c/dev/data/features/feature_20260226.csv"
+CSV_PATH = "/mnt/c/dev/data/features/barFeatures_20260309.csv"
 MODEL_OUTPUT = "xgb_model.json"
 SCALER_OUTPUT = "scaler.pkl"
 
@@ -27,6 +27,10 @@ VAL_SPLIT = 0.15  # remaining 15% will be test
 # ==============================
 print("Loading CSV...")
 df = pd.read_csv(CSV_PATH)
+
+print(df.head())
+print(df.dtypes)
+df = df.fillna(df.mean())
 
 print(f"Dataset shape: {df.shape}")
 
@@ -56,6 +60,9 @@ y_val = y[train_end:val_end]
 X_test = X[val_end:]
 y_test = y[val_end:]
 
+print(f"X_train.shape: {X_train.shape}, X_val.shape: {X_val.shape}, X_test.shape: {X_test.shape}")
+print(f"y_train.shape: {y_train.shape}, y_val.shape: {y_val.shape}, y_test.shape: {y_test.shape}")
+
 print("\nSplit sizes:")
 print(f"Train: {len(X_train)}")
 print(f"Validation: {len(X_val)}")
@@ -75,13 +82,14 @@ X_test_scaled = scaler.transform(X_test)
 print("\nTraining XGBoost...")
 
 model = xgb.XGBClassifier(
-    n_estimators=300,
-    max_depth=6,
-    learning_rate=0.05,
-    subsample=0.8,
-    colsample_bytree=0.8,
-    objective="binary:logistic",
-    eval_metric="logloss",
+    n_estimators=500,
+    max_depth=4,
+    learning_rate=0.03,
+    subsample=0.7,
+    colsample_bytree=0.5,
+    reg_alpha=1,
+    reg_lambda=10,
+    min_child_weight=10,
     tree_method="hist",
     random_state=42
 )

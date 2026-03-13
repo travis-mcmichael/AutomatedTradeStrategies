@@ -1,7 +1,5 @@
 ﻿// See https://aka.ms/new-console-template for more information
-using System.ComponentModel;
 using System.Globalization;
-using System.Runtime.ConstrainedExecution;
 using AutomatedTrading.Core.Framework;
 using AutomatedTrading.Core.Models;
 using Microsoft.Data.Sqlite;
@@ -10,45 +8,89 @@ namespace NinjaTickFeatureGenerator;
 
 class Program
 {
-    static string csvPath = "";
-    static string dbPath = "";
     static int sequenceLength = 100;
     static int predictionHorizon = 20;
-    static int dataSpan = 4;
-
     static async Task Main(string[] args)
     {
-        Console.WriteLine("NinjaTickFeatureGenerator starting...");
+        Console.WriteLine("Feature Export starting...");
         if (args.Length < 2)
         {
             Console.WriteLine("Usage:");
-            Console.WriteLine($"NinjaTickFeatureGenerator <db path> <output csv path>");
+            Console.WriteLine($"Feature Export <db path> <output csv path>");
             return;
         }
+        string path = args[0];
+        string execution = args[1];
 
-        string dbPath = args[0];
-        string outputPath = $"{args[1]}\\feature_{DateTime.Today:yyyyMMdd}.csv";
-
-        await GenerateFeatureStreaming(dbPath, outputPath);
+        if (execution.Trim().ToLower() == "tick")
+        {
+            string outputPath = $"{path}\\tickFeatures_{DateTime.Today:yyyyMMdd}.csv";
+            await GenerateTickFeatureStreaming(outputPath);
+        }
+        else
+        {
+            string outputPath = $"{path}\\barFeatures_{DateTime.Today:yyyyMMdd}.csv";
+            await GenerateBarFeatureStreaming(outputPath);
+        }
 
         Console.WriteLine("Output complete.");
     }
 
-    static async Task GenerateFeatureStreaming(string dbPath, string outputPath)
+    static async Task GenerateBarFeatureStreaming(string outputPath, DateTime startDate, DateTime endDate)
     {
-        var connectionString = $"Data Source={dbPath};";
-        var aWeekAgo = DateTimeOffset.UtcNow.AddDays(dataSpan * -1).ToUnixTimeMilliseconds();
-        using var connection = new SqliteConnection(connectionString);
-        await connection.OpenAsync();
-        var command = connection.CreateCommand();
-        command.CommandText = @"
-            SELECT TickTime, LastPrice, Bid, Ask, Volume
-            FROM TickData
-            WHERE TickTime >= $cutoff
-            ORDER BY TickTime ASC
-        ";
-        command.Parameters.AddWithValue("$cutoff", aWeekAgo);
-        using var reader = await command.ExecuteReaderAsync();
+        using var writer = new StreamWriter(outputPath);
+        var buffer = new List<BarData>(sequenceLength + predictionHorizon + 1);
+        var sampleCount = 0;
+        var headerWritten = false;
+
+        var currentStart = startDate;
+        while (currentStart < endDate)
+        {
+            var currentEnd = currentStart.AddDays(7);
+            if (currentEnd > endDate)
+                currentEnd = endDate;
+
+            Console.WriteLine($"Loading bars {currentStart} → {currentEnd}");
+            using var reader = await SqliteDataLayer.GetBarDataReader(currentStart, currentEnd);
+            while (await reader.ReadAsync())
+            {
+                var x = 0;
+                var bar = new BarData
+                {
+                    Instrument = reader.GetString(x++),
+                    Timeframe = reader.GetString(x++),
+                    Timestamp = reader.GetDateTime(x++),
+                    SessionDate = reader.GetString(x++),
+                    Open = reader.GetDouble(x++),
+                    High = reader.GetDouble(x++),
+                    Low = reader.GetDouble(x++),
+                    Close = reader.GetDouble(x++),
+                    Volume = reader.GetDouble(x++)
+                };
+                buffer.Add(bar);
+                if (buffer.Count < sequenceLength + predictionHorizon)
+                    continue;
+                if (!headerWritten)
+                {
+                    writer.WriteLine("label");
+                    headerWritten = true;
+                }
+                sampleCount++;
+                buffer.RemoveAt(0);
+                if (sampleCount % 10000 == 0)
+                {
+                    Console.WriteLine($"Generated {sampleCount} samples...");
+                }
+            }
+            currentStart = currentEnd;
+        }
+        Console.WriteLine($"Range exported: {startDate} → {endDate}");
+        Console.WriteLine($"Generated {sampleCount} samples total.");
+    }
+
+    static async Task GenerateTickFeatureStreaming(string outputPath)
+    {
+        using var reader = await SqliteDataLayer.GetTickDataReader();
         using var writer = new StreamWriter(outputPath);
         var tickBuffer = new List<TickData>(sequenceLength + predictionHorizon + 1);
         var featureCount = 10;
@@ -118,5 +160,38 @@ class Program
         }
 
         Console.WriteLine($"Total samples written: {sampleCount}");
+    }
+
+    static double? GetNullableDouble(SqliteDataReader reader, int index)
+    {
+        if (reader.IsDBNull(index))
+        {
+            index++;
+            return null;
+        }
+
+        return reader.GetDouble(index);
+    }
+
+    static string? GetNullableString(SqliteDataReader reader, int index)
+    {
+        if (reader.IsDBNull(index))
+        {
+            index++;
+            return null;
+        }
+
+        return reader.GetString(index);
+    }
+
+    static int? GetNullableInt(SqliteDataReader reader, int index)
+    {
+        if (reader.IsDBNull(index))
+        {
+            index++;
+            return null;
+        }
+
+        return reader.GetInt32(index);
     }
 }
