@@ -1,5 +1,5 @@
 ﻿// See https://aka.ms/new-console-template for more information
-using AutomatedTrading.Core.Framework;
+using AutomatedTrading.Core.Framework.Import;
 
 namespace AutomatedTrading.Import.Bar;
 
@@ -33,7 +33,7 @@ class Program
             var imported = 0;
             foreach (var file in files)
             {
-                imported += await Importer.ImportBarData(file);
+                imported += await TradeDataImporter.ImportBarData(file);
             }
 
             Console.WriteLine($"Imported {imported} records.");

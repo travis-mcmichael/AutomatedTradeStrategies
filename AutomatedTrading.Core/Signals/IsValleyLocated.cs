@@ -1,11 +1,11 @@
 using AutomatedTrading.Core.Models;
-using AutomatedTrading.Core.Framework;
 using System.Collections.Generic;
 using System.Linq;
+using AutomatedTrading.Core.Framework.Interfaces;
 
 namespace AutomatedTrading.Core.Signals;
 
-public class IsValleyLocated : ISignal, IHasLog
+public class IsValleyLocated : ISignal, IStatusLog
 {
     /// <summary>
     /// Number of bars to look ahead/behind when considering a bar as a peak

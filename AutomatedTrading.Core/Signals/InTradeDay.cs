@@ -1,12 +1,12 @@
 using AutomatedTrading.Core.Framework;
-using AutomatedTrading.Core.Framework.Extensions;
+using AutomatedTrading.Core.Framework.Interfaces;
 using AutomatedTrading.Core.Models;
 using System.Collections.Generic;
 using System.Linq;
 
 namespace AutomatedTrading.Core.Signals;
 
-public class InTradeDay : ISignal, IHasLog
+public class InTradeDay : ISignal, IStatusLog
 {
     public string Log { get; private set; } = "";
     public bool IsTriggered(List<BarData> bars)

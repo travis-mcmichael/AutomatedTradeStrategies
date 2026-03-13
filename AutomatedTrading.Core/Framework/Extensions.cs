@@ -1,7 +1,6 @@
 using System;
-using Microsoft.Data.Sqlite;
 
-namespace AutomatedTrading.Core.Framework.Extensions;
+namespace AutomatedTrading.Core.Framework;
 
 public static class Extensions
 {

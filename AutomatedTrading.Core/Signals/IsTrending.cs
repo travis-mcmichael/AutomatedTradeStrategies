@@ -1,11 +1,12 @@
 using System.Collections.Generic;
 using System.Linq;
 using AutomatedTrading.Core.Models;
-using AutomatedTrading.Core.Framework;
+using AutomatedTrading.Core.Framework.Interfaces;
+using AutomatedTrading.Core.Framework.Enums;
 
 namespace AutomatedTrading.Core.Signals;
 
-public class IsTrending : ISignal, IHasLog
+public class IsTrending : ISignal, IStatusLog
 {
     private readonly int strength;
     private readonly PriceDirection priceDirection;

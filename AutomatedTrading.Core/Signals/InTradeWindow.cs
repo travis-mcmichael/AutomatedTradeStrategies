@@ -1,12 +1,12 @@
 using AutomatedTrading.Core.Framework;
-using AutomatedTrading.Core.Framework.Extensions;
+using AutomatedTrading.Core.Framework.Interfaces;
 using AutomatedTrading.Core.Models;
 using System.Collections.Generic;
 using System.Linq;
 
 namespace AutomatedTrading.Core.Signals;
 
-public class InTradeWindow : ISignal, IHasLog
+public class InTradeWindow : ISignal, IStatusLog
 {
     public int TradeWindowStart { get; private set; }
     public int TradeWindowEnd { get; private set; }

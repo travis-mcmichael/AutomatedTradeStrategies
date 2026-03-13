@@ -3,7 +3,7 @@ using System.Text;
 using System.Collections.Generic;
 using AutomatedTrading.Core.Models;
 
-namespace AutomatedTrading.Core.Framework;
+namespace AutomatedTrading.Core.Framework.Logging;
 
 public static class LogBuilder
 {

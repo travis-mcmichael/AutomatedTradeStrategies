@@ -1,12 +1,12 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using AutomatedTrading.Core.Models;
-using AutomatedTrading.Core.Framework;
+using AutomatedTrading.Core.Framework.Interfaces;
+using AutomatedTrading.Core.Framework.Enums;
 
 namespace AutomatedTrading.Core.Signals;
 
-public class BarChange : ISignal, IHasLog
+public class BarChange : ISignal, IStatusLog
 {
     private readonly int pointsChangeThreshold;
     private readonly int barMax;

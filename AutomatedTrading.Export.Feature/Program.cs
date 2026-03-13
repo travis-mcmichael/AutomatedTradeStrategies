@@ -1,6 +1,7 @@
 ﻿// See https://aka.ms/new-console-template for more information
 using System.Globalization;
-using AutomatedTrading.Core.Framework;
+using AutomatedTrading.Core.Framework.DataLayer;
+using AutomatedTrading.Core.Framework.Utility;
 using AutomatedTrading.Core.Models;
 using AutomatedTrading.Export.Feature.Exporters.Bar.v20260313;
 using Microsoft.Data.Sqlite;
@@ -34,7 +35,7 @@ class Program
         else
         {
             string outputPath = $"{path}\\barFeatures_{DateTime.Today:yyyyMMdd}.csv";
-            await BarExporter.GenerateFeature(outputPath, startDate, endDate);
+            await new BarExporter().GenerateFeature(outputPath, startDate, endDate);
         }
 
         Console.WriteLine("Output complete.");

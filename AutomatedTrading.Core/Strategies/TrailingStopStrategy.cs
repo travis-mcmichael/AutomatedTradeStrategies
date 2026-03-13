@@ -1,4 +1,5 @@
 using AutomatedTrading.Core.Framework;
+using AutomatedTrading.Core.Framework.Interfaces;
 using AutomatedTrading.Core.Models;
 
 namespace AutomatedTrading.Core.Strategies;
@@ -6,7 +7,7 @@ namespace AutomatedTrading.Core.Strategies;
 /// <summary>
 /// Class to keep all logic related to maintain a trailing stop strategy.
 /// </summary>
-public class TrailingStopStrategy : IHasLog
+public class TrailingStopStrategy : IStatusLog
 {
     /// <summary>
     /// Starting stop-loss points.

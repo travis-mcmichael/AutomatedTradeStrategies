@@ -1,4 +1,4 @@
-namespace AutomatedTrading.Core.Models;
+namespace AutomatedTrading.Core.Framework;
 
 public class AppConstants
 {

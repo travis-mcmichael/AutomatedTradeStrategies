@@ -1,13 +1,11 @@
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using AutomatedTrading.Core.Models;
-using AutomatedTrading.Core.Framework;
+using AutomatedTrading.Core.Framework.Interfaces;
 
 namespace AutomatedTrading.Core.Signals;
 
-public class IsPeakLocated : ISignal, IHasLog
+public class IsPeakLocated : ISignal, IStatusLog
 {
     /// <summary>
     /// Number of bars to look ahead/behind when considering a bar as a peak

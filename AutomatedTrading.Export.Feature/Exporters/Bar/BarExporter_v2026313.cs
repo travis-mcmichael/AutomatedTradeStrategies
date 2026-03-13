@@ -1,4 +1,6 @@
 using AutomatedTrading.Core.Framework;
+using AutomatedTrading.Core.Framework.DataLayer;
+using AutomatedTrading.Core.Framework.Interfaces;
 using AutomatedTrading.Core.Models;
 
 namespace AutomatedTrading.Export.Feature.Exporters.Bar.v20260313;

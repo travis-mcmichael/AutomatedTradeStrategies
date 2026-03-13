@@ -1,4 +1,4 @@
-namespace AutomatedTrading.Core.Framework;
+namespace AutomatedTrading.Core.Framework.Interfaces;
 
 public interface ITradeSpan
 {

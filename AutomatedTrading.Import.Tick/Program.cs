@@ -1,5 +1,6 @@
 ﻿// See https://aka.ms/new-console-template for more information
 using AutomatedTrading.Core.Framework;
+using AutomatedTrading.Core.Framework.Import;
 
 namespace NinjaTickDataImport;
 
@@ -12,7 +13,7 @@ class Program
         Console.WriteLine("Tick data import starting...");
         try
         {
-            var imported = await Importer.ImportTickData(file);
+            var imported = await TradeDataImporter.ImportTickData(file);
             Console.WriteLine($"Imported {imported} records.");
         }
         catch (Exception ex)

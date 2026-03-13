@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 using AutomatedTrading.Core.Models;
 using Microsoft.Data.Sqlite;
 
-namespace AutomatedTrading.Core.Framework;
+namespace AutomatedTrading.Core.Framework.DataLayer;
 
 public class SqliteDataLayer
 {

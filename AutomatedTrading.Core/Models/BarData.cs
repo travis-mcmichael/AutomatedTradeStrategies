@@ -1,5 +1,5 @@
 using System;
-using AutomatedTrading.Core.Framework;
+using AutomatedTrading.Core.Framework.Interfaces;
 
 namespace AutomatedTrading.Core.Models;
 

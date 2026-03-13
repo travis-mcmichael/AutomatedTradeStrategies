@@ -1,9 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using AutomatedTrading.Core.Framework.Interfaces;
 using AutomatedTrading.Core.Models;
 
-namespace AutomatedTrading.Core.Framework;
+namespace AutomatedTrading.Core.Framework.Utility;
 
 public class Computations
 {
