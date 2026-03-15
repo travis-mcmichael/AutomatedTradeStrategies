@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using AutomatedTrading.Core.Framework.Interfaces;
 using AutomatedTrading.Core.Models;
 
 namespace AutomatedTrading.Core.Framework.Utility;
@@ -9,13 +8,13 @@ namespace AutomatedTrading.Core.Framework.Utility;
 public class Computations
 {
     #region - Bar Computations -
-    public static double Return(List<ITradeSpan> bars, int i, int lookback)
+    public static double Return(List<BarData> bars, int i, int lookback) 
     {
         if (i < lookback) return 0;
         return bars[i].Close / bars[i - lookback].Close;
     }
 
-    public static double TrueRange(List<ITradeSpan> bars, int i)
+    public static double TrueRange(List<BarData> bars, int i) 
     {
         if (i == 0)
             return bars[i].High - bars[i].Low;
@@ -26,36 +25,49 @@ public class Computations
         return Math.Max(highLow, Math.Max(highClose, lowClose));
     }
 
-    public static double ComputeATR(List<ITradeSpan> bars, int i, int period)
+    public static double AverageRange(List<BarData> bars, int i, int lookback) 
     {
-        if (i < period) return 0;
-        if (i == period)
-        {
-            double sum = 0;
-            for (int j = 1; j <= period; j++)
-                sum += TrueRange(bars, j);
-
-            return sum / period;
-        }
+        if (i < lookback - 1)
+            return double.NaN;
         
-        return ((ComputeATR(bars, i - 1, period) * (period - 1)) + TrueRange(bars, i)) / period;
+        double sum = 0;
+        for (var j = i - lookback + 1; j <= i; j++)
+        {
+            sum += bars[j].High - bars[j].Low;
+        }
+        return sum / lookback;
     }
 
-    public static double ComputeEMA(List<ITradeSpan> bars, int i, int period, Func<ITradeSpan, double> selector)
+    public static double ATR(List<BarData> bars, int i, int lookback) 
     {
-        var k = 2.0 / (period + 1);
+        if (i < lookback) return 0;
+        if (i == lookback)
+        {
+            double sum = 0;
+            for (int j = 1; j <= lookback; j++)
+                sum += TrueRange(bars, j);
+
+            return sum / lookback;
+        }
+        
+        return ((ATR(bars, i - 1, lookback) * (lookback - 1)) + TrueRange(bars, i)) / lookback;
+    }
+
+    public static double EMA(List<BarData> bars, int i, int lookback, Func<BarData, double> selector) 
+    {
+        var k = 2.0 / (lookback + 1);
         if (i == 0)
             return selector(bars[0]);
             
-        return selector(bars[i]) * k * ComputeEMA(bars, i - 1, period, selector) * (1 - k);
+        return selector(bars[i]) * k * EMA(bars, i - 1, lookback, selector) * (1 - k);
     }
 
-    public static double ComputeRSI(List<ITradeSpan> bars, int i, int period)
+    public static double RSI(List<BarData> bars, int i, int lookback) 
     {
-        if (i < period) return 0;
+        if (i < lookback) return 0;
         double gain = 0;
         double loss = 0;
-        for (int j = i - period + 1; j <= i; j++)
+        for (int j = i - lookback + 1; j <= i; j++)
         {
             var change = bars[j].Close - bars[j - 1].Close;
             if (change > 0) gain += change;
@@ -64,19 +76,19 @@ public class Computations
 
         if (loss == 0) return 100;
 
-        var rs = (gain / period) / (loss / period);
+        var rs = gain / lookback / (loss / lookback);
         return 100 - (100 / (1 + rs));
     }
 
-    public static double ComputeADX(List<ITradeSpan> bars, int i, int period)
+    public static double ADX(List<BarData> bars, int i, int lookback) 
     {
-        if (i < period * 2)
+        if (i < lookback * 2)
             return 0;
 
         double plusDM = 0;
         double minusDM = 0;
         double tr = 0;
-        for (var j = i - period + 1; j <= i; j++)
+        for (var j = i - lookback + 1; j <= i; j++)
         {
             var current = bars[j];
             var prev = bars[j - 1];
@@ -104,48 +116,57 @@ public class Computations
         return dx;
     }
 
-    public static double SMA(List<ITradeSpan> bars, int i, int period)
+    public static double SMA(List<BarData> bars, int i, int lookback, Func<BarData, double> selector) 
     {
-        if (i < period) return 0;
-        return bars.Skip(i - period + 1)
-        .Take(period)
-        .Average(b => b.Close);
+        if (i < lookback) return 0;
+
+        double sum = 0.0;
+        for (var j = i - lookback + 1; j <= i; j++)
+        {
+            sum += selector(bars[i]);
+        }
+        return sum / lookback;
     }
 
-    public static double StandardDeviation(List<ITradeSpan> bars, int i, int period)
+    public static double StandardDeviation(List<BarData> bars, int i, int lookback, Func<BarData, double> selector) 
     {
-        var mean = SMA(bars, i, period);
-        var slice = bars.Skip(i - period + 1).Take(period);
-        var variance = slice.Sum(b => Math.Pow(b.Close - mean, 2)) / period;
+        var mean = SMA(bars, i, lookback, selector);
+        var slice = bars.Skip(i - lookback + 1).Take(lookback);
+        double sum = 0.0;
+        foreach (var bar in slice)
+        {
+            sum += Math.Pow(selector(bar) - mean, 2);
+        }
+        var variance = sum / lookback;
         return Math.Sqrt(variance);
     }
 
-    public static double HighLowRange(ITradeSpan bar)
+    public static double HighLowRange(BarData bar) 
     {
         return bar.High - bar.Low;
     }
 
-    public static double BodySize(ITradeSpan bar)
+    public static double BodySize(BarData bar) 
     {
         return Math.Abs(bar.Close - bar.Open);
     }
 
-    public static double UpperWick(ITradeSpan bar)
+    public static double UpperWick(BarData bar) 
     {
         return bar.High - Math.Max(bar.Close, bar.Open);
     }
 
-    public static double LowerWick(ITradeSpan bar)
+    public static double LowerWick(BarData bar) 
     {
         return Math.Min(bar.Open, bar.Close) - bar.Low;
     }
 
-    public static double ClosePosition(ITradeSpan bar)
+    public static double ClosePosition(BarData bar) 
     {
         return (bar.Close - bar.Low) / (bar.High - bar.Low == 0 ? 1 : bar.High - bar.Low);
     }
 
-    public static double RealizedVolatility(List<ITradeSpan> bars, int i, int period)
+    public static double RealizedVolatility(List<BarData> bars, int i, int period) 
     {
         if (i < period) return 0;
         var returns = new List<double>();
@@ -159,13 +180,13 @@ public class Computations
         return Math.Sqrt(variance);
     }
 
-    public static double Momentum(List<ITradeSpan> bars, int i, int window = 10)
+    public static double Momentum(List<BarData> bars, int i, int lookback) 
     {
-        if (i < window || bars.Count < window) return 0;
-        return bars[i].Close - bars[i - window].Close;
+        if (i < lookback || bars.Count < lookback) return 0;
+        return bars[i].Close - bars[i - lookback].Close;
     }
 
-    public static double VWAP(ITradeSpan bar, double cumulativePv, double cumulativeVol)
+    public static double VWAP(BarData bar, double cumulativePv, double cumulativeVol) 
     {
         cumulativePv += bar.Close * bar.Volume;
         cumulativeVol += bar.Volume;
@@ -178,13 +199,13 @@ public class Computations
         return (bar.Timestamp - sessionOpen).TotalMinutes;
     }
 
-    public static double FutureReturn(List<ITradeSpan> bars, int i, int lookahead)
+    public static double FutureReturn(List<BarData> bars, int i, int lookahead) 
     {
         if (i + lookahead >= bars.Count) return 0;
         return (bars[i + lookahead].Close / bars[i].Close) - 1.0;
     }
 
-    public static double VolumeZScore(List<ITradeSpan> bars, int i, int lookback)
+    public static double VolumeZScore(List<BarData> bars, int i, int lookback) 
     {
         if (i < lookback - 1)
             return double.NaN;
@@ -202,6 +223,14 @@ public class Computations
             return 0;
         double std = variance > 0 ? Math.Sqrt(variance) : 0;
         return (bars[i].Volume - mean) / std;
+    }
+
+    public static double NextSessionHigh(List<BarData> bars, int i) 
+    {
+        var j = i + 1;
+        if (i >= bars.Count - 1 || j >= bars.Count)
+            return double.NaN;
+        return (bars[j].Close - bars[i].Close) / bars[i].Close;
     }
 
     #endregion

@@ -3,7 +3,7 @@ using System.Globalization;
 using AutomatedTrading.Core.Framework.DataLayer;
 using AutomatedTrading.Core.Framework.Utility;
 using AutomatedTrading.Core.Models;
-using AutomatedTrading.Export.Feature.Exporters.Bar.v20260313;
+using AutomatedTrading.Export.Feature.Exporters;
 using Microsoft.Data.Sqlite;
 
 namespace NinjaTickFeatureGenerator;
@@ -35,7 +35,7 @@ class Program
         else
         {
             string outputPath = $"{path}\\barFeatures_{DateTime.Today:yyyyMMdd}.csv";
-            await new BarExporter().GenerateFeature(outputPath, startDate, endDate);
+            await new NextDayHighBarFeatureExporter(outputPath).GenerateFeatures(startDate, endDate);
         }
 
         Console.WriteLine("Output complete.");

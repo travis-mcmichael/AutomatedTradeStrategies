@@ -3,7 +3,7 @@ using AutomatedTrading.Core.Framework.Interfaces;
 
 namespace AutomatedTrading.Core.Models;
 
-public class BarData : ITradeSpan
+public class BarData
 {
     public double Open { get; set; }
     public double High { get; set; }
