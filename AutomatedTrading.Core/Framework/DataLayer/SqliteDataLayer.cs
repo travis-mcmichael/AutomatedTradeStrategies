@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading.Tasks;
 using AutomatedTrading.Core.Models;
 using Microsoft.Data.Sqlite;
@@ -107,58 +106,9 @@ public class SqliteDataLayer
         using var connection = new SqliteConnection(AppConstants.SQLITE_CONNECTION);
         await connection.OpenAsync();
 
-        if (insert.Count > AppConstants.TICK_DATA_BATCH_SIZE)
+        for (var i = 0; i < insert.Count; i += AppConstants.TICK_DATA_BATCH_SIZE)
         {
-            for (var i = 0; i < insert.Count; i += AppConstants.TICK_DATA_BATCH_SIZE)
-            {
-                try
-                {
-                    IList<TickData> batch;
-                if (insert.Skip(i).Count() > AppConstants.TICK_DATA_BATCH_SIZE)
-                {
-                    batch = insert.Skip(i).Take(AppConstants.TICK_DATA_BATCH_SIZE).ToList();
-                }
-                else
-                {
-                    batch = insert.Skip(i).ToList();
-                }
-
-                using var transaction = connection.BeginTransaction();
-                var command = connection.CreateCommand();
-                command.CommandText = tickDataInsert;
-
-                var instrumentParam = command.CreateParameter(); instrumentParam.ParameterName = "$instrument"; command.Parameters.Add(instrumentParam);
-                var tickTimeParam = command.CreateParameter(); tickTimeParam.ParameterName = "$tickTime"; command.Parameters.Add(tickTimeParam);
-                var lastPriceParam = command.CreateParameter(); lastPriceParam.ParameterName = "$lastPrice"; command.Parameters.Add(lastPriceParam);
-                var volumeParam = command.CreateParameter(); volumeParam.ParameterName = "$volume"; command.Parameters.Add(volumeParam);
-                var bidParam = command.CreateParameter(); bidParam.ParameterName = "$bid"; command.Parameters.Add(bidParam);
-                var askParam = command.CreateParameter(); askParam.ParameterName = "$ask"; command.Parameters.Add(askParam);
-
-                for (var j = i; j < i + AppConstants.TICK_DATA_BATCH_SIZE; j++)
-                {
-
-                    var tick = insert[j];
-                    instrumentParam.Value = tick.Instrument;
-                    tickTimeParam.Value = tick.TickTime;
-                    lastPriceParam.Value = tick.LastPrice;
-                    volumeParam.Value = tick.Volume;
-                    bidParam.Value = tick.Bid ?? (object)DBNull.Value;
-                    askParam.Value = tick.Ask ?? (object)DBNull.Value;
-                    await command.ExecuteNonQueryAsync();
-                }
-
-                transaction.Commit();
-                total += batch.Count;
-                }
-                catch
-                {
-                    Console.WriteLine($"exception inserting record at batch i={i}");
-                    throw;
-                }
-            }
-        }
-        else
-        {
+            var batchEnd = Math.Min(i + AppConstants.TICK_DATA_BATCH_SIZE, insert.Count);
             using var transaction = connection.BeginTransaction();
             var command = connection.CreateCommand();
             command.CommandText = tickDataInsert;
@@ -170,9 +120,9 @@ public class SqliteDataLayer
             var bidParam = command.CreateParameter(); bidParam.ParameterName = "$bid"; command.Parameters.Add(bidParam);
             var askParam = command.CreateParameter(); askParam.ParameterName = "$ask"; command.Parameters.Add(askParam);
 
-            for (var i = 0; i < insert.Count; i++)
+            for (var j = i; j < batchEnd; j++)
             {
-                var tick = insert[i];
+                var tick = insert[j];
                 instrumentParam.Value = tick.Instrument;
                 tickTimeParam.Value = tick.TickTime;
                 lastPriceParam.Value = tick.LastPrice;
@@ -183,7 +133,7 @@ public class SqliteDataLayer
             }
 
             transaction.Commit();
-            total += insert.Count;
+            total += batchEnd - i;
         }
 
         return total;
@@ -211,78 +161,9 @@ public class SqliteDataLayer
         using var connection = new SqliteConnection(AppConstants.SQLITE_CONNECTION);
         await connection.OpenAsync();
 
-        if (insert.Count > AppConstants.BAR_DATA_BATCH_SIZE)
+        for (var i = 0; i < insert.Count; i += AppConstants.BAR_DATA_BATCH_SIZE)
         {
-            for (var i = 0; i < insert.Count; i += AppConstants.BAR_DATA_BATCH_SIZE)
-            {
-                var rec = -1;
-                try
-                {
-                    IList<BarData> batch;
-					if (insert.Skip(i).Count() > AppConstants.BAR_DATA_BATCH_SIZE)
-					{
-						batch = insert.Skip(i).Take(AppConstants.BAR_DATA_BATCH_SIZE).ToList();
-					}
-					else
-					{
-						batch = insert.Skip(i).ToList();
-					}
-	
-					using var transaction = connection.BeginTransaction();
-					var command = connection.CreateCommand();
-					command.CommandText = barDataInsert;
-	
-					var instrumentParam = command.CreateParameter(); instrumentParam.ParameterName = "$Instrument"; command.Parameters.Add(instrumentParam);
-					var timeframeParam = command.CreateParameter(); timeframeParam.ParameterName = "$Timeframe"; command.Parameters.Add(timeframeParam);
-					var timestampParam = command.CreateParameter(); timestampParam.ParameterName = "$Timestamp"; command.Parameters.Add(timestampParam);
-					var sessionDateParam = command.CreateParameter(); sessionDateParam.ParameterName = "$SessionDate"; command.Parameters.Add(sessionDateParam);
-					var openParam = command.CreateParameter(); openParam.ParameterName = "$Open"; command.Parameters.Add(openParam);
-					var closeParam = command.CreateParameter(); closeParam.ParameterName = "$Close"; command.Parameters.Add(closeParam);
-					var highParam = command.CreateParameter(); highParam.ParameterName = "$High"; command.Parameters.Add(highParam);
-					var lowParam = command.CreateParameter(); lowParam.ParameterName = "$Low"; command.Parameters.Add(lowParam);
-					var volumeParam = command.CreateParameter(); volumeParam.ParameterName = "$Volume"; command.Parameters.Add(volumeParam);
-
-                    Console.WriteLine($"next batch: {i + AppConstants.BAR_DATA_BATCH_SIZE}, next batch count: {i + batch.Count - 1}, insert count: {insert.Count}");
-                    var range = Math.Min(i + AppConstants.BAR_DATA_BATCH_SIZE, i + batch.Count);
-					for (var j = i; j < range; j++)
-					{
-                        rec = j;
-	
-						var bar = insert[j];
-	
-						instrumentParam.Value = bar.Instrument;
-						timeframeParam.Value = bar.Timeframe;
-						timestampParam.Value = bar.Timestamp;
-						sessionDateParam.Value = bar.SessionDate;
-						openParam.Value = bar.Open;
-						closeParam.Value = bar.Close;
-						highParam.Value = bar.High;
-						lowParam.Value = bar.Low;
-						volumeParam.Value = bar.Volume;
-                        
-                        foreach (SqliteParameter p in command.Parameters)
-                        {
-                            if (p.Value is double d)
-                            {
-                                p.Value = safeValue((double?)p.Value);
-                            }
-                        }
-	
-						await command.ExecuteNonQueryAsync();
-					}
-	
-					transaction.Commit();
-					total += batch.Count;   
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Error inserting BarData batch i={i},j={rec}");
-                    throw ex;
-                }
-            }
-        }
-        else
-        {
+            var batchEnd = Math.Min(i + AppConstants.BAR_DATA_BATCH_SIZE, insert.Count);
             using var transaction = connection.BeginTransaction();
             var command = connection.CreateCommand();
             command.CommandText = barDataInsert;
@@ -297,9 +178,9 @@ public class SqliteDataLayer
             var lowParam = command.CreateParameter(); lowParam.ParameterName = "$Low"; command.Parameters.Add(lowParam);
             var volumeParam = command.CreateParameter(); volumeParam.ParameterName = "$Volume"; command.Parameters.Add(volumeParam);
 
-            for (var i = 0; i < insert.Count; i++)
+            for (var j = i; j < batchEnd; j++)
             {
-                var bar = insert[i];
+                var bar = insert[j];
                 instrumentParam.Value = bar.Instrument;
                 timeframeParam.Value = bar.Timeframe;
                 timestampParam.Value = bar.Timestamp;
@@ -309,20 +190,18 @@ public class SqliteDataLayer
                 highParam.Value = bar.High;
                 lowParam.Value = bar.Low;
                 volumeParam.Value = bar.Volume;
-                
+
                 foreach (SqliteParameter p in command.Parameters)
                 {
-                    if (p.Value is double d)
-                    {
+                    if (p.Value is double)
                         p.Value = safeValue((double?)p.Value);
-                    }
                 }
 
                 await command.ExecuteNonQueryAsync();
             }
 
             transaction.Commit();
-            total += insert.Count;
+            total += batchEnd - i;
         }
 
         return total;

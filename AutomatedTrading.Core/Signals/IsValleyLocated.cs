@@ -39,7 +39,6 @@ public class IsValleyLocated : ISignal, IStatusLog
         {
             var skip = false;
             var barToEvaluate = bars[i];
-            System.Console.WriteLine($"Evaluating bar {barToEvaluate.ToLog()}");
 
             // evaluate each bar's value {strength} records before and after the current bar.
             var subset = bars.GetRange(i - strength, segmentLength);

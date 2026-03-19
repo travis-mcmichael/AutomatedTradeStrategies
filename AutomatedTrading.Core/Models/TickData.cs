@@ -6,6 +6,6 @@ public class TickData
     public long TickTime { get; set; }
     public double LastPrice { get; set; }
     public long Volume { get; set; }
-    public double? Bid { get; set;}
-    public double? Ask {get;set;}
+    public double? Bid { get; set; }
+    public double? Ask { get; set; }
 }

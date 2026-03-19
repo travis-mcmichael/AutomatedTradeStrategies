@@ -1,5 +1,4 @@
 using System;
-using AutomatedTrading.Core.Framework.Interfaces;
 
 namespace AutomatedTrading.Core.Models;
 
@@ -26,6 +25,7 @@ public class BarData
         Instrument = bar.Instrument;
         Timeframe = bar.Timeframe;
         Timestamp = bar.Timestamp;
+        SessionDate = bar.SessionDate;
     }
     public virtual string ToLog()
     {

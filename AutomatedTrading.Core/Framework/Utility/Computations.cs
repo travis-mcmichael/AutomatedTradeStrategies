@@ -158,7 +158,7 @@ public class Computations
         double sum = 0.0;
         for (var j = i - lookback + 1; j <= i; j++)
         {
-            sum += selector(bars[i]);
+            sum += selector(bars[j]);
         }
         return sum / lookback;
     }
@@ -265,11 +265,7 @@ public class Computations
     
     public static double NextSessionHigh(List<BarData> bars, int i, double atr)
     {
-        //Console.WriteLine("Computing for NextSessionHigh");
-        //Console.WriteLine($"CurrentBar - {bars[i].ToLog()}, atr - {atr}");
-
         var nextSessionDate = bars[i].SessionDate;
-        //Console.WriteLine($"Next Session Date {nextSessionDate}");
 
         var j = i + 1;
         while (j < bars.Count && bars[j].SessionDate == nextSessionDate)
@@ -278,8 +274,7 @@ public class Computations
             return double.NaN;
         var nextOpen = bars[j].Open;
         var nextBars = new List<BarData>();
-        
-        //Console.WriteLine($"Next session open - {nextOpen}");
+
         while (j < bars.Count && bars[j].SessionDate != nextSessionDate)
         {
             nextBars.Add(bars[j]);
@@ -288,9 +283,8 @@ public class Computations
 
         if (!nextBars.Any() || atr == 0)
             return double.NaN;
-        
+
         var nextHigh = nextBars.Max(x => x.High);
-        //Console.WriteLine($"Result next high : {nextHigh}");
         return (nextHigh - nextOpen) / atr;
     }
 
@@ -310,7 +304,7 @@ public class Computations
         var bid = ticks[i].Bid ?? 0;
         var ask = ticks[i].Ask ?? 0;
         var lastBid = ticks[i - 1].Bid ?? 0;
-        var lastAsk = ticks[i - 1].Bid ?? 0;
+        var lastAsk = ticks[i - 1].Ask ?? 0;
 
         var mid = (bid + ask) / 2.0;
         var prevMid = (lastBid + lastAsk) / 2.0;
