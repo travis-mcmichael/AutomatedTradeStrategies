@@ -52,6 +52,47 @@ public class SqliteDataLayer
         return await command.ExecuteReaderAsync(System.Data.CommandBehavior.CloseConnection);
     }
 
+    private static string barDataSelect2 = @"
+    SELECT
+        Instrument,
+        Timeframe,
+        Timestamp,
+        SessionDate,
+        Open,
+        High,
+        Low,
+        Close,
+        Volume
+    FROM BarData WHERE SessionDate = @SessionDate
+    ORDER BY Timestamp";
+    public static async Task<List<BarData>> GetBarsBySessionDate(string sessionDate)
+    {
+        var bars = new List<BarData>();
+        using var connection = new SqliteConnection(AppConstants.SQLITE_CONNECTION);
+        await connection.OpenAsync();
+        var command = connection.CreateCommand();
+        command.CommandText = barDataSelect2;
+        command.Parameters.AddWithValue($"@SessionDate", sessionDate);
+        using var reader = await command.ExecuteReaderAsync(System.Data.CommandBehavior.CloseConnection);
+        while (await reader.ReadAsync())
+        {
+            var bar = new BarData
+            {
+                Instrument = reader.GetString(0),
+                Timeframe = reader.GetString(1),
+                Timestamp = DateTime.Parse(reader.GetString(2)),
+                SessionDate = reader.IsDBNull(3) ? null : reader.GetString(3),
+                Open = reader.GetDouble(4),
+                High = reader.GetDouble(5),
+                Low = reader.GetDouble(6),
+                Close = reader.GetDouble(7),
+                Volume = reader.GetDouble(8)
+            };
+            bars.Add(bar);
+        }
+        return bars;
+    }
+
     #endregion
 
     #region - Tick Data Insert -

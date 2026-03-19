@@ -27,8 +27,8 @@ public class BarData
         Timeframe = bar.Timeframe;
         Timestamp = bar.Timestamp;
     }
-    public string ToLog()
+    public virtual string ToLog()
     {
-        return $"timestamp={Timestamp:yyyy-MM-dd HH:mm:ss},open={Open},high={High},low={Low},close={Close},volume={Volume}";
+        return $"timestamp={Timestamp:yyyy-MM-dd HH:mm:ss},sessiondate={SessionDate},open={Open},high={High},low={Low},close={Close},volume={Volume}";
     }
 }

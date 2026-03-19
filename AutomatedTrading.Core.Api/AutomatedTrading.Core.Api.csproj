@@ -15,7 +15,7 @@
   </ItemGroup>
 
 <ItemGroup>
-  <None Include="NeuralNetwork\**\*">
+  <None Include="Models\**\*">
     <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
   </None>
 </ItemGroup>

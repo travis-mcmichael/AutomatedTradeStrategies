@@ -4,9 +4,8 @@ using AutomatedTrading.Core.Framework.DataLayer;
 using AutomatedTrading.Core.Framework.Utility;
 using AutomatedTrading.Core.Models;
 using AutomatedTrading.Export.Feature.Exporters;
-using Microsoft.Data.Sqlite;
 
-namespace NinjaTickFeatureGenerator;
+namespace AutomatedTrading.Export.Feature;
 
 class Program
 {
@@ -14,8 +13,8 @@ class Program
     static int predictionHorizon = 20;
     static async Task Main(string[] args)
     {
-        var startDate = new DateTime(2022, 1, 1);
-        var endDate = new DateTime(2026, 1, 1);
+        var startDate = new DateTime(2025, 12, 1);
+        var endDate = new DateTime(2025, 12, 7);
 
         Console.WriteLine("Feature Export starting...");
         if (args.Length < 2)
@@ -29,12 +28,12 @@ class Program
 
         if (execution.Trim().ToLower() == "tick")
         {
-            string outputPath = $"{path}\\tickFeatures_{DateTime.Today:yyyyMMdd}.csv";
+            string outputPath = $"{path}\\tickFeatures.csv";
             await GenerateTickFeatureStreaming(outputPath);
         }
         else
         {
-            string outputPath = $"{path}\\barFeatures_{DateTime.Today:yyyyMMdd}.csv";
+            string outputPath = $"{path}\\barFeatures.csv";
             await new NextDayHighBarFeatureExporter(outputPath).GenerateFeatures(startDate, endDate);
         }
 
@@ -113,38 +112,5 @@ class Program
         }
 
         Console.WriteLine($"Total samples written: {sampleCount}");
-    }
-
-    static double? GetNullableDouble(SqliteDataReader reader, int index)
-    {
-        if (reader.IsDBNull(index))
-        {
-            index++;
-            return null;
-        }
-
-        return reader.GetDouble(index);
-    }
-
-    static string? GetNullableString(SqliteDataReader reader, int index)
-    {
-        if (reader.IsDBNull(index))
-        {
-            index++;
-            return null;
-        }
-
-        return reader.GetString(index);
-    }
-
-    static int? GetNullableInt(SqliteDataReader reader, int index)
-    {
-        if (reader.IsDBNull(index))
-        {
-            index++;
-            return null;
-        }
-
-        return reader.GetInt32(index);
     }
 }

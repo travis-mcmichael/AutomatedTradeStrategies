@@ -1,55 +1,36 @@
 using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
 
-public class ProtoPredictiveEvaluator : IDisposable
-{
-    readonly string ModelPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "NeuralNetwork\\20260309", "xgb_model.onnx");
-    readonly string ScalerPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "NeuralNetwork\\20260309", "scaler_params.json");
+namespace AutomatedTrading.Core.Api.Evaluators;
 
-    // =====================================================================
-    // Constants
-    // =====================================================================
-    private const int FeatureCount = 13;  // Update to match your flattened feature vector
-    private string? inputName;
+public class BaseMLEvaluator : IDisposable
+{
+    private string model = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Models\\20260317", "xgb_model.onnx");
+    private string scaler = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Models\\20260317", "scaler_params.json");
     private InferenceSession? session;
+    private string? inputName;
+    private int featureCount = 999;
     private double[]? scalerMean;
     private double[]? scalerScale;
     public bool ScalerLoaded = false;
 
-    static int sequenceLength = 100;
-    static int predictionHorizon = 20;
+    public BaseMLEvaluator(string model, string scaler, int featureCount)
+    {
+        this.model = model;
+        this.scaler = scaler;
+        this.featureCount = featureCount;
+    }
 
     public void LoadModel()
     {
-        Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} - ProtoPredictiveEvaluator.LoadModel()");    
+        Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} - BaseMLEvaluator.LoadModel()");
         loadXgbModel();
-        loadScalerParams();
-
-    }
-
-    public bool SessionLoaded()
-    {
-        return session != null;
-    }
-
-    public double[] ScaleFeatures(double[] raw)
-    {
-        if (!ScalerLoaded || scalerMean == null || scalerScale == null)
-            return raw;
-        
-        var scaled = new double[FeatureCount * sequenceLength];
-        for (var i = 0; i < FeatureCount * sequenceLength; i++)
-        {
-            var s = scalerScale[i];
-            if (Math.Abs(s) > 1e-15)
-                scaled[i] = 0;
-            else scaled[i] = (raw[i] - scalerMean[i]) / s;
-        }
-        return scaled;
+        loadScalerParameters();
     }
 
     public double RunInference(double[] features)
     {
+        Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} - BaseMLEvaluator.LoadModel()");
         if (session == null)
         {
             Console.WriteLine("Session not loaded");
@@ -62,13 +43,17 @@ public class ProtoPredictiveEvaluator : IDisposable
         {
             inputTensor[0, i] = (float) features[i];
         }
-
         var inputs = new List<NamedOnnxValue>
         {
             NamedOnnxValue.CreateFromTensor(inputName, inputTensor)
         };
         using var results = session.Run(inputs);
         return extractClassOneProbability(results);
+    }
+
+    public bool SessionLoaded()
+    {
+        return session != null;
     }
 
     public void Dispose()
@@ -81,12 +66,11 @@ public class ProtoPredictiveEvaluator : IDisposable
         if (SessionLoaded())
         {
             Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} - XGB model load skipped (already loaded)");
-            return; 
+            return;
         }
-
         try
         {
-            session = new InferenceSession(ModelPath);
+            session = new InferenceSession(model);
             inputName = session.InputMetadata.Keys.First();
         }
         catch (Exception ex)
@@ -96,9 +80,9 @@ public class ProtoPredictiveEvaluator : IDisposable
         }
     }
 
-    private void loadScalerParams()
+    private void loadScalerParameters()
     {
-        if (!File.Exists(ScalerPath))
+        if (!File.Exists(scaler))
         {
             Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} - Scaler file missing");
             return;
@@ -112,11 +96,11 @@ public class ProtoPredictiveEvaluator : IDisposable
         
         try
         {
-            var jsonText = File.ReadAllText(ScalerPath);
+            var jsonText = File.ReadAllText(scaler);
             var scalerData = System.Text.Json.JsonDocument.Parse(jsonText).RootElement;
             scalerMean = [.. scalerData.GetProperty("mean").EnumerateArray().Select(x => x.GetDouble())];
             scalerScale = [.. scalerData.GetProperty("scale").EnumerateArray().Select(x => x.GetDouble())];
-            if (scalerMean.Length != FeatureCount * sequenceLength || scalerScale.Length != FeatureCount * sequenceLength)
+            if (scalerMean.Length != featureCount || scalerScale.Length != featureCount)
             {
                 Console.WriteLine("Scaler length mismatch with FeatureCount");
                 return;
@@ -128,14 +112,13 @@ public class ProtoPredictiveEvaluator : IDisposable
             Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} - Exception loading scaler: {ex.Message}");
         }
     }
-    
+
     private double extractClassOneProbability(IReadOnlyCollection<DisposableNamedOnnxValue> results)
     {
         var output = results.FirstOrDefault();
-        if (output?.Value is DenseTensor<float> tensor && tensor.Dimensions.Length == 2 && tensor.Dimensions[1] >= 2)
-            return tensor[0, 1];
-        if (output?.Value is DenseTensor<float> tensor1d && tensor1d.Dimensions.Length == 1)
-            return tensor1d[0];
+        if (output?.Value is DenseTensor<float> tensor1d)
+        return tensor1d[0];
+            //return Math.Clamp(tensor1d[0], 0, 3);
 
         return 0.0;
     }

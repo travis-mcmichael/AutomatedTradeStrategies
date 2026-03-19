@@ -5,7 +5,7 @@ import onnxmltools
 from onnxmltools.convert.common.data_types import FloatTensorType
 
 # Load trained model
-model = xgb.XGBClassifier()
+model = xgb.XGBRegressor()
 model.load_model("xgb_model.json")
 
 # Define input shape

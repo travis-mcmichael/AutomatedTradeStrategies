@@ -8,10 +8,46 @@ namespace AutomatedTrading.Core.Framework.Utility;
 public class Computations
 {
     #region - Bar Computations -
+
+    public static double SessionRange(List<BarData> bars, int i)
+    {
+        var session = bars[i].SessionDate;
+        double high = double.MinValue;
+        double low = double.MaxValue;
+
+        for (var j = i; j >= 0; j--)
+        {
+            if (bars[j].SessionDate != session)
+                break;
+            
+            if (bars[j].High > high)
+                high = bars[j].High;
+            if (bars[j].Low < low)
+                low = bars[j].Low;
+        }
+
+        return high - low;
+    }
+
+    public static double SessionVWAP(List<BarData> bars, int i)
+    {
+        var sessionDate = bars[i].SessionDate;
+        double pv = 0;
+        double volume = 0;
+        for (var j = i; j >= 0; j--)
+        {
+            if (bars[j].SessionDate != sessionDate)
+                break;
+            
+            pv += bars[j].Close * bars[j].Volume;
+            volume += bars[j].Volume;
+        }
+        return volume == 0 ? bars[i].Close : pv / volume;
+    }
     public static double Return(List<BarData> bars, int i, int lookback) 
     {
         if (i < lookback) return 0;
-        return bars[i].Close / bars[i - lookback].Close;
+        return Math.Log(bars[i].Close / bars[i - lookback].Close);
     }
 
     public static double TrueRange(List<BarData> bars, int i) 
@@ -41,16 +77,15 @@ public class Computations
     public static double ATR(List<BarData> bars, int i, int lookback) 
     {
         if (i < lookback) return 0;
-        if (i == lookback)
-        {
-            double sum = 0;
-            for (int j = 1; j <= lookback; j++)
-                sum += TrueRange(bars, j);
 
-            return sum / lookback;
+        double atr = 0;
+        for (var j = i - lookback + 1; j <= i; j++)
+        {
+            atr += TrueRange(bars, j);
         }
-        
-        return ((ATR(bars, i - 1, lookback) * (lookback - 1)) + TrueRange(bars, i)) / lookback;
+
+        atr /= lookback;
+        return atr;
     }
 
     public static double EMA(List<BarData> bars, int i, int lookback, Func<BarData, double> selector) 
@@ -118,7 +153,7 @@ public class Computations
 
     public static double SMA(List<BarData> bars, int i, int lookback, Func<BarData, double> selector) 
     {
-        if (i < lookback) return 0;
+        if (i < lookback || lookback == 0) return 0;
 
         double sum = 0.0;
         for (var j = i - lookback + 1; j <= i; j++)
@@ -141,29 +176,32 @@ public class Computations
         return Math.Sqrt(variance);
     }
 
-    public static double HighLowRange(BarData bar) 
+    public static double HighLowRange(BarData bar, double atr) 
     {
-        return bar.High - bar.Low;
+        if (atr == 0) return 0;
+        return (bar.High - bar.Low) / atr;
     }
 
-    public static double BodySize(BarData bar) 
+    public static double BodySize(BarData bar, double atr) 
     {
-        return Math.Abs(bar.Close - bar.Open);
+        return Math.Abs(bar.Close - bar.Open) / (atr != 0 ? atr : 1);
     }
 
-    public static double UpperWick(BarData bar) 
+    public static double UpperWick(BarData bar, double atr) 
     {
-        return bar.High - Math.Max(bar.Close, bar.Open);
+        if (atr == 0) return 0;
+        return (bar.High - Math.Max(bar.Close, bar.Open)) / atr;
     }
 
-    public static double LowerWick(BarData bar) 
+    public static double LowerWick(BarData bar, double atr) 
     {
-        return Math.Min(bar.Open, bar.Close) - bar.Low;
+        if (atr == 0) return 0;
+        return (Math.Min(bar.Open, bar.Close) - bar.Low) / atr;
     }
 
     public static double ClosePosition(BarData bar) 
     {
-        return (bar.Close - bar.Low) / (bar.High - bar.Low == 0 ? 1 : bar.High - bar.Low);
+        return bar.High - bar.Low == 0 ? 0 : (bar.Close - bar.Low) / (bar.High - bar.Low);
     }
 
     public static double RealizedVolatility(List<BarData> bars, int i, int period) 
@@ -224,13 +262,36 @@ public class Computations
         double std = variance > 0 ? Math.Sqrt(variance) : 0;
         return (bars[i].Volume - mean) / std;
     }
-
-    public static double NextSessionHigh(List<BarData> bars, int i) 
+    
+    public static double NextSessionHigh(List<BarData> bars, int i, double atr)
     {
+        //Console.WriteLine("Computing for NextSessionHigh");
+        //Console.WriteLine($"CurrentBar - {bars[i].ToLog()}, atr - {atr}");
+
+        var nextSessionDate = bars[i].SessionDate;
+        //Console.WriteLine($"Next Session Date {nextSessionDate}");
+
         var j = i + 1;
-        if (i >= bars.Count - 1 || j >= bars.Count)
+        while (j < bars.Count && bars[j].SessionDate == nextSessionDate)
+            j++;
+        if (j >= bars.Count)
             return double.NaN;
-        return (bars[j].Close - bars[i].Close) / bars[i].Close;
+        var nextOpen = bars[j].Open;
+        var nextBars = new List<BarData>();
+        
+        //Console.WriteLine($"Next session open - {nextOpen}");
+        while (j < bars.Count && bars[j].SessionDate != nextSessionDate)
+        {
+            nextBars.Add(bars[j]);
+            j++;
+        }
+
+        if (!nextBars.Any() || atr == 0)
+            return double.NaN;
+        
+        var nextHigh = nextBars.Max(x => x.High);
+        //Console.WriteLine($"Result next high : {nextHigh}");
+        return (nextHigh - nextOpen) / atr;
     }
 
     #endregion

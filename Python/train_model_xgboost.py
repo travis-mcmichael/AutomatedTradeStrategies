@@ -2,13 +2,12 @@ import pandas as pd
 import numpy as np
 import xgboost as xgb
 import joblib
+
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import (
-    accuracy_score,
-    precision_score,
-    recall_score,
-    roc_auc_score,
-    confusion_matrix
+    mean_absolute_error,
+    mean_squared_error,
+    r2_score
 )
 
 # ==============================
@@ -19,7 +18,7 @@ MODEL_OUTPUT = "xgb_model.json"
 SCALER_OUTPUT = "scaler.pkl"
 
 TRAIN_SPLIT = 0.7
-VAL_SPLIT = 0.15  # remaining 15% will be test
+VAL_SPLIT = 0.15  # remaining 15% = test
 
 
 # ==============================
@@ -30,18 +29,21 @@ df = pd.read_csv(CSV_PATH)
 
 print(df.head())
 print(df.dtypes)
+
+# Replace NaNs with column means
 df = df.fillna(df.mean())
 
 print(f"Dataset shape: {df.shape}")
 
-# Assume last column is label
+# Last column is the target
 X = df.iloc[:, :-1].values
 y = df.iloc[:, -1].values
 
-print("Label distribution:")
-unique, counts = np.unique(y, return_counts=True)
-for u, c in zip(unique, counts):
-    print(f"Label {u}: {c} ({c / len(y):.2%})")
+print("\nTarget distribution:")
+print(f"Min: {np.min(y):.6f}")
+print(f"Max: {np.max(y):.6f}")
+print(f"Mean: {np.mean(y):.6f}")
+print(f"Std: {np.std(y):.6f}")
 
 # ==============================
 # Chronological Split
@@ -60,29 +62,31 @@ y_val = y[train_end:val_end]
 X_test = X[val_end:]
 y_test = y[val_end:]
 
-print(f"X_train.shape: {X_train.shape}, X_val.shape: {X_val.shape}, X_test.shape: {X_test.shape}")
-print(f"y_train.shape: {y_train.shape}, y_val.shape: {y_val.shape}, y_test.shape: {y_test.shape}")
-
-print("\nSplit sizes:")
+print("\nDataset splits:")
 print(f"Train: {len(X_train)}")
 print(f"Validation: {len(X_val)}")
 print(f"Test: {len(X_test)}")
 
+print(f"\nX_train.shape: {X_train.shape}")
+print(f"X_val.shape: {X_val.shape}")
+print(f"X_test.shape: {X_test.shape}")
+
 # ==============================
-# Normalize (fit on train only!)
+# Normalize (fit on train only)
 # ==============================
 scaler = StandardScaler()
+
 X_train_scaled = scaler.fit_transform(X_train)
 X_val_scaled = scaler.transform(X_val)
 X_test_scaled = scaler.transform(X_test)
 
 # ==============================
-# Train XGBoost
+# Train XGBoost Regression
 # ==============================
-print("\nTraining XGBoost...")
+print("\nTraining XGBoost Regressor...")
 
-model = xgb.XGBClassifier(
-    n_estimators=500,
+model = xgb.XGBRegressor(
+    n_estimators=1000,
     max_depth=4,
     learning_rate=0.03,
     subsample=0.7,
@@ -91,7 +95,9 @@ model = xgb.XGBClassifier(
     reg_lambda=10,
     min_child_weight=10,
     tree_method="hist",
-    random_state=42
+    objective="reg:squarederror",
+    random_state=42,
+    early_stopping_rounds=50
 )
 
 model.fit(
@@ -106,15 +112,15 @@ model.fit(
 # ==============================
 def evaluate(split_name, X_data, y_data):
     preds = model.predict(X_data)
-    probs = model.predict_proba(X_data)[:, 1]
+
+    mae = mean_absolute_error(y_data, preds)
+    rmse = np.sqrt(mean_squared_error(y_data, preds))
+    r2 = r2_score(y_data, preds)
 
     print(f"\n=== {split_name} Results ===")
-    print(f"Accuracy:  {accuracy_score(y_data, preds):.4f}")
-    print(f"Precision: {precision_score(y_data, preds):.4f}")
-    print(f"Recall:    {recall_score(y_data, preds):.4f}")
-    print(f"ROC AUC:   {roc_auc_score(y_data, probs):.4f}")
-    print("Confusion Matrix:")
-    print(confusion_matrix(y_data, preds))
+    print(f"MAE:  {mae:.6f}")
+    print(f"RMSE: {rmse:.6f}")
+    print(f"R²:   {r2:.4f}")
 
 
 evaluate("Train", X_train_scaled, y_train)
@@ -122,9 +128,21 @@ evaluate("Validation", X_val_scaled, y_val)
 evaluate("Test", X_test_scaled, y_test)
 
 # ==============================
+# Feature Importance
+# ==============================
+print("\nTop Feature Importances:")
+
+importance = model.feature_importances_
+indices = np.argsort(importance)[::-1]
+
+for i in range(min(15, len(indices))):
+    print(f"{i+1}. Feature {indices[i]}: {importance[indices[i]]:.6f}")
+
+# ==============================
 # Save Model + Scaler
 # ==============================
 print("\nSaving model and scaler...")
+
 model.save_model(MODEL_OUTPUT)
 joblib.dump(scaler, SCALER_OUTPUT)
 

@@ -17,78 +17,76 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-var scalpEvaluator = new ScalpStrategyEvaluator();
-var protoEvaluator20260226 = new ProtoPredictiveEvaluator();
 
-app.MapPost("/loadModels", () =>
-{
-    protoEvaluator20260226.LoadModel();
-    return Results.Ok("Models Loaded");
-});
+// app.MapPost("/loadModels", () =>
+// {
+//     protoEvaluator20260226.LoadModel();
+//     return Results.Ok("Models Loaded");
+// });
 
-app.MapPost("/end", () =>
-{
-    protoEvaluator20260226.Dispose();
-    return Results.Ok("Session(s) disposed.");
-});
+// app.MapPost("/end", () =>
+// {
+//     protoEvaluator20260226.Dispose();
+//     return Results.Ok("Session(s) disposed.");
+// });
 
-app.MapPost("/sessionLoaded", () =>
-{
-    return Results.Ok(protoEvaluator20260226.SessionLoaded());
-});
+// app.MapPost("/sessionLoaded", () =>
+// {
+//     return Results.Ok(protoEvaluator20260226.SessionLoaded());
+// });
 
-app.MapPost("/metaSessionLoaded", () =>
-{
-    return Results.Ok(scalpEvaluator.SessionLoaded("meta"));
-});
+// app.MapPost("/metaSessionLoaded", () =>
+// {
+//     return Results.Ok(scalpEvaluator.SessionLoaded("meta"));
+// });
 
-app.MapPost("/scalerLoaded", () =>
-{
-    return Results.Ok(protoEvaluator20260226.ScalerLoaded);
-});
+// app.MapPost("/scalerLoaded", () =>
+// {
+//     return Results.Ok(protoEvaluator20260226.ScalerLoaded);
+// });
 
-app.MapPost("/computeFeatures20260226", () =>
-{
+// app.MapPost("/computeFeatures20260226", () =>
+// {
 
-});
+// });
 
-app.MapPost("/computeFeatures", (ComputeFeaturesRequest req) =>
-{
-    var features = scalpEvaluator.ComputeFeatures(
-        req.BarTime.Value,
-        req.Atr14.Value,
-        req.VolumeAccel.Value,
-        req.SessionHigh.Value,
-        req.SessionLow.Value,
-        req.TickCountThisBar.Value,
-        req.Bars ?? new List<BarData>());
-    return Results.Ok(new FeaturesResponse(features));
-});
+// app.MapPost("/computeFeatures", (ComputeFeaturesRequest req) =>
+// {
+//     var features = scalpEvaluator.ComputeFeatures(
+//         req.BarTime.Value,
+//         req.Atr14.Value,
+//         req.VolumeAccel.Value,
+//         req.SessionHigh.Value,
+//         req.SessionLow.Value,
+//         req.TickCountThisBar.Value,
+//         req.Bars ?? new List<BarData>());
+//     return Results.Ok(new FeaturesResponse(features));
+// });
 
-app.MapPost("/scaleFeatures", (FeaturesRequest req) =>
-{
-    var features = protoEvaluator20260226.ScaleFeatures(req.Features);
-    return Results.Ok(new FeaturesResponse(features));
-});
+// app.MapPost("/scaleFeatures", (FeaturesRequest req) =>
+// {
+//     var features = protoEvaluator20260226.ScaleFeatures(req.Features);
+//     return Results.Ok(new FeaturesResponse(features));
+// });
 
-app.MapPost("/runBaseInference", (FeaturesRequest req) =>
-{
-    var result = protoEvaluator20260226.RunInference(req.Features);
-    return Results.Ok(new InferenceResponse(result));
-});
+// app.MapPost("/runBaseInference", (FeaturesRequest req) =>
+// {
+//     var result = protoEvaluator20260226.RunInference(req.Features);
+//     return Results.Ok(new InferenceResponse(result));
+// });
 
-app.MapPost("/predict", (AutomatedTrading.Core.Models.Requests.Request20260226.FeaturesRequest req) =>
-{
-    var scaled = protoEvaluator20260226.ScaleFeatures(req.Features);
-    var prob = protoEvaluator20260226.RunInference(scaled);
-    return Results.Ok(prob);
-});
+// app.MapPost("/predict", (AutomatedTrading.Core.Models.Requests.Request20260226.FeaturesRequest req) =>
+// {
+//     var scaled = protoEvaluator20260226.ScaleFeatures(req.Features);
+//     var prob = protoEvaluator20260226.RunInference(scaled);
+//     return Results.Ok(prob);
+// });
 
-app.MapPost("/runMetaInference", (MetaInferenceRequest req) =>
-{
-    var result = scalpEvaluator.RunMetaInference(req.Scaled, req.BaseProbability.Value);
-    return Results.Ok(new InferenceResponse(result));
-});
+// app.MapPost("/runMetaInference", (MetaInferenceRequest req) =>
+// {
+//     var result = scalpEvaluator.RunMetaInference(req.Scaled, req.BaseProbability.Value);
+//     return Results.Ok(new InferenceResponse(result));
+// });
 
 app.MapPost("/cleanupTicks", async (IConfiguration config) =>
 {
