@@ -2,7 +2,7 @@ using System.Globalization;
 using AutomatedTrading.Core.Framework.DataLayer;
 using AutomatedTrading.Core.Models;
 
-namespace AutomatedTrading.Import.Bar;
+namespace AutomatedTrading.Import;
 
 public class BarImporter
 {
@@ -29,20 +29,16 @@ public class BarImporter
         try
         {
             if (bars.Count > 0)
-            {
                 totalInserted = await SqliteDataLayer.InsertBarDataBatch(bars);
-            }   
         }
         catch (Exception ex)
         {
             Console.WriteLine(ex.Message);
         }
-        
 
         return totalInserted;
     }
 
-    
     private static BarData? parseBarData(string line)
     {
         var parts = line.Split(';');
@@ -55,9 +51,8 @@ public class BarImporter
             CultureInfo.InvariantCulture);
         var sessionDate = timestamp.Date;
         if (timestamp.Hour >= 16)
-        {
             sessionDate = sessionDate.AddDays(1);
-        }
+
         return new BarData
         {
             Instrument = "MES",
