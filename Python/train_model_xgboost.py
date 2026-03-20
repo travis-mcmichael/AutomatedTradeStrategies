@@ -13,7 +13,7 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 FEATURES_BASE = "/mnt/c/dev/data/features"
 
 EXECUTION_CONFIGS = [
-    {"name": "tick",     "csv": os.path.join(FEATURES_BASE, "tick",     "features.csv")},
+    #{"name": "tick",     "csv": os.path.join(FEATURES_BASE, "tick",     "features.csv")},
     {"name": "bar-high", "csv": os.path.join(FEATURES_BASE, "bar-high", "features.csv")},
     {"name": "bar-low",  "csv": os.path.join(FEATURES_BASE, "bar-low",  "features.csv")},
 ]
