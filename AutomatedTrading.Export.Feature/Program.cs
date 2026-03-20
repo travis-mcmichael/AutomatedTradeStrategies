@@ -34,17 +34,23 @@ class Program
 
         if (execution == "tick")
         {
-            string outputPath = $"{path}\\tickFeatures.csv";
+            string dir        = Path.Combine(path, "tick");
+            Directory.CreateDirectory(dir);
+            string outputPath = Path.Combine(dir, "tickFeatures.csv");
             await GenerateTickFeatureStreaming(outputPath, tickRepo);
         }
         else if (execution == "bar-high")
         {
-            string outputPath = $"{path}\\barFeaturesHigh.csv";
+            string dir        = Path.Combine(path, "bar-high");
+            Directory.CreateDirectory(dir);
+            string outputPath = Path.Combine(dir, "barFeaturesHigh.csv");
             await new SessionOpenHighFeatureExporter(outputPath, barRepo).GenerateFeatures(startDate, endDate);
         }
         else if (execution == "bar-low")
         {
-            string outputPath = $"{path}\\barFeaturesLow.csv";
+            string dir        = Path.Combine(path, "bar-low");
+            Directory.CreateDirectory(dir);
+            string outputPath = Path.Combine(dir, "barFeaturesLow.csv");
             await new SessionOpenLowFeatureExporter(outputPath, barRepo).GenerateFeatures(startDate, endDate);
         }
         else
