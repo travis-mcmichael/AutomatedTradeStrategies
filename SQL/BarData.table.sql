@@ -15,5 +15,7 @@ CREATE TABLE IF NOT EXISTS BarData (
     High REAL NOT NULL,
     Low REAL NOT NULL,
     Close REAL NOT NULL,
-    Volume REAL NOT NULL
+    Volume REAL NOT NULL,
+
+    UNIQUE (Instrument, Timestamp, SessionDate)
 );

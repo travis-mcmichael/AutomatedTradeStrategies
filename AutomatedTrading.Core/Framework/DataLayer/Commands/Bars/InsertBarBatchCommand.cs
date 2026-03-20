@@ -9,13 +9,21 @@ namespace AutomatedTrading.Core.Framework.DataLayer.Commands.Bars;
 
 public class InsertBarBatchCommand : IDbCommand<int>
 {
-    // NOTE: INSERT OR REPLACE is SQLite syntax.
-    // For PostgreSQL, replace with: INSERT INTO BarData (...) VALUES (...) ON CONFLICT (Instrument, Timeframe, Timestamp) DO UPDATE SET ...
+    // SQLite 3.24+ upsert syntax. ON CONFLICT targets the UNIQUE (Instrument, Timestamp, SessionDate)
+    // constraint and updates all mutable columns in-place, preserving the existing Id.
+    // For PostgreSQL the syntax is identical — just change the connection string.
     private const string Sql = @"
-        INSERT OR REPLACE INTO BarData
+        INSERT INTO BarData
             (Instrument, Timeframe, Timestamp, SessionDate, Open, High, Low, Close, Volume)
         VALUES
-            (@Instrument, @Timeframe, @Timestamp, @SessionDate, @Open, @High, @Low, @Close, @Volume)";
+            (@Instrument, @Timeframe, @Timestamp, @SessionDate, @Open, @High, @Low, @Close, @Volume)
+        ON CONFLICT (Instrument, Timestamp, SessionDate) DO UPDATE SET
+            Timeframe   = excluded.Timeframe,
+            Open        = excluded.Open,
+            High        = excluded.High,
+            Low         = excluded.Low,
+            Close       = excluded.Close,
+            Volume      = excluded.Volume";
 
     private readonly List<BarData> bars;
     private readonly int batchSize;
