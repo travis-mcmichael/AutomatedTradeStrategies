@@ -1,6 +1,7 @@
-﻿// See https://aka.ms/new-console-template for more information
 using System.Globalization;
-using AutomatedTrading.Core.Framework.DataLayer;
+using AutomatedTrading.Core.Framework;
+using AutomatedTrading.Core.Framework.DataLayer.Repositories;
+using AutomatedTrading.Core.Framework.DataLayer.Sqlite;
 using AutomatedTrading.Core.Framework.Utility;
 using AutomatedTrading.Core.Models;
 using AutomatedTrading.Export.Feature.Exporters;
@@ -9,74 +10,69 @@ namespace AutomatedTrading.Export.Feature;
 
 class Program
 {
-    static int sequenceLength = 100;
+    static int sequenceLength    = 100;
     static int predictionHorizon = 20;
+
     static async Task Main(string[] args)
     {
-        var startDate = new DateTime(2025, 12, 1);
-        var endDate = new DateTime(2025, 12, 7);
-
         Console.WriteLine("Feature Export starting...");
         if (args.Length < 2)
         {
-            Console.WriteLine("Usage:");
-            Console.WriteLine($"Feature Export <db path> <output csv path>");
+            Console.WriteLine("Usage: Feature Export <output directory> <tick|bar>");
             return;
         }
-        string path = args[0];
-        string execution = args[1];
 
-        if (execution.Trim().ToLower() == "tick")
+        string path      = args[0];
+        string execution = args[1].Trim().ToLower();
+
+        var factory    = new SqliteConnectionFactory(AppConstants.SQLITE_CONNECTION);
+        var barRepo    = new BarRepository(factory);
+        var tickRepo   = new TickRepository(factory);
+
+        var startDate  = new DateTime(2021, 1, 1);
+        var endDate    = new DateTime(2026, 1, 1);
+
+        if (execution == "tick")
         {
             string outputPath = $"{path}\\tickFeatures.csv";
-            await GenerateTickFeatureStreaming(outputPath);
+            await GenerateTickFeatureStreaming(outputPath, tickRepo);
         }
         else
         {
             string outputPath = $"{path}\\barFeatures.csv";
-            await new NextDayHighBarFeatureExporter(outputPath).GenerateFeatures(startDate, endDate);
+            await new SessionOpenHighFeatureExporter(outputPath, barRepo).GenerateFeatures(startDate, endDate);
         }
 
         Console.WriteLine("Output complete.");
     }
 
-    static async Task GenerateTickFeatureStreaming(string outputPath)
+    static async Task GenerateTickFeatureStreaming(string outputPath, ITickRepository tickRepo)
     {
-        using var reader = await SqliteDataLayer.GetTickDataReader();
         using var writer = new StreamWriter(outputPath);
-        var tickBuffer = new List<TickData>(sequenceLength + predictionHorizon + 1);
+        var tickBuffer   = new List<TickData>(sequenceLength + predictionHorizon + 1);
         var featureCount = 10;
-        var sampleCount = 0;
-        var headerWritten = false;
-        while (await reader.ReadAsync())
+        var sampleCount  = 0;
+        var headerWritten= false;
+
+        await tickRepo.StreamTicksAsync(async tick =>
         {
-            var tick = new TickData
-            {
-                TickTime = reader.GetInt64(0),
-                LastPrice = reader.GetFloat(1),
-                Bid = reader.GetFloat(2),
-                Ask = reader.GetFloat(3),
-                Volume = reader.GetInt32(4)
-            };
             tickBuffer.Add(tick);
             if (tickBuffer.Count < sequenceLength + predictionHorizon)
-                continue;
+                return;
+
             if (!headerWritten)
             {
                 for (var t = 0; t < sequenceLength; t++)
-                {
                     for (var f = 0; f < featureCount; f++)
-                    {
                         writer.Write($"f_{t}_{f},");
-                    }
-                }
                 writer.WriteLine("label");
                 headerWritten = true;
             }
 
             var currentIndex = tickBuffer.Count - predictionHorizon - 1;
-            var features = new double[sequenceLength, featureCount];
-            var start = currentIndex - sequenceLength + 1;
+            var features     = new double[sequenceLength, featureCount];
+            var start        = currentIndex - sequenceLength + 1;
+
             for (var j = 0; j < sequenceLength; j++)
             {
                 var idx = start + j;
@@ -91,25 +87,25 @@ class Program
                 features[j, 8] = Computations.RollingDelta(tickBuffer, idx, 20);
                 features[j, 9] = Computations.TickInterval(tickBuffer, idx);
             }
+
             var currentPrice = tickBuffer[currentIndex].LastPrice;
-            var futurePrice = tickBuffer[currentIndex + predictionHorizon].LastPrice;
-            var label = futurePrice > currentPrice ? 1 : 0;
+            var futurePrice  = tickBuffer[currentIndex + predictionHorizon].LastPrice;
+            var label        = futurePrice > currentPrice ? 1 : 0;
+
             for (var t = 0; t < sequenceLength; t++)
-            {
                 for (var f = 0; f < featureCount; f++)
                 {
-                    writer.Write(features[t, f].ToString(CultureInfo.InvariantCulture));
-                    writer.Write(",");
+                    await writer.WriteAsync(features[t, f].ToString(CultureInfo.InvariantCulture));
+                    await writer.WriteAsync(",");
                 }
-            }
-            writer.WriteLine(label);
+
+            await writer.WriteLineAsync(label.ToString());
             sampleCount++;
             tickBuffer.RemoveAt(0);
+
             if (sampleCount % 10000 == 0)
-            {
                 Console.WriteLine($"Generated {sampleCount} samples...");
-            }
-        }
+        });
 
         Console.WriteLine($"Total samples written: {sampleCount}");
     }

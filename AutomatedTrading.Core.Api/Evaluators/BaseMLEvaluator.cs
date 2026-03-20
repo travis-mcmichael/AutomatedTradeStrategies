@@ -5,11 +5,11 @@ namespace AutomatedTrading.Core.Api.Evaluators;
 
 public class BaseMLEvaluator : IDisposable
 {
-    private string model = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Models\\20260317", "xgb_model.onnx");
-    private string scaler = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Models\\20260317", "scaler_params.json");
+    private string model = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Models\\20260319", "xgb_model.onnx");
+    private string scaler = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Models\\20260319", "scaler_params.json");
     private InferenceSession? session;
     private string? inputName;
-    private int featureCount = 999;
+    private int featureCount = 34;
     private double[]? scalerMean;
     private double[]? scalerScale;
     public bool ScalerLoaded = false;

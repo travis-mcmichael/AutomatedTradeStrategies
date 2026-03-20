@@ -1,3 +1,7 @@
+using AutomatedTrading.Core.Framework;
+using AutomatedTrading.Core.Framework.DataLayer.Repositories;
+using AutomatedTrading.Core.Framework.DataLayer.Sqlite;
+
 namespace AutomatedTrading.Import;
 
 class Program
@@ -10,7 +14,7 @@ class Program
             return;
         }
 
-        var directory = args[0];
+        var directory  = args[0];
         var importType = args[1].ToLowerInvariant();
 
         if (!Directory.Exists(directory))
@@ -25,16 +29,25 @@ class Program
             return;
         }
 
+        var factory = new SqliteConnectionFactory(AppConstants.SQLITE_CONNECTION);
+
         Console.WriteLine($"{importType} data import starting...");
         try
         {
             var imported = 0;
-            var files = Directory.GetFiles(directory);
-            foreach (var file in files)
+            var files    = Directory.GetFiles(directory);
+
+            if (importType == "bar")
             {
-                imported += importType == "bar"
-                    ? await BarImporter.ImportBarData(file)
-                    : await TickImporter.ImportTickData(file);
+                var barRepo = new BarRepository(factory);
+                foreach (var file in files)
+                    imported += await BarImporter.ImportBarData(file, barRepo, AppConstants.BAR_DATA_BATCH_SIZE);
+            }
+            else
+            {
+                var tickRepo = new TickRepository(factory);
+                foreach (var file in files)
+                    imported += await TickImporter.ImportTickData(file, tickRepo, AppConstants.TICK_DATA_BATCH_SIZE);
             }
 
             Console.WriteLine($"Imported {imported} records.");

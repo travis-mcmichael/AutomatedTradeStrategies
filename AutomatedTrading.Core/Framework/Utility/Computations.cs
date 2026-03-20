@@ -39,7 +39,7 @@ public class Computations
             if (bars[j].SessionDate != sessionDate)
                 break;
             
-            pv += bars[j].Close * bars[j].Volume;
+            pv += ((bars[j].High + bars[j].Low + bars[j].Close) / 3.0) * bars[j].Volume;
             volume += bars[j].Volume;
         }
         return volume == 0 ? bars[i].Close : pv / volume;
@@ -94,7 +94,7 @@ public class Computations
         if (i == 0)
             return selector(bars[0]);
             
-        return selector(bars[i]) * k * EMA(bars, i - 1, lookback, selector) * (1 - k);
+        return selector(bars[i]) * k + EMA(bars, i - 1, lookback, selector) * (1 - k);
     }
 
     public static double RSI(List<BarData> bars, int i, int lookback) 
@@ -147,6 +147,8 @@ public class Computations
             return 0;
         double plusDI = 100 * (plusDM / tr);
         double minusDI = 100 * (minusDM / tr);
+        if (plusDI + minusDI == 0)
+            return 0;
         double dx = 100 * Math.Abs(plusDI - minusDI) / (plusDI + minusDI);
         return dx;
     }
@@ -224,9 +226,9 @@ public class Computations
         return bars[i].Close - bars[i - lookback].Close;
     }
 
-    public static double VWAP(BarData bar, double cumulativePv, double cumulativeVol) 
+    public static double VWAP(BarData bar, ref double cumulativePv, ref double cumulativeVol)
     {
-        cumulativePv += bar.Close * bar.Volume;
+        cumulativePv += ((bar.High + bar.Low + bar.Close) / 3.0) * bar.Volume;
         cumulativeVol += bar.Volume;
 
         return cumulativePv / cumulativeVol;
@@ -259,23 +261,23 @@ public class Computations
         double variance = (sumSq / lookback) - (mean * mean);
         if (variance <= 0)
             return 0;
-        double std = variance > 0 ? Math.Sqrt(variance) : 0;
-        return (bars[i].Volume - mean) / std;
+        return (bars[i].Volume - mean) / Math.Sqrt(variance);
     }
     
     public static double NextSessionHigh(List<BarData> bars, int i, double atr)
     {
-        var nextSessionDate = bars[i].SessionDate;
+        var currentSessionDate = bars[i].SessionDate;
 
         var j = i + 1;
-        while (j < bars.Count && bars[j].SessionDate == nextSessionDate)
+        while (j < bars.Count && bars[j].SessionDate == currentSessionDate)
             j++;
         if (j >= bars.Count)
             return double.NaN;
+        var nextSessionDate = bars[j].SessionDate;
         var nextOpen = bars[j].Open;
         var nextBars = new List<BarData>();
 
-        while (j < bars.Count && bars[j].SessionDate != nextSessionDate)
+        while (j < bars.Count && bars[j].SessionDate == nextSessionDate)
         {
             nextBars.Add(bars[j]);
             j++;
@@ -313,7 +315,7 @@ public class Computations
 
     public static double Spread(TickData t)
     {
-        return t.Ask ?? 0 - t.Bid ?? 0;
+        return (t.Ask ?? 0) - (t.Bid ?? 0);
     }
 
     public static double TickInterval(List<TickData> ticks, int i)
