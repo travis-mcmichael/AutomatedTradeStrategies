@@ -1,11 +1,12 @@
 using System.Collections.Generic;
 using System.Linq;
 using AutomatedTrading.Core.Models;
-using AutomatedTrading.Core.Framework;
+using AutomatedTrading.Core.Framework.Interfaces;
+using AutomatedTrading.Core.Framework.Enums;
 
 namespace AutomatedTrading.Core.Signals;
 
-public class IsTrending : ISignal, IHasLog
+public class IsTrending : ISignal, IStatusLog
 {
     private readonly int strength;
     private readonly PriceDirection priceDirection;
@@ -16,7 +17,7 @@ public class IsTrending : ISignal, IHasLog
         this.priceDirection = priceDirection;
     }
 
-    public bool IsTriggered(List<Bar> bars)
+    public bool IsTriggered(List<BarData> bars)
     {
         if (bars.Count < strength)
             return false;
@@ -32,7 +33,7 @@ public class IsTrending : ISignal, IHasLog
             return checkDecreasingTrend(segment);
     }
 
-    private bool checkDecreasingTrend(List<Bar> bars)
+    private bool checkDecreasingTrend(List<BarData> bars)
     {
         for (var i = bars.Count - 1; i > 0; i--)
         {
@@ -62,7 +63,7 @@ public class IsTrending : ISignal, IHasLog
         return true;
     }
 
-    private bool checkIncreasingTrend(List<Bar> bars)
+    private bool checkIncreasingTrend(List<BarData> bars)
     {
         for (var i = bars.Count - 1; i > 0; i--)
         {

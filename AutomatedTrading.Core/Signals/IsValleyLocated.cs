@@ -1,11 +1,11 @@
 using AutomatedTrading.Core.Models;
-using AutomatedTrading.Core.Framework;
 using System.Collections.Generic;
 using System.Linq;
+using AutomatedTrading.Core.Framework.Interfaces;
 
 namespace AutomatedTrading.Core.Signals;
 
-public class IsValleyLocated : ISignal, IHasLog
+public class IsValleyLocated : ISignal, IStatusLog
 {
     /// <summary>
     /// Number of bars to look ahead/behind when considering a bar as a peak
@@ -20,7 +20,7 @@ public class IsValleyLocated : ISignal, IHasLog
     /// <summary>
     /// Bars that satisfy the valley-detection logic in the supplied range.
     /// </summary>
-    public List<Bar> Valleys { get; } = new List<Bar>();
+    public List<BarData> Valleys { get; } = new List<BarData>();
     public string Log { get; set; } = "";
     public IsValleyLocated(int strength, int pointMovementThreshold)
     {
@@ -28,18 +28,17 @@ public class IsValleyLocated : ISignal, IHasLog
         this.pointMovementThreshold = pointMovementThreshold;
     }
 
-    public bool IsTriggered(List<Bar> bars)
+    public bool IsTriggered(List<BarData> bars)
     {
         var segmentLength = strength * 2 + 1;
         if (bars.Count < segmentLength)
             return false;
-        
-        var valleys = new List<Bar>();
+
+        var valleys = new List<BarData>();
         for (var i = strength; i < bars.Count - strength; i++)
         {
             var skip = false;
             var barToEvaluate = bars[i];
-            System.Console.WriteLine($"Evaluating bar {barToEvaluate.ToLog()}");
 
             // evaluate each bar's value {strength} records before and after the current bar.
             var subset = bars.GetRange(i - strength, segmentLength);
@@ -67,7 +66,7 @@ public class IsValleyLocated : ISignal, IHasLog
 
         Valleys.AddRange(valleys);
 
-        Log = "IsValleyLocated.IsTriggered: Valleys detected - " + string.Join(",", valleys.Select(x => $"{x.Close:#.##} @ {x.Time}" ));
+        Log = "IsValleyLocated.IsTriggered: Valleys detected - " + string.Join(",", valleys.Select(x => $"{x.Close:#.##} @ {x.Timestamp}"));
         return valleys.Count > 0;
     }
 

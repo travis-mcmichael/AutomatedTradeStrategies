@@ -1,22 +1,23 @@
 using AutomatedTrading.Core.Framework;
+using AutomatedTrading.Core.Framework.Interfaces;
 using AutomatedTrading.Core.Models;
 using System.Collections.Generic;
 using System.Linq;
 
 namespace AutomatedTrading.Core.Signals;
 
-public class InTradeDay : ISignal, IHasLog
+public class InTradeDay : ISignal, IStatusLog
 {
     public string Log { get; private set; } = "";
-    public bool IsTriggered(List<Bar> bars)
+    public bool IsTriggered(List<BarData> bars)
     {
         if (bars.Count == 0)
             return false;
 
         var bar = bars.First();
 
-        var result = bar.Time > AppConstants.TRADE_DAY_START && bar.Time < AppConstants.TRADE_DAY_END;
-        Log = $"InTradeDay.isTriggered: result={result}, barTime={bar.Time}, tradeDayStart={AppConstants.TRADE_DAY_START}, tradeDayEnd={AppConstants.TRADE_DAY_END}";
+        var result = bar.Timestamp.ToInt() > AppConstants.TRADE_DAY_START && bar.Timestamp.ToInt() < AppConstants.TRADE_DAY_END;
+        Log = $"InTradeDay.isTriggered: result={result}, barTime={bar.Timestamp}, tradeDayStart={AppConstants.TRADE_DAY_START}, tradeDayEnd={AppConstants.TRADE_DAY_END}";
 
         return result;
     }

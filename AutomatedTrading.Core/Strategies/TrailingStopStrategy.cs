@@ -1,4 +1,5 @@
 using AutomatedTrading.Core.Framework;
+using AutomatedTrading.Core.Framework.Interfaces;
 using AutomatedTrading.Core.Models;
 
 namespace AutomatedTrading.Core.Strategies;
@@ -6,34 +7,34 @@ namespace AutomatedTrading.Core.Strategies;
 /// <summary>
 /// Class to keep all logic related to maintain a trailing stop strategy.
 /// </summary>
-public class TrailingStopStrategy : IHasLog
+public class TrailingStopStrategy : IStatusLog
 {
     /// <summary>
     /// Starting stop-loss points.
     /// </summary>
-    public int InitialStopLoss { get; private set; }
-    
+    public double InitialStopLoss { get; private set; }
+
     /// <summary>
     /// Amount to trigger updating stop-loss to trail current price.
     /// </summary>
-    public int TrailTrigger { get; private set; }
-    
+    public double TrailTrigger { get; private set; }
+
     /// <summary>
     /// Amount relative to current value to update stop-loss.
     /// </summary>
-    public int TrailDistance { get; private set; }
-    
+    public double TrailDistance { get; private set; }
+
     /// <summary>
     /// Current stop-loss value.
     /// </summary>
     public double CurrentStopLoss { get; set; }
-    
+
     /// <summary>
     /// Highest price since buying in.
     /// </summary>
     public double HighestPrice { get; set; } = 0;
 
-    public string Log {get; protected set;} = "";
+    public string Log { get; protected set; } = "";
 
     /// <summary>
     /// Default constructor.
@@ -41,17 +42,25 @@ public class TrailingStopStrategy : IHasLog
     /// <param name="initialStopLoss"></param>
     /// <param name="trailTrigger"></param>
     /// <param name="trailDistance"></param>
-    public TrailingStopStrategy(int initialStopLoss, int trailTrigger, int trailDistance)
+    public TrailingStopStrategy(double initialStopLoss, double trailTrigger, double trailDistance)
     {
         InitialStopLoss = initialStopLoss;
         TrailTrigger = trailTrigger;
         TrailDistance = trailDistance;
         CurrentStopLoss = 0;
+        Log = $"TrailingStop.ctor\r\n\tInitialStopLoss: {InitialStopLoss}\r\n\tTrailTrigger: {TrailTrigger}\r\n\tCurrentStopLoss: {CurrentStopLoss}";
     }
 
-    public virtual void Initialize(Bar bar)
+    public virtual void Initialize(BarData bar)
     {
         CurrentStopLoss = 0;
+    }
+
+    public void UpdateStopLoss(BarData bar)
+    {
+        CurrentStopLoss = bar.Close - InitialStopLoss;
+        HighestPrice = bar.Close;
+        Log = $"TrailingStop.UpdateStopLoss\r\n\tInitialStopLoss: {InitialStopLoss}\r\n\tHighestPrice: {HighestPrice}";
     }
 
     /// <summary>
@@ -60,30 +69,34 @@ public class TrailingStopStrategy : IHasLog
     /// <param name="bar"></param>
     /// <param name="buyInPrice"></param>
     /// <returns></returns>
-    public bool EvaluateStopLoss(Bar bar)
+    public bool EvaluateStopLoss(BarData bar)
     {
-        HighestPrice = System.Math.Max(HighestPrice, bar.Close);
+        var previous = HighestPrice;
+        var current = System.Math.Max(HighestPrice, bar.Close);
         if (CurrentStopLoss == 0)
         {
-            CurrentStopLoss = HighestPrice - InitialStopLoss;
-            
-            Log = $"TrailingStop.EvaluateStopLoss - result: TRUE, CurrentStopLoss: {CurrentStopLoss:#.##}, HighestPrice: {HighestPrice:#.##}, InitialStop: {InitialStopLoss:#.##}";
+            HighestPrice = current;
+            CurrentStopLoss = current - InitialStopLoss;
+
+            Log = $"TrailingStop.EvaluateStopLoss\r\n\tresult: \tTRUE\r\n\tCurrentStopLoss:\t{CurrentStopLoss:#.##}\r\n\tHighestPrice:\t{HighestPrice:#.##}\r\n\tInitialStop:\t{InitialStopLoss:#.##}";
             return true;
         }
 
-        var profitPoints = HighestPrice - CurrentStopLoss;
+        var profitPoints = current - previous;
         if (profitPoints >= TrailTrigger)
         {
+            HighestPrice = current;
+
             var newStop = HighestPrice - TrailDistance;
             if (newStop > CurrentStopLoss)
             {
                 CurrentStopLoss = newStop;
-                Log = $"TrailingStop.EvaluateStopLoss - result: TRUE, CurrentStopLoss: {CurrentStopLoss:#.##}, HighestPrice: {HighestPrice:#.##}, TrailDistance: {TrailDistance:#.##}";
+                Log = $"TrailingStop.EvaluateStopLoss\r\n\tresult: TRUE\r\n\tCurrentStopLoss:\t{CurrentStopLoss:#.##}\r\n\tTrailDistance:\t{TrailDistance:#.##}\r\n\tHighestPrice:\t{HighestPrice:#.##}\r\n\tprevious high:\t{previous:#.##}";
                 return true;
             }
         }
 
-        Log = $"TrailingStop.EvaluateStopLoss - result: FALSE, CurrentStopLoss: {CurrentStopLoss:#.##}, HighestPrice: {HighestPrice:#.##}";
+        Log = $"TrailingStop.EvaluateStopLoss\r\n\tresult: FALSE\r\n\tCurrentStopLoss:\t{CurrentStopLoss:#.##}\r\n\tHighestPrice:\t{HighestPrice:#.##}";
         return false;
     }
 }

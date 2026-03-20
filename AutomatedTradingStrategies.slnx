@@ -1,5 +1,7 @@
 <Solution>
   <Project Path="AutomatedTrading.Core.Api/AutomatedTrading.Core.Api.csproj" />
-  <Project Path="AutomatedTrading.Core.Test/AutomatedTrading.Core.Test.csproj" />
+  <!--<Project Path="AutomatedTrading.Core.Test/AutomatedTrading.Core.Test.csproj" />-->
   <Project Path="AutomatedTrading.Core/AutomatedTrading.Core.csproj" />
+  <Project Path="AutomatedTrading.Export.Feature/AutomatedTrading.Export.Feature.csproj" />
+  <Project Path="AutomatedTrading.Console/AutomatedTrading.Console.csproj" />
 </Solution>

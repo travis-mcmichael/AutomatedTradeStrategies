@@ -12,7 +12,9 @@
 *.sln.docstates
 
 ## VS Code
-.vscode/
+.vscode/*
+!.vscode/launch.json
+!.vscode/tasks.json
 
 ## Rider / JetBrains
 .idea/

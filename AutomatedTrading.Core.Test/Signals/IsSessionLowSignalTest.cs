@@ -27,7 +27,7 @@ public class IsSessionLowSignalTest
             Console.WriteLine(bar.ToLog());
         }
 
-        var signalResults = bars.Select(x => new IsSessionLow(1800, sessionLow, bars.Count()).IsTriggered(new List<Bar> { x }));
+        var signalResults = bars.Select(x => new IsSessionLow(1800, sessionLow, bars.Count()).IsTriggered(new List<BarData> { x }));
         Assert.Equal(expected, signalResults);
     }
 }

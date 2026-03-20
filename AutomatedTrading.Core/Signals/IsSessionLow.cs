@@ -1,11 +1,12 @@
 using System.Collections.Generic;
 using System.Linq;
 using AutomatedTrading.Core.Framework;
+using AutomatedTrading.Core.Framework.Interfaces;
 using AutomatedTrading.Core.Models;
 
 namespace AutomatedTrading.Core.Signals;
 
-public class IsSessionLow : ISignal, IHasLog
+public class IsSessionLow : ISignal, IStatusLog
 {
 
     public double CurrentSessionLow { get; private set; }
@@ -20,7 +21,7 @@ public class IsSessionLow : ISignal, IHasLog
         BarCount = barCount;
     }
 
-    public bool IsTriggered(List<Bar> bars)
+    public bool IsTriggered(List<BarData> bars)
     {
         if (BarCount < AppConstants.MINIMUM_BARS_TO_EVALUATE)
         {

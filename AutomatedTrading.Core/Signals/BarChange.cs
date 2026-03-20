@@ -1,12 +1,12 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using AutomatedTrading.Core.Models;
-using AutomatedTrading.Core.Framework;
+using AutomatedTrading.Core.Framework.Interfaces;
+using AutomatedTrading.Core.Framework.Enums;
 
 namespace AutomatedTrading.Core.Signals;
 
-public class BarChange : ISignal, IHasLog
+public class BarChange : ISignal, IStatusLog
 {
     private readonly int pointsChangeThreshold;
     private readonly int barMax;
@@ -20,9 +20,9 @@ public class BarChange : ISignal, IHasLog
         this.priceDirection = priceDirection;
     }
 
-    public bool IsTriggered(List<Bar> bars)
+    public bool IsTriggered(List<BarData> bars)
     {
-        var segment = new List<Bar>();
+        var segment = new List<BarData>();
         if (barMax < 2 || pointsChangeThreshold < 1)
         {
             Log = $"BarChange.IsTriggered: result=false, bad setup values (barMax={barMax}, theshold={pointsChangeThreshold})";
@@ -32,12 +32,12 @@ public class BarChange : ISignal, IHasLog
         if (bars.Count < 2 || barMax < 2)
         {
             Log = $"BarChange.IsTriggered: result=false, not enough data (barCount={bars.Count})";
-            return false;   
+            return false;
         }
 
         if (bars.Count > barMax)
         {
-            segment = bars.Skip(bars.Count - barMax).ToList();;
+            segment = bars.Skip(bars.Count - barMax).ToList(); ;
         }
         else
         {

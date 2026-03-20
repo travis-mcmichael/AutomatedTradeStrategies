@@ -1,20 +1,20 @@
-using AutomatedTrading.Core.Models;
 using System.Collections.Generic;
+using AutomatedTrading.Core.Framework;
 
 namespace AutomatedTrading.Core.Models;
 
 public class MarketState : IMarketState
 {
-    public IList<Bar> Peaks { get; } = new List<Bar>();
-    public IList<Bar> Valleys { get; } = new List<Bar>();
-    public Bar? DayStart { get; private set; }
-    public Bar? DayHigh { get; private set; }
-    public Bar? DayLow { get; private set; }
+    public IList<BarData> Peaks { get; } = new List<BarData>();
+    public IList<BarData> Valleys { get; } = new List<BarData>();
+    public BarData? DayStart { get; private set; }
+    public BarData? DayHigh { get; private set; }
+    public BarData? DayLow { get; private set; }
     public int BarCount { get; set; } = 0;
 
-    public void OnNewBar(Bar bar)
+    public void OnNewBar(BarData bar)
     {
-        if (bar.Time < AppConstants.TRADE_DAY_START || bar.Time > AppConstants.TRADE_DAY_END)
+        if (bar.Timestamp.ToInt() < AppConstants.TRADE_DAY_START || bar.Timestamp.ToInt() > AppConstants.TRADE_DAY_END)
             return;
 
         if (DayStart == null)
@@ -33,19 +33,19 @@ public class MarketState : IMarketState
         BarCount++;
     }
 
-    public void OnNewSession(Bar bar)
+    public void OnNewSession(BarData bar)
     {
         BarCount = 0;
         Peaks.Clear();
         Valleys.Clear();
     }
 
-    public void MarkSignalPeak(Bar bar)
+    public void MarkSignalPeak(BarData bar)
     {
         Peaks.Add(bar);
     }
 
-    public void MarkSignalValley(Bar bar)
+    public void MarkSignalValley(BarData bar)
     {
         Valleys.Add(bar);
     }
