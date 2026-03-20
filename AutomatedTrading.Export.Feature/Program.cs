@@ -37,10 +37,19 @@ class Program
             string outputPath = $"{path}\\tickFeatures.csv";
             await GenerateTickFeatureStreaming(outputPath, tickRepo);
         }
+        else if (execution == "bar-high")
+        {
+            string outputPath = $"{path}\\barFeaturesHigh.csv";
+            await new SessionOpenHighFeatureExporter(outputPath, barRepo).GenerateFeatures(startDate, endDate);
+        }
+        else if (execution == "bar-low")
+        {
+            string outputPath = $"{path}\\barFeaturesLow.csv";
+            await new SessionOpenLowFeatureExporter(outputPath, barRepo).GenerateFeatures(startDate, endDate);
+        }
         else
         {
-            string outputPath = $"{path}\\barFeatures.csv";
-            await new SessionOpenHighFeatureExporter(outputPath, barRepo).GenerateFeatures(startDate, endDate);
+            Console.WriteLine("Unknown execution type. Expected: tick | bar-high | bar-low");
         }
 
         Console.WriteLine("Output complete.");

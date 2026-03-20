@@ -11,7 +11,7 @@ class Program
 {
     static string model  = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Models\\20260319", "xgb_model.onnx");
     static string scaler = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Models\\20260319", "scaler_params.json");
-    const int featureCount = 38;
+    const int featureCount = 40;
 
     // MES session times in CT (timestamps assumed to be in CT)
     // Session opens 16:00 (5 PM ET), RTH 08:30-15:15 (9:30 AM - 4:15 PM ET)
@@ -31,53 +31,85 @@ class Program
 
         var barRepo = new BarRepository(new SqliteConnectionFactory(AppConstants.SQLITE_CONNECTION));
 
-        // The session currently open has today's date as its session date
-        // (e.g. the session that opened at 5 PM yesterday is session "20260319")
-        var todaySessionDate = "20260108"; //DateTime.Today.ToString("yyyyMMdd");
-        var prevSessionDate  = getPreviousSessionDate(todaySessionDate);
+        // Generate all weekday dates in 2026 up to today as potential session dates
+        var sessionDates = get2026SessionDates();
 
-        // First bar of the current (open) session gives us the session open price
-        var todayMinuteBars = await barRepo.GetBarsBySessionDateAsync(todaySessionDate);
-        if (!todayMinuteBars.Any())
+        System.Console.WriteLine($"{"Session",-12} {"Open",8} {"PredHigh",10} {"ActualHigh",11} {"Error",8} {"ErrorxATR",10}");
+        System.Console.WriteLine(new string('-', 65));
+
+        var errors    = new List<double>();
+        var atrs      = new List<double>();
+        var skipped   = 0;
+
+        foreach (var sessionDate in sessionDates)
         {
-            System.Console.WriteLine($"No bars found for today's session ({todaySessionDate}). " +
-                                     "Has the session opened yet?");
+            var result = await runSessionInference(barRepo, evaluator, sessionDate);
+            if (result is null)
+            {
+                skipped++;
+                continue;
+            }
+
+            var (sessionOpen, predictedHigh, actualHigh, atr20) = result.Value;
+            var error = predictedHigh - actualHigh;
+            errors.Add(Math.Abs(error));
+            atrs.Add(atr20);
+
+            System.Console.WriteLine(
+                $"{sessionDate,-12} {sessionOpen,8:F2} {predictedHigh,10:F2} {actualHigh,11:F2} {error,8:F2} {safeDiv(error, atr20),10:F3}");
+        }
+
+        if (errors.Count == 0)
+        {
+            System.Console.WriteLine("No sessions evaluated.");
             return;
         }
 
-        // Previous session's 1-min bars — needed for intraday structure features
+        var mae          = errors.Average();
+        var avgAtr       = atrs.Average();
+        var withinHalfAtr= errors.Count(e => e < avgAtr * 0.5);
+        var withinOneAtr = errors.Count(e => e < avgAtr);
+
+        System.Console.WriteLine(new string('-', 65));
+        System.Console.WriteLine($"Sessions evaluated: {errors.Count}  |  Skipped: {skipped}");
+        System.Console.WriteLine($"MAE:               {mae:F2} pts");
+        System.Console.WriteLine($"Avg ATR20:         {avgAtr:F2} pts");
+        System.Console.WriteLine($"MAE / ATR20:       {safeDiv(mae, avgAtr):F3}");
+        System.Console.WriteLine($"Within 0.5x ATR:  {withinHalfAtr}/{errors.Count} ({(double)withinHalfAtr/errors.Count:P0})");
+        System.Console.WriteLine($"Within 1.0x ATR:  {withinOneAtr}/{errors.Count} ({(double)withinOneAtr/errors.Count:P0})");
+    }
+
+    static async Task<(double sessionOpen, double predictedHigh, double actualHigh, double atr20)?> runSessionInference(
+        IBarRepository barRepo, BaseMLEvaluator evaluator, string sessionDate)
+    {
+        var prevSessionDate = getPreviousSessionDate(sessionDate);
+
+        var todayMinuteBars = await barRepo.GetBarsBySessionDateAsync(sessionDate);
+        if (!todayMinuteBars.Any()) return null;
+
         var prevMinuteBars = await barRepo.GetBarsBySessionDateAsync(prevSessionDate);
-        if (!prevMinuteBars.Any())
-        {
-            System.Console.WriteLine($"No bars found for previous session ({prevSessionDate}).");
-            return;
-        }
+        if (!prevMinuteBars.Any()) return null;
 
-        var sessionOpen = todayMinuteBars.OrderBy(b => b.Timestamp).First().Open;
+        var sessionOpen  = todayMinuteBars.OrderBy(b => b.Timestamp).First().Open;
+        var actualHigh   = todayMinuteBars.Max(b => b.High);
 
-        // Daily sequence ending with the most recent COMPLETE session (prevSessionDate)
-        // 40 calendar-day window gives ~28 trading days, ensuring 20+ sessions of history
         var sequence = await loadRecentDailyBars(barRepo, prevSessionDate, 40);
+        if (sequence.Count < 21) return null;
+
         var j = sequence.Count - 1;
 
-        if (j < 20)
-        {
-            System.Console.WriteLine($"Insufficient history: {sequence.Count} sessions found, need at least 20.");
-            return;
-        }
-
-        var current   = sequence[j]; // most recent complete session
-        var atr5      = Computations.ATR(sequence, j, 5);
-        var atr10     = Computations.ATR(sequence, j, 10);
-        var atr20     = Computations.ATR(sequence, j, 20);
-        var sma5      = Computations.SMA(sequence, j,  5, x => x.Close);
-        var sma10     = Computations.SMA(sequence, j, 10, x => x.Close);
-        var sma20     = Computations.SMA(sequence, j, 20, x => x.Close);
-        var avgRange5 = Computations.AverageRange(sequence, j,  5);
-        var avgRange10= Computations.AverageRange(sequence, j, 10);
-        var rsi14     = Computations.RSI(sequence, j, 14);
-        var today     = DateTime.ParseExact(todaySessionDate, "yyyyMMdd", null);
-        var intraday  = computeIntradayFeatures(prevMinuteBars, atr20);
+        var current    = sequence[j];
+        var atr5       = Computations.ATR(sequence, j, 5);
+        var atr10      = Computations.ATR(sequence, j, 10);
+        var atr20      = Computations.ATR(sequence, j, 20);
+        var sma5       = Computations.SMA(sequence, j,  5, x => x.Close);
+        var sma10      = Computations.SMA(sequence, j, 10, x => x.Close);
+        var sma20      = Computations.SMA(sequence, j, 20, x => x.Close);
+        var avgRange5  = Computations.AverageRange(sequence, j,  5);
+        var avgRange10 = Computations.AverageRange(sequence, j, 10);
+        var rsi14      = Computations.RSI(sequence, j, 14);
+        var today      = DateTime.ParseExact(sessionDate, "yyyyMMdd", null);
+        var intraday   = computeIntradayFeatures(prevMinuteBars, atr20);
 
         var featureVector = new double[]
         {
@@ -134,15 +166,31 @@ class Program
             intraday.PrevOpenToLowRatio,                     // PrevOpenToLowRatio
         };
 
-        var scaled     = applyScaler(featureVector, evaluator);
-        var prediction = evaluator.RunInference(scaled);
-        var expectedHigh = sessionOpen + prediction * atr20;
+        var scaled       = applyScaler(featureVector, evaluator);
+        var prediction   = evaluator.RunInference(scaled);
+        var predictedHigh = sessionOpen + prediction * atr20;
 
-        System.Console.WriteLine($"Session:       {todaySessionDate}");
-        System.Console.WriteLine($"Session open:  {sessionOpen:F2}");
-        System.Console.WriteLine($"ATR20 (daily): {atr20:F2}");
-        System.Console.WriteLine($"Predicted move: +{prediction * atr20:F2} pts ({prediction:F4} x ATR20)");
-        System.Console.WriteLine($"Expected high:  {expectedHigh:F2}");
+        return (sessionOpen, predictedHigh, actualHigh, atr20);
+    }
+
+    // Returns weekday dates from Jan 2 2026 through today (or Dec 31 2026, whichever is earlier)
+    static List<string> get2026SessionDates()
+    {
+        var dates  = new List<string>();
+        var start  = new DateTime(2026, 1, 2);
+        var end    = new DateTime(DateTime.Today.Year == 2026 ? DateTime.Today.Year : 2026,
+                                  DateTime.Today.Year == 2026 ? DateTime.Today.Month : 12,
+                                  DateTime.Today.Year == 2026 ? DateTime.Today.Day   : 31);
+        end = end < new DateTime(2026, 12, 31) ? end : new DateTime(2026, 12, 31);
+
+        for (var d = start; d <= end; d = d.AddDays(1))
+        {
+            if (d.DayOfWeek == DayOfWeek.Saturday || d.DayOfWeek == DayOfWeek.Sunday)
+                continue;
+            dates.Add(d.ToString("yyyyMMdd"));
+        }
+
+        return dates;
     }
 
     // Mirrors the intraday feature logic in SessionOpenHighFeatureExporter exactly
