@@ -36,21 +36,21 @@ class Program
         {
             string dir        = Path.Combine(path, "tick");
             Directory.CreateDirectory(dir);
-            string outputPath = Path.Combine(dir, "tickFeatures.csv");
+            string outputPath = Path.Combine(dir, "features.csv");
             await GenerateTickFeatureStreaming(outputPath, tickRepo);
         }
         else if (execution == "bar-high")
         {
             string dir        = Path.Combine(path, "bar-high");
             Directory.CreateDirectory(dir);
-            string outputPath = Path.Combine(dir, "barFeaturesHigh.csv");
+            string outputPath = Path.Combine(dir, "features.csv");
             await new SessionOpenHighFeatureExporter(outputPath, barRepo).GenerateFeatures(startDate, endDate);
         }
         else if (execution == "bar-low")
         {
             string dir        = Path.Combine(path, "bar-low");
             Directory.CreateDirectory(dir);
-            string outputPath = Path.Combine(dir, "barFeaturesLow.csv");
+            string outputPath = Path.Combine(dir, "features.csv");
             await new SessionOpenLowFeatureExporter(outputPath, barRepo).GenerateFeatures(startDate, endDate);
         }
         else
