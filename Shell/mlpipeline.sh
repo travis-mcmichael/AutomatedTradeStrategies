@@ -4,14 +4,17 @@ set -euo pipefail
 # ==============================
 # Configuration
 # ==============================
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REPO_ROOT="/mnt/c/dev/AutomatedTradeStrategies"
 FEATURES_BASE="/mnt/c/dev/data/features"
 MODEL_DATE="$(date +%Y%m%d)"
 PYTHON="python3"
+DOT_NET="/mnt/c/Program Files/dotnet/dotnet.exe"
+dotnet() { "$DOT_NET" "$@"; }
 
 EXECUTION_TYPES=("bar-high" "bar-low")
 
-CONSOLE_MODELS="$REPO_ROOT/AutomatedTrading.Console/Models/$MODEL_DATE"
+source /home/superuser/onnx-env/bin/activate
+
 API_MODELS="$REPO_ROOT/AutomatedTrading.Core.Api/Models/$MODEL_DATE"
 
 # ==============================
@@ -25,9 +28,9 @@ echo "======================================================"
 for exec_type in "${EXECUTION_TYPES[@]}"; do
     echo ""
     echo "  Exporting: $exec_type"
-    dotnet run --project "$REPO_ROOT/AutomatedTrading.Export.Feature" \
+    dotnet run --project "$(wslpath -w "$REPO_ROOT/AutomatedTrading.Export.Feature")" \
         --configuration Release \
-        -- "$FEATURES_BASE" "$exec_type"
+        -- "$(wslpath -w "$FEATURES_BASE")" "$exec_type"
 done
 
 # ==============================
@@ -66,7 +69,7 @@ for exec_type in "${EXECUTION_TYPES[@]}"; do
         continue
     fi
 
-    for dest_base in "$CONSOLE_MODELS" "$API_MODELS"; do
+    for dest_base in "$API_MODELS"; do
         dest="$dest_base/$exec_type"
         mkdir -p "$dest"
         cp "$onnx_file"   "$dest/xgb_model.onnx"

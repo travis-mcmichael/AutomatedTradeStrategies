@@ -17,7 +17,7 @@ class Program
 
     record ModelConfig(string Name, string ModelDate, int FeatureCount, bool IsHigh);
 
-    record SessionResult(string SessionDate, double Predicted, double Actual, double Atr20);
+    record SessionResult(string SessionDate, double Predicted, double Actual, double PredictedMove, double ActualMove, double Atr20);
 
     // ==============================
     // Model configuration
@@ -53,10 +53,21 @@ class Program
             return;
         }
 
+        var runDate = new DateTime(2026, 3, 19);
+
         var barRepo      = new BarRepository(new SqliteConnectionFactory(AppConstants.SQLITE_CONNECTION));
-        var sessionDates = get2026SessionDates();
+        var rangeStart   = runDate; //new DateTime(2026, 3, 19);
+        var rangeEnd     = runDate; //DateTime.Today < new DateTime(2026, 12, 31) ? DateTime.Today : new DateTime(2026, 12, 31);
+        var sessionDates = getSessionDates(rangeStart, rangeEnd);
         var results      = evaluators.Keys.ToDictionary(k => k, _ => new List<SessionResult>());
         var skipped      = 0;
+        var activeConfigs = ModelConfigs.Where(c => evaluators.ContainsKey(c.Name)).ToList();
+
+        // ==============================
+        // Per-session table
+        // ==============================
+        System.Console.WriteLine($"\n{"Session",-10}  {"Model",-10}  {"PredMove",9}  {"ActMove",9}  {"Predicted",10}  {"Actual",10}  {"Error",8}  {"Err/ATR",8}");
+        System.Console.WriteLine(new string('-', 88));
 
         foreach (var sessionDate in sessionDates)
         {
@@ -66,9 +77,18 @@ class Program
                 skipped++;
                 continue;
             }
-            foreach (var (name, result) in sessionResults)
-                if (results.ContainsKey(name))
-                    results[name].Add(result);
+
+            var first = true;
+            foreach (var config in activeConfigs)
+            {
+                if (!sessionResults.TryGetValue(config.Name, out var r)) continue;
+                var error   = r.Predicted - r.Actual;
+                var errAtr  = safeDiv(error, r.Atr20);
+                var dateCol = first ? sessionDate : new string(' ', 8);
+                System.Console.WriteLine($"{dateCol,-10}  {config.Name,-10}  {r.PredictedMove,9:F2}  {r.ActualMove,9:F2}  {r.Predicted,10:F2}  {r.Actual,10:F2}  {error,8:F2}  {errAtr,8:F3}");
+                results[config.Name].Add(r);
+                first = false;
+            }
         }
 
         // ==============================
@@ -79,8 +99,6 @@ class Program
             .Distinct()
             .OrderBy(m => m)
             .ToList();
-
-        var activeConfigs = ModelConfigs.Where(c => evaluators.ContainsKey(c.Name)).ToList();
 
         foreach (var month in allMonths)
         {
@@ -114,15 +132,18 @@ class Program
 
     static void printStats(string label, List<SessionResult> results)
     {
-        var errors = results.Select(r => Math.Abs(r.Predicted - r.Actual)).ToList();
-        var avgAtr = results.Average(r => r.Atr20);
-        var mae    = errors.Average();
-        var w05    = errors.Count(e => e < avgAtr * 0.5);
-        var w10    = errors.Count(e => e < avgAtr);
-        var n      = results.Count;
+        var errors       = results.Select(r => Math.Abs(r.Predicted - r.Actual)).ToList();
+        var avgAtr       = results.Average(r => r.Atr20);
+        var mae          = errors.Average();
+        var avgPredMove  = results.Average(r => r.PredictedMove);
+        var avgActMove   = results.Average(r => r.ActualMove);
+        var w05          = errors.Count(e => e < avgAtr * 0.5);
+        var w10          = errors.Count(e => e < avgAtr);
+        var n            = results.Count;
 
         System.Console.WriteLine(
-            $"{label}  n={n,3} | MAE={mae,7:F2} pts | MAE/ATR={safeDiv(mae, avgAtr):F3} | " +
+            $"{label}  n={n,3} | AvgPredMove={avgPredMove,7:F2}  AvgActMove={avgActMove,7:F2} | " +
+            $"MAE={mae,7:F2} pts | MAE/ATR={safeDiv(mae, avgAtr):F3} | " +
             $"W0.5={w05,3}/{n} ({(double)w05/n:P0}) | W1.0={w10,3}/{n} ({(double)w10/n:P0})");
     }
 
@@ -207,10 +228,13 @@ class Program
                 intraday.PrevOpenToHighRatio,
                 intraday.PrevOpenToLowRatio,
             ];
-            var scaled    = applyScaler([.. shared, .. tail], highEval);
+            var scaled    = highEval.Scale([.. shared, .. tail]);
             var predicted = sessionOpen + highEval.RunInference(scaled) * atr20;
             var actual    = todayMinuteBars.Max(b => b.High);
-            output["bar-high"] = new SessionResult(sessionDate, predicted, actual, atr20);
+            output["bar-high"] = new SessionResult(sessionDate, predicted, actual,
+                PredictedMove: predicted - sessionOpen,
+                ActualMove:    actual    - sessionOpen,
+                atr20);
         }
 
         if (evaluators.TryGetValue("bar-low", out var lowEval))
@@ -228,10 +252,13 @@ class Program
                 intraday.PrevOpenToLowRatio,
                 intraday.LastHourClosePosition,
             ];
-            var scaled    = applyScaler([.. shared, .. tail], lowEval);
+            var scaled    = lowEval.Scale([.. shared, .. tail]);
             var predicted = sessionOpen - lowEval.RunInference(scaled) * atr20;
             var actual    = todayMinuteBars.Min(b => b.Low);
-            output["bar-low"] = new SessionResult(sessionDate, predicted, actual, atr20);
+            output["bar-low"] = new SessionResult(sessionDate, predicted, actual,
+                PredictedMove: sessionOpen - predicted,
+                ActualMove:    sessionOpen - actual,
+                atr20);
         }
 
         return output.Count > 0 ? output : null;
@@ -325,17 +352,13 @@ class Program
         );
     }
 
-    // Returns weekday dates in 2026 up to today (or Dec 31 2026, whichever is earlier)
-    static List<string> get2026SessionDates()
+    // Returns all weekday (trading) dates between start and end, inclusive.
+    // When start == end, returns that single date if it falls on a weekday.
+    static List<string> getSessionDates(DateTime start, DateTime end)
     {
         var dates = new List<string>();
-        var start = new DateTime(2026, 1, 2);
-        var end   = new DateTime(DateTime.Today.Year == 2026 ? DateTime.Today.Year : 2026,
-                                 DateTime.Today.Year == 2026 ? DateTime.Today.Month : 12,
-                                 DateTime.Today.Year == 2026 ? DateTime.Today.Day   : 31);
-        end = end < new DateTime(2026, 12, 31) ? end : new DateTime(2026, 12, 31);
 
-        for (var d = start; d <= end; d = d.AddDays(1))
+        for (var d = start.Date; d <= end.Date; d = d.AddDays(1))
         {
             if (d.DayOfWeek == DayOfWeek.Saturday || d.DayOfWeek == DayOfWeek.Sunday)
                 continue;
@@ -374,23 +397,6 @@ class Program
         }
 
         return list;
-    }
-
-    static double[] applyScaler(double[] features, BaseMLEvaluator evaluator)
-    {
-        if (!evaluator.ScalerLoaded)
-            return features;
-
-        var meanField  = typeof(BaseMLEvaluator).GetField("scalerMean",  System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        var scaleField = typeof(BaseMLEvaluator).GetField("scalerScale", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        var mean       = (double[])meanField!.GetValue(evaluator)!;
-        var scale      = (double[])scaleField!.GetValue(evaluator)!;
-        var scaled     = new double[features.Length];
-
-        for (int i = 0; i < features.Length; i++)
-            scaled[i] = scale[i] == 0 ? 0 : (features[i] - mean[i]) / scale[i];
-
-        return scaled;
     }
 
     static double safeDiv(double a, double b) => b == 0 ? 0 : a / b;

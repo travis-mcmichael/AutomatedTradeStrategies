@@ -30,7 +30,7 @@ class Program
         var tickRepo   = new TickRepository(factory);
 
         var startDate  = new DateTime(2021, 1, 1);
-        var endDate    = new DateTime(2026, 1, 1);
+        var endDate    = new DateTime(2026, 2, 28);
 
         if (execution == "tick")
         {

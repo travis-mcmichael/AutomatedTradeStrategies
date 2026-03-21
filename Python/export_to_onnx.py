@@ -3,6 +3,8 @@ import xgboost as xgb
 import onnx
 import joblib
 import json
+from onnxmltools import convert_xgboost
+from onnxmltools.convert.common.data_types import FloatTensorType
 
 # ==============================
 # Configuration
@@ -24,9 +26,6 @@ def export_model(name, model_input, scaler_input, onnx_output, scaler_output):
     print(f"  Exporting: {name}")
     print(f"{'='*50}")
 
-    # Export XGBoost → ONNX
-    # Requires XGBoost 2.0+. Native export preserves full model fidelity
-    # and removes the onnxmltools/skl2onnx dependency chain.
     print(f"Loading model from {model_input}...")
     model = xgb.XGBRegressor()
     model.load_model(model_input)
@@ -34,7 +33,10 @@ def export_model(name, model_input, scaler_input, onnx_output, scaler_output):
     print(f"  Best iteration: {getattr(model, 'best_iteration', 'n/a')}")
 
     print(f"\nExporting to ONNX → {onnx_output}...")
-    model.save_model(onnx_output)
+    initial_type = [("float_input", FloatTensorType([None, model.n_features_in_]))]
+    onnx_proto = convert_xgboost(model, initial_types=initial_type)
+    with open(onnx_output, "wb") as f:
+        f.write(onnx_proto.SerializeToString())
 
     # Verify the exported model is well-formed
     print("Verifying ONNX model...")

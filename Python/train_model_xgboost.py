@@ -109,6 +109,7 @@ def train_model(name, csv_path):
         reg_lambda=10,
         tree_method="hist",
         objective="reg:squarederror",
+        early_stopping_rounds=50,
         n_jobs=-1,
         random_state=42,
     )
@@ -117,7 +118,6 @@ def train_model(name, csv_path):
         X_train_scaled,
         y_train,
         eval_set=[(X_val_scaled, y_val)],
-        early_stopping_rounds=50,
         verbose=50,
     )
 
