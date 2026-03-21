@@ -53,7 +53,7 @@ class Program
             return;
         }
 
-        var runDate = new DateTime(2026, 3, 19);
+        var runDate = new DateTime(2026, 3, 20);
 
         var barRepo      = new BarRepository(new SqliteConnectionFactory(AppConstants.SQLITE_CONNECTION));
         var rangeStart   = runDate; //new DateTime(2026, 3, 19);
@@ -177,6 +177,7 @@ class Program
         var rsi14      = Computations.RSI(sequence, j, 14);
         var today      = DateTime.ParseExact(sessionDate, "yyyyMMdd", null);
 
+        System.Console.WriteLine($"Session Open: {sessionOpen}");
         // Shared prefix — identical across all bar models (indices 0-29)
         double[] shared =
         [

@@ -1,0 +1,266 @@
+#region Using declarations
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.ComponentModel.DataAnnotations;
+using System.Linq;
+using System.Net.Http;
+using System.Text;
+using System.Windows;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Xml.Serialization;
+using NinjaTrader.Cbi;
+using NinjaTrader.Gui;
+using NinjaTrader.Gui.Chart;
+using NinjaTrader.Gui.SuperDom;
+using NinjaTrader.Gui.Tools;
+using NinjaTrader.Data;
+using NinjaTrader.NinjaScript;
+using NinjaTrader.Core.FloatingPoint;
+using NinjaTrader.NinjaScript.Indicators;
+using NinjaTrader.NinjaScript.DrawingTools;
+using Newtonsoft.Json;
+#endregion
+
+#region README IMPORTANT
+
+/*
+    This strategy calls the AutomatedTrading.Core.Api at session open to retrieve
+    predicted high and low levels for the session. It then trades reversals near
+    those levels throughout the day.
+
+    Designed for RTH 1-minute bars (8:30 AM – 3:15 PM CT). Ensure the API is
+    running before the strategy is enabled.
+
+    Stop loss is anchored to the predicted level, not the entry price. If price
+    breaks through the predicted extreme by StopLossPoints, the prediction has
+    failed and the position is closed with a bounded loss.
+
+    Entries:
+      Near predicted LOW  → EnterLong  (or ExitShort to flatten)
+      Near predicted HIGH → EnterShort (or ExitLong to flatten)
+
+    Proximity and stop parameters are tunable via the strategy properties panel.
+    Start with small values to minimize risk and widen only after validating
+    that the predictions are accurate enough to justify looser entries.
+*/
+
+#endregion
+
+//This namespace holds Strategies in this folder and is required. Do not change it.
+namespace NinjaTrader.NinjaScript.Strategies
+{
+    public class PredictedHighLowStrategy : Strategy
+    {
+        // =====================================================================
+        // Constants
+        // =====================================================================
+        private const string API_URL     = "http://localhost:5244";
+        private const string STRATEGY_ID = "PredictedHighLow";
+        private const string ENTRY_LONG  = "PHL_Long";
+        private const string ENTRY_SHORT = "PHL_Short";
+
+        // =====================================================================
+        // Session state
+        // =====================================================================
+        private double predictedHigh;
+        private double predictedLow;
+        private bool   inferenceReady;
+
+        // =====================================================================
+        // Parameters
+        // =====================================================================
+
+        /// <summary>
+        /// How close (in points) price must get to the predicted level to trigger
+        /// an entry or flatten. Tighter = less risk, fewer triggers.
+        /// </summary>
+        [NinjaScriptProperty]
+        [Range(0.25, double.MaxValue)]
+        [Display(Name = "Proximity Points", Order = 1, GroupName = "Levels")]
+        public double ProximityPoints { get; set; }
+
+        /// <summary>
+        /// How far (in points) beyond the predicted level the stop is placed.
+        /// The stop is anchored to the predicted high/low, not the entry price,
+        /// so maximum risk is ProximityPoints + StopLossPoints per contract.
+        /// </summary>
+        [NinjaScriptProperty]
+        [Range(0.25, double.MaxValue)]
+        [Display(Name = "Stop Loss Points", Order = 2, GroupName = "Levels")]
+        public double StopLossPoints { get; set; }
+
+        // =====================================================================
+        // Lifecycle
+        // =====================================================================
+        protected override void OnStateChange()
+        {
+            switch (State)
+            {
+                case State.SetDefaults:
+                    Name                          = STRATEGY_ID;
+                    Calculate                     = Calculate.OnBarClose;
+                    EntriesPerDirection           = 1;
+                    IsExitOnSessionCloseStrategy  = true;
+                    ExitOnSessionCloseSeconds     = 30;
+                    BarsRequiredToTrade           = 1;
+
+                    // Tight defaults: prioritise minimising risk over catch rate.
+                    // ProximityPoints controls how close price must come before triggering.
+                    // Max risk per contract = ProximityPoints + StopLossPoints.
+                    ProximityPoints = 3.0;
+                    StopLossPoints  = 5.0;
+
+                    inferenceReady = false;
+                    predictedHigh  = double.MaxValue;
+                    predictedLow   = double.MinValue;
+                    break;
+
+                default:
+                    break;
+            }
+        }
+
+        // =====================================================================
+        // Bar update
+        // =====================================================================
+        protected override void OnBarUpdate()
+        {
+            // Fetch predictions once at the start of each session.
+            if (Bars.IsFirstBarOfSession)
+            {
+                inferenceReady = false;
+                predictedHigh  = double.MaxValue;
+                predictedLow   = double.MinValue;
+                fetchPredictions(Time[0], Open[0]);
+            }
+
+            if (!inferenceReady)
+                return;
+
+            var position = Position.MarketPosition;
+
+            // ─── Near predicted HIGH: go short or flatten long ───────────────
+            if (High[0] >= predictedHigh - ProximityPoints)
+            {
+                if (position == MarketPosition.Long)
+                {
+                    ExitLong(ENTRY_LONG);
+                    Print($"{Time[0]:HH:mm} PHL: Flattening long — price reached predicted high ({predictedHigh:F2})");
+                }
+                else if (position == MarketPosition.Flat)
+                {
+                    // Stop anchored above the predicted high; if price breaks through
+                    // by more than StopLossPoints the prediction has failed.
+                    SetStopLoss(ENTRY_SHORT, CalculationMode.Price, predictedHigh + StopLossPoints, false);
+                    EnterShort(ENTRY_SHORT);
+                    Print($"{Time[0]:HH:mm} PHL: EnterShort near predicted high ({predictedHigh:F2}), stop {predictedHigh + StopLossPoints:F2}");
+                }
+            }
+
+            // ─── Near predicted LOW: go long or flatten short ────────────────
+            if (Low[0] <= predictedLow + ProximityPoints)
+            {
+                if (position == MarketPosition.Short)
+                {
+                    ExitShort(ENTRY_SHORT);
+                    Print($"{Time[0]:HH:mm} PHL: Flattening short — price reached predicted low ({predictedLow:F2})");
+                }
+                else if (position == MarketPosition.Flat)
+                {
+                    // Stop anchored below the predicted low.
+                    SetStopLoss(ENTRY_LONG, CalculationMode.Price, predictedLow - StopLossPoints, false);
+                    EnterLong(ENTRY_LONG);
+                    Print($"{Time[0]:HH:mm} PHL: EnterLong near predicted low ({predictedLow:F2}), stop {predictedLow - StopLossPoints:F2}");
+                }
+            }
+        }
+
+        // =====================================================================
+        // API calls
+        // =====================================================================
+        private void fetchPredictions(DateTime barTime, double sessionOpen)
+        {
+            var sessionDate = barTime.ToString("yyyyMMdd");
+            var requestBody = JsonConvert.SerializeObject(new
+            {
+                sessionDate = sessionDate,
+                sessionOpen = sessionOpen
+            });
+            var content = new StringContent(requestBody, Encoding.UTF8, "application/json");
+
+            try
+            {
+                using (var client = new HttpClient())
+                {
+                    client.Timeout = TimeSpan.FromSeconds(10);
+
+                    var highResponse = client.PostAsync($"{API_URL}/inference/bar-high", content)
+                        .GetAwaiter().GetResult();
+
+                    if (highResponse.IsSuccessStatusCode)
+                    {
+                        var highJson = highResponse.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+                        var highResult = JsonConvert.DeserializeObject<BarHighApiResponse>(highJson);
+                        if (highResult != null)
+                            predictedHigh = highResult.PredictedHigh;
+                    }
+                    else
+                    {
+                        Print($"PHL: bar-high API returned {(int)highResponse.StatusCode} for {sessionDate}");
+                        return;
+                    }
+
+                    // Re-create content — HttpContent can only be sent once.
+                    content = new StringContent(requestBody, Encoding.UTF8, "application/json");
+
+                    var lowResponse = client.PostAsync($"{API_URL}/inference/bar-low", content)
+                        .GetAwaiter().GetResult();
+
+                    if (lowResponse.IsSuccessStatusCode)
+                    {
+                        var lowJson = lowResponse.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+                        var lowResult = JsonConvert.DeserializeObject<BarLowApiResponse>(lowJson);
+                        if (lowResult != null)
+                            predictedLow = lowResult.PredictedLow;
+                    }
+                    else
+                    {
+                        Print($"PHL: bar-low API returned {(int)lowResponse.StatusCode} for {sessionDate}");
+                        return;
+                    }
+                }
+
+                inferenceReady = true;
+                Print($"PHL {sessionDate}: predictedHigh={predictedHigh:F2}  predictedLow={predictedLow:F2}  open={sessionOpen:F2}");
+            }
+            catch (Exception ex)
+            {
+                Print($"PHL: API call failed — {ex.Message}");
+                inferenceReady = false;
+            }
+        }
+
+        // =====================================================================
+        // API response POCOs
+        // =====================================================================
+        private class BarHighApiResponse
+        {
+            [JsonProperty("predictedHigh")]
+            public double PredictedHigh { get; set; }
+
+            [JsonProperty("predictedMove")]
+            public double PredictedMove { get; set; }
+        }
+
+        private class BarLowApiResponse
+        {
+            [JsonProperty("predictedLow")]
+            public double PredictedLow { get; set; }
+
+            [JsonProperty("predictedMove")]
+            public double PredictedMove { get; set; }
+        }
+    }
+}
