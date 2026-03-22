@@ -56,7 +56,7 @@ class Program
             atrs.Add(atr20);
 
             System.Console.WriteLine(
-                $"{sessionDate,-12} {sessionOpen,8:F2} {predictedHigh,10:F2} {actualHigh,11:F2} {error,8:F2} {safeDiv(error, atr20),10:F3}");
+                $"{sessionDate,-12} {sessionOpen,8:F2} {predictedHigh,10:F2} {actualHigh,11:F2} {error,8:F2} {Operations.SafeDiv(error, atr20),10:F3}");
         }
 
         if (errors.Count == 0)
@@ -74,7 +74,7 @@ class Program
         System.Console.WriteLine($"Sessions evaluated: {errors.Count}  |  Skipped: {skipped}");
         System.Console.WriteLine($"MAE:               {mae:F2} pts");
         System.Console.WriteLine($"Avg ATR20:         {avgAtr:F2} pts");
-        System.Console.WriteLine($"MAE / ATR20:       {safeDiv(mae, avgAtr):F3}");
+        System.Console.WriteLine($"MAE / ATR20:       {Operations.SafeDiv(mae, avgAtr):F3}");
         System.Console.WriteLine($"Within 0.5x ATR:  {withinHalfAtr}/{errors.Count} ({(double)withinHalfAtr/errors.Count:P0})");
         System.Console.WriteLine($"Within 1.0x ATR:  {withinOneAtr}/{errors.Count} ({(double)withinOneAtr/errors.Count:P0})");
     }
@@ -114,8 +114,8 @@ class Program
         var featureVector = new double[]
         {
             // --- Previous complete session shape ---
-            safeDiv(current.High, sessionOpen),              // PrevHighRatio
-            safeDiv(current.Low,  sessionOpen),              // PrevLowRatio
+            Operations.SafeDiv(current.High, sessionOpen),              // PrevHighRatio
+            Operations.SafeDiv(current.Low,  sessionOpen),              // PrevLowRatio
             Computations.HighLowRange(current, atr20),       // PrevRange
             Computations.BodySize(current, atr20),           // PrevBodySize
             Computations.UpperWick(current, atr20),          // PrevUpperWick
@@ -123,36 +123,36 @@ class Program
             Computations.ClosePosition(current),             // PrevClosePosition
 
             // --- Volatility / trend context ---
-            safeDiv(atr5,  sessionOpen),                     // ATR5
-            safeDiv(atr10, sessionOpen),                     // ATR10
-            safeDiv(atr20, sessionOpen),                     // ATR20
-            avgRange5,                                        // AvgRange5
-            avgRange10,                                       // AvgRange10
-            safeDiv(current.High - current.Low, avgRange10), // RangeRatio
+            Operations.SafeDiv(atr5,  sessionOpen),          // ATR5
+            Operations.SafeDiv(atr10, sessionOpen),          // ATR10
+            Operations.SafeDiv(atr20, sessionOpen),          // ATR20
+            avgRange5,                                       // AvgRange5
+            avgRange10,                                      // AvgRange10
+            Operations.SafeDiv(current.High - current.Low, avgRange10), // RangeRatio
             Computations.Return(sequence, j, 1),             // Return1D
             Computations.Return(sequence, j, 3),             // Return3D
             Computations.Return(sequence, j, 5),             // Return5D
-            safeDiv(sma5,  sma20),                           // SMA5SMA20Ratio
-            safeDiv(sma10, sma20),                           // SMA10SMA20Ratio
-            safeDiv(sessionOpen, sma5),                      // OpenSMA5Ratio
-            safeDiv(sessionOpen, sma10),                     // OpenSMA10Ratio
-            safeDiv(sessionOpen, sma20),                     // OpenSMA20Ratio
+            Operations.SafeDiv(sma5,  sma20),                // SMA5SMA20Ratio
+            Operations.SafeDiv(sma10, sma20),                // SMA10SMA20Ratio
+            Operations.SafeDiv(sessionOpen, sma5),           // OpenSMA5Ratio
+            Operations.SafeDiv(sessionOpen, sma10),          // OpenSMA10Ratio
+            Operations.SafeDiv(sessionOpen, sma20),          // OpenSMA20Ratio
 
             // --- Volume ---
             Computations.SMA(sequence, j, 20, x => x.Volume), // VolumeMA20
-            Computations.VolumeZScore(sequence, j, 20),        // VolumeZScore20
+            Computations.VolumeZScore(sequence, j, 20),       // VolumeZScore20
 
             // --- Gap / distance from key levels ---
-            safeDiv(sessionOpen - current.High,  atr20),    // DistanceFromPrevHigh
-            safeDiv(sessionOpen - current.Low,   atr20),    // DistanceFromPrevLow
-            safeDiv(sessionOpen - current.Close, atr20),    // GapVsATR
+            Operations.SafeDiv(sessionOpen - current.High,  atr20),    // DistanceFromPrevHigh
+            Operations.SafeDiv(sessionOpen - current.Low,   atr20),    // DistanceFromPrevLow
+            Operations.SafeDiv(sessionOpen - current.Close, atr20),    // GapVsATR
 
             // --- Regime ---
-            safeDiv(atr10, atr20),                           // VolatilityRegime
+            Operations.SafeDiv(atr10, atr20),                 // VolatilityRegime
             rsi14,                                            // RSI14
 
             // --- Calendar ---
-            (int)today.DayOfWeek,                            // DayOfWeek
+            (int)today.DayOfWeek,                             // DayOfWeek
             today.Day,                                        // DayOfMonth
 
             // --- Previous session intraday structure ---
@@ -221,14 +221,14 @@ class Program
         var highTimeRatio= ordered.Count > 1 ? (double)highBarIndex / (ordered.Count - 1) : 0.5;
 
         return (
-            OvernightRange:       overnight.Any() ? safeDiv(overnight.Max(b => b.High) - overnight.Min(b => b.Low), atr20) : 0,
-            OvernightVolumeRatio: safeDiv(overnight.Sum(b => b.Volume), totalVolume),
-            RegularHoursRange:    rth.Any()       ? safeDiv(rth.Max(b => b.High)       - rth.Min(b => b.Low),       atr20) : 0,
-            FirstHourRange:       firstHour.Any() ? safeDiv(firstHour.Max(b => b.High) - firstHour.Min(b => b.Low), atr20) : 0,
-            LastHourRange:        lastHour.Any()  ? safeDiv(lastHour.Max(b => b.High)  - lastHour.Min(b => b.Low),  atr20) : 0,
+            OvernightRange:       overnight.Any() ? Operations.SafeDiv(overnight.Max(b => b.High) - overnight.Min(b => b.Low), atr20) : 0,
+            OvernightVolumeRatio: Operations.SafeDiv(overnight.Sum(b => b.Volume), totalVolume),
+            RegularHoursRange:    rth.Any()       ? Operations.SafeDiv(rth.Max(b => b.High)       - rth.Min(b => b.Low),       atr20) : 0,
+            FirstHourRange:       firstHour.Any() ? Operations.SafeDiv(firstHour.Max(b => b.High) - firstHour.Min(b => b.Low), atr20) : 0,
+            LastHourRange:        lastHour.Any()  ? Operations.SafeDiv(lastHour.Max(b => b.High)  - lastHour.Min(b => b.Low),  atr20) : 0,
             HighTimeRatio:        highTimeRatio,
-            PrevOpenToHighRatio:  safeDiv(sessionHigh - sessionOpenP, atr20),
-            PrevOpenToLowRatio:   safeDiv(sessionOpenP - sessionLow,  atr20)
+            PrevOpenToHighRatio:  Operations.SafeDiv(sessionHigh - sessionOpenP, atr20),
+            PrevOpenToLowRatio:   Operations.SafeDiv(sessionOpenP - sessionLow,  atr20)
         );
     }
 
@@ -279,8 +279,6 @@ class Program
 
         return scaled;
     }
-
-    static double safeDiv(double a, double b) => b == 0 ? 0 : a / b;
 
     static string getPreviousSessionDate(string sessionDate)
     {
