@@ -28,6 +28,8 @@ model.save_model(ONNX_OUTPUT)
 # Verify the exported model is well-formed
 print("Verifying ONNX model...")
 onnx_model = onnx.load(ONNX_OUTPUT)
+
+# check_model throws. Perhaps we wrap in try-except and handle gracefully?
 onnx.checker.check_model(onnx_model)
 print(f"  Input:  {onnx_model.graph.input[0].name}  "
       f"{[d.dim_value for d in onnx_model.graph.input[0].type.tensor_type.shape.dim]}")
