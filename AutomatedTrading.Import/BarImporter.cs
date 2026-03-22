@@ -37,10 +37,7 @@ public class BarImporter
     private static BarData? parseBarData(string line)
     {
         var parts        = line.Split(';');
-        var dateTimePart = parts[0];
-        var datePart     = dateTimePart.Substring(0, 8);
-        var timePart     = dateTimePart.Substring(9, 6);
-        var timestamp    = DateTime.ParseExact(datePart + timePart, "yyyyMMddHHmmss", CultureInfo.InvariantCulture);
+        var timestamp    = DateTime.ParseExact(parts[0], "yyyyMMddHHmmss", CultureInfo.InvariantCulture);
         var sessionDate  = timestamp.Date;
         if (timestamp.Hour >= 16)
             sessionDate = sessionDate.AddDays(1);
