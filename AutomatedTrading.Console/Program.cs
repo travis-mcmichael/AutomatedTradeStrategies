@@ -9,6 +9,7 @@ namespace AutomatedTrading.Console;
 
 class Program
 {
+    // Should these paths be in a config? Perhaps allowing the user to pick their latest trained model or revisit something older?
     static string model  = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Models\\20260319", "xgb_model.onnx");
     static string scaler = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Models\\20260319", "scaler_params.json");
     const int featureCount = 40;
