@@ -13,6 +13,7 @@ public class BarData
     public string? Instrument { get; set; }
     public string? Timeframe { get; set; }
     public string? SessionDate { get; set; }
+    public string? SessionTime { get; set; }
 
     public BarData() { }
     public BarData(BarData bar)

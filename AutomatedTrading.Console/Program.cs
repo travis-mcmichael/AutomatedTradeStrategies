@@ -24,8 +24,8 @@ class Program
     // ==============================
     static readonly List<ModelConfig> ModelConfigs =
     [
-        new("bar-high", "20260320", 38, IsHigh: true),
-        new("bar-low",  "20260320", 39, IsHigh: false),
+        new("bar-high", "20260322", 38, IsHigh: true),
+        new("bar-low",  "20260322", 39, IsHigh: false),
     ];
 
     static async Task Main(string[] args)
@@ -53,11 +53,11 @@ class Program
             return;
         }
 
-        var runDate = new DateTime(2026, 3, 20);
+        //var runDate = new DateTime(2026, 3, 23);
 
         var barRepo      = new BarRepository(new SqliteConnectionFactory(AppConstants.SQLITE_CONNECTION));
-        var rangeStart   = runDate; //new DateTime(2026, 3, 19);
-        var rangeEnd     = runDate; //DateTime.Today < new DateTime(2026, 12, 31) ? DateTime.Today : new DateTime(2026, 12, 31);
+        var rangeStart   = new DateTime(2026, 3, 1);
+        var rangeEnd     = DateTime.Today < new DateTime(2026, 12, 31) ? DateTime.Today : new DateTime(2026, 12, 31);
         var sessionDates = getSessionDates(rangeStart, rangeEnd);
         var results      = evaluators.Keys.ToDictionary(k => k, _ => new List<SessionResult>());
         var skipped      = 0;
@@ -66,7 +66,7 @@ class Program
         // ==============================
         // Per-session table
         // ==============================
-        System.Console.WriteLine($"\n{"Session",-10}  {"Model",-10}  {"PredMove",9}  {"ActMove",9}  {"Predicted",10}  {"Actual",10}  {"Error",8}  {"Err/ATR",8}");
+        System.Console.WriteLine($"\n{"Session",-10}  {"Model",-10}  {"PredMove",9}  {"ActMove",9}  {"Predicted",10}  {"Actual",10}  {"Error",8}  {"ATR",8}  {"Err/ATR",8}");
         System.Console.WriteLine(new string('-', 88));
 
         foreach (var sessionDate in sessionDates)
@@ -85,7 +85,7 @@ class Program
                 var error   = r.Predicted - r.Actual;
                 var errAtr  = safeDiv(error, r.Atr20);
                 var dateCol = first ? sessionDate : new string(' ', 8);
-                System.Console.WriteLine($"{dateCol,-10}  {config.Name,-10}  {r.PredictedMove,9:F2}  {r.ActualMove,9:F2}  {r.Predicted,10:F2}  {r.Actual,10:F2}  {error,8:F2}  {errAtr,8:F3}");
+                System.Console.WriteLine($"{dateCol,-10}  {config.Name,-10}  {r.PredictedMove,9:F2}  {r.ActualMove,9:F2}  {r.Predicted,10:F2}  {r.Actual,10:F2}  {error,8:F2} {r.Atr20,8:F2} {errAtr,8:F3}");
                 results[config.Name].Add(r);
                 first = false;
             }

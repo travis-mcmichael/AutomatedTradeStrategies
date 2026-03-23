@@ -27,23 +27,20 @@ using Newtonsoft.Json;
 
 /*
     This strategy calls the AutomatedTrading.Core.Api at session open to retrieve
-    predicted high and low levels for the session. It then trades reversals near
-    those levels throughout the day.
+    the predicted LOW level for the session. It trades a long reversal near that
+    level, and will flatten any open short if price reaches the predicted low.
 
     Designed for RTH 1-minute bars (8:30 AM – 3:15 PM CT). Ensure the API is
     running before the strategy is enabled.
 
     Stop loss is anchored to the predicted level, not the entry price. If price
-    breaks through the predicted extreme by StopLossPoints, the prediction has
+    breaks through the predicted low by StopLossPoints, the prediction has
     failed and the position is closed with a bounded loss.
 
     Entries:
-      Near predicted LOW  → EnterLong  (or ExitShort to flatten)
-      Near predicted HIGH → EnterShort (or ExitLong to flatten)
+      Near predicted LOW → EnterLong (or ExitShort to flatten)
 
     Proximity and stop parameters are tunable via the strategy properties panel.
-    Start with small values to minimize risk and widen only after validating
-    that the predictions are accurate enough to justify looser entries.
 */
 
 #endregion
@@ -51,29 +48,29 @@ using Newtonsoft.Json;
 //This namespace holds Strategies in this folder and is required. Do not change it.
 namespace NinjaTrader.NinjaScript.Strategies
 {
-    public class PredictedHighLowStrategy : Strategy
+    public class PredictedLowStrategy : Strategy
     {
         // =====================================================================
         // Constants
         // =====================================================================
         private const string API_URL     = "http://localhost:5244";
-        private const string STRATEGY_ID = "PredictedHighLow";
-        private const string ENTRY_LONG  = "PHL_Long";
-        private const string ENTRY_SHORT = "PHL_Short";
+        private const string STRATEGY_ID = "PredictedLow";
+        private const string ENTRY_LONG  = "PL_Long";
+        private const string ENTRY_SHORT = "PL_Short";
 
         // =====================================================================
         // Session state
         // =====================================================================
-        private double predictedHigh;
         private double predictedLow;
         private bool   inferenceReady;
+        private bool   hasLowHit;
 
         // =====================================================================
         // Parameters
         // =====================================================================
 
         /// <summary>
-        /// How close (in points) price must get to the predicted level to trigger
+        /// How close (in points) price must get to the predicted low to trigger
         /// an entry or flatten. Tighter = less risk, fewer triggers.
         /// </summary>
         [NinjaScriptProperty]
@@ -82,8 +79,8 @@ namespace NinjaTrader.NinjaScript.Strategies
         public double ProximityPoints { get; set; }
 
         /// <summary>
-        /// How far (in points) beyond the predicted level the stop is placed.
-        /// The stop is anchored to the predicted high/low, not the entry price,
+        /// How far (in points) beyond the predicted low the stop is placed.
+        /// The stop is anchored to the predicted low, not the entry price,
         /// so maximum risk is ProximityPoints + StopLossPoints per contract.
         /// </summary>
         [NinjaScriptProperty]
@@ -106,15 +103,12 @@ namespace NinjaTrader.NinjaScript.Strategies
                     ExitOnSessionCloseSeconds     = 30;
                     BarsRequiredToTrade           = 1;
 
-                    // Tight defaults: prioritise minimising risk over catch rate.
-                    // ProximityPoints controls how close price must come before triggering.
-                    // Max risk per contract = ProximityPoints + StopLossPoints.
                     ProximityPoints = 3.0;
                     StopLossPoints  = 5.0;
 
                     inferenceReady = false;
-                    predictedHigh  = double.MaxValue;
                     predictedLow   = double.MinValue;
+                    hasLowHit      = false;
                     break;
 
                 default:
@@ -127,13 +121,12 @@ namespace NinjaTrader.NinjaScript.Strategies
         // =====================================================================
         protected override void OnBarUpdate()
         {
-            // Fetch predictions once at the start of each session.
             if (Bars.IsFirstBarOfSession)
             {
                 inferenceReady = false;
-                predictedHigh  = double.MaxValue;
                 predictedLow   = double.MinValue;
-                fetchPredictions(Time[0], Open[0]);
+                hasLowHit      = false;
+                fetchPrediction(Time[0], Open[0]);
             }
 
             if (!inferenceReady)
@@ -141,46 +134,28 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             var position = Position.MarketPosition;
 
-            // ─── Near predicted HIGH: go short or flatten long ───────────────
-            if (High[0] >= predictedHigh - ProximityPoints)
-            {
-                if (position == MarketPosition.Long)
-                {
-                    ExitLong(ENTRY_LONG);
-                    Print($"{Time[0]:HH:mm} PHL: Flattening long — price reached predicted high ({predictedHigh:F2})");
-                }
-                else if (position == MarketPosition.Flat)
-                {
-                    // Stop anchored above the predicted high; if price breaks through
-                    // by more than StopLossPoints the prediction has failed.
-                    SetStopLoss(ENTRY_SHORT, CalculationMode.Price, predictedHigh + StopLossPoints, false);
-                    EnterShort(ENTRY_SHORT);
-                    Print($"{Time[0]:HH:mm} PHL: EnterShort near predicted high ({predictedHigh:F2}), stop {predictedHigh + StopLossPoints:F2}");
-                }
-            }
-
             // ─── Near predicted LOW: go long or flatten short ────────────────
             if (Low[0] <= predictedLow + ProximityPoints)
             {
                 if (position == MarketPosition.Short)
                 {
                     ExitShort(ENTRY_SHORT);
-                    Print($"{Time[0]:HH:mm} PHL: Flattening short — price reached predicted low ({predictedLow:F2})");
+                    Print($"{Time[0]:HH:mm} PL: Flattening short — price reached predicted low ({predictedLow:F2})");
                 }
-                else if (position == MarketPosition.Flat)
+                else if (position == MarketPosition.Flat && !hasLowHit)
                 {
-                    // Stop anchored below the predicted low.
                     SetStopLoss(ENTRY_LONG, CalculationMode.Price, predictedLow - StopLossPoints, false);
                     EnterLong(ENTRY_LONG);
-                    Print($"{Time[0]:HH:mm} PHL: EnterLong near predicted low ({predictedLow:F2}), stop {predictedLow - StopLossPoints:F2}");
+                    Print($"{Time[0]:HH:mm} PL: EnterLong (~current:{Close[0]}) near predicted low ({predictedLow:F2}), stop {predictedLow - StopLossPoints:F2}");
                 }
+                hasLowHit = true;
             }
         }
 
         // =====================================================================
-        // API calls
+        // API call
         // =====================================================================
-        private void fetchPredictions(DateTime barTime, double sessionOpen)
+        private void fetchPrediction(DateTime barTime, double sessionOpen)
         {
             var sessionDate = barTime.ToString("yyyyMMdd");
             var requestBody = JsonConvert.SerializeObject(new
@@ -196,64 +171,34 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     client.Timeout = TimeSpan.FromSeconds(10);
 
-                    var highResponse = client.PostAsync($"{API_URL}/inference/bar-high", content)
+                    var response = client.PostAsync($"{API_URL}/inference/bar-low", content)
                         .GetAwaiter().GetResult();
 
-                    if (highResponse.IsSuccessStatusCode)
+                    if (!response.IsSuccessStatusCode)
                     {
-                        var highJson = highResponse.Content.ReadAsStringAsync().GetAwaiter().GetResult();
-                        var highResult = JsonConvert.DeserializeObject<BarHighApiResponse>(highJson);
-                        if (highResult != null)
-                            predictedHigh = highResult.PredictedHigh;
-                    }
-                    else
-                    {
-                        Print($"PHL: bar-high API returned {(int)highResponse.StatusCode} for {sessionDate}");
+                        Print($"PL: bar-low API returned {(int)response.StatusCode} for {sessionDate}");
                         return;
                     }
 
-                    // Re-create content — HttpContent can only be sent once.
-                    content = new StringContent(requestBody, Encoding.UTF8, "application/json");
-
-                    var lowResponse = client.PostAsync($"{API_URL}/inference/bar-low", content)
-                        .GetAwaiter().GetResult();
-
-                    if (lowResponse.IsSuccessStatusCode)
-                    {
-                        var lowJson = lowResponse.Content.ReadAsStringAsync().GetAwaiter().GetResult();
-                        var lowResult = JsonConvert.DeserializeObject<BarLowApiResponse>(lowJson);
-                        if (lowResult != null)
-                            predictedLow = lowResult.PredictedLow;
-                    }
-                    else
-                    {
-                        Print($"PHL: bar-low API returned {(int)lowResponse.StatusCode} for {sessionDate}");
-                        return;
-                    }
+                    var json   = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+                    var result = JsonConvert.DeserializeObject<BarLowApiResponse>(json);
+                    if (result != null)
+                        predictedLow = result.PredictedLow;
                 }
 
                 inferenceReady = true;
-                Print($"PHL {sessionDate}: predictedHigh={predictedHigh:F2}  predictedLow={predictedLow:F2}  open={sessionOpen:F2}");
+                Print($"PL {sessionDate}: predictedLow={predictedLow:F2}  open={sessionOpen:F2}");
             }
             catch (Exception ex)
             {
-                Print($"PHL: API call failed — {ex.Message}");
+                Print($"PL: API call failed — {ex.Message}");
                 inferenceReady = false;
             }
         }
 
         // =====================================================================
-        // API response POCOs
+        // API response POCO
         // =====================================================================
-        private class BarHighApiResponse
-        {
-            [JsonProperty("predictedHigh")]
-            public double PredictedHigh { get; set; }
-
-            [JsonProperty("predictedMove")]
-            public double PredictedMove { get; set; }
-        }
-
         private class BarLowApiResponse
         {
             [JsonProperty("predictedLow")]

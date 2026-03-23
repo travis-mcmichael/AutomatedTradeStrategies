@@ -27,7 +27,7 @@ public class BarInferenceService
     {
         this.barRepo = barRepo;
 
-        var modelDate = config["Models:Date"] ?? "20260320";
+        var modelDate = config["Models:Date"] ?? "20260323";
         var baseDir   = AppDomain.CurrentDomain.BaseDirectory;
 
         highEvaluator = createEvaluator(baseDir, modelDate, "bar-high", HighFeatureCount);

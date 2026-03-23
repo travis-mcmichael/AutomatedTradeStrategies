@@ -27,8 +27,8 @@ public class GetBarsInRangeStreamQuery : IDbStreamQuery<BarData>
     {
         using var cmd = connection.CreateCommand();
         cmd.CommandText = Sql;
-        addParameter(cmd, "@StartTimestamp", start);
-        addParameter(cmd, "@EndTimestamp",   end);
+        addParameter(cmd, "@StartTimestamp", new DateTimeOffset(start, TimeSpan.Zero).ToUnixTimeMilliseconds());
+        addParameter(cmd, "@EndTimestamp",   new DateTimeOffset(end,   TimeSpan.Zero).ToUnixTimeMilliseconds());
 
         using var reader = await cmd.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
@@ -50,7 +50,7 @@ public class GetBarsInRangeStreamQuery : IDbStreamQuery<BarData>
     {
         Instrument  = r.GetString(0),
         Timeframe   = r.GetString(1),
-        Timestamp   = DateTime.Parse(r.GetString(2)),
+        Timestamp   = DateTimeOffset.FromUnixTimeMilliseconds(r.GetInt64(2)).UtcDateTime,
         SessionDate = r.IsDBNull(3) ? null : r.GetString(3),
         Open        = r.GetDouble(4),
         High        = r.GetDouble(5),
