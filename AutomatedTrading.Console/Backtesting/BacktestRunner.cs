@@ -1,6 +1,7 @@
 using AutomatedTrading.Core.Framework.DataLayer.Repositories;
 using AutomatedTrading.Core.Framework.Utility;
 using AutomatedTrading.Core.Models;
+using AutomatedTrading.Core.Framework.Enums;
 using AutomatedTrading.Core.Strategies;
 
 namespace AutomatedTrading.Console.Backtesting;
@@ -48,10 +49,8 @@ public class BacktestRunner
         var start = DateTime.ParseExact(startDate, "yyyyMMdd", null);
         var end = DateTime.ParseExact(endDate, "yyyyMMdd", null);
 
-        for (var date = start; date <= end; date = date.AddDays(1))
+        for (var date = start; date <= end; date = TradingCalendar.GetNextSessionDate(date))
         {
-            if (date.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday)
-                continue;
 
             var sessionDate = date.ToString("yyyyMMdd");
             var bars = await _barRepo.GetBarsBySessionDateAsync(sessionDate);

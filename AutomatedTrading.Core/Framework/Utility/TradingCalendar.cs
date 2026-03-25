@@ -1,9 +1,8 @@
-namespace AutomatedTrading.Import;
+using System;
+using System.Collections.Generic;
 
-/// <summary>
-/// US equity/futures market calendar.  Weekends and all standard CME/NYSE
-/// holidays are excluded from trading days.
-/// </summary>
+namespace AutomatedTrading.Core.Framework.Utility;
+
 public static class TradingCalendar
 {
     // Holiday sets are computed once per year and cached.
@@ -19,6 +18,18 @@ public static class TradingCalendar
         while (!IsTradingDay(next))
             next = next.AddDays(1);
         return next;
+    }
+
+    /// <summary>
+    /// Returns the previous trading day before <paramref name="date"/>, skipping
+    /// weekends and US market holidays.
+    /// </summary>
+    public static DateTime GetPreviousSessionDate(DateTime date)
+    {
+        var prev = date.Date.AddDays(-1);
+        while (!IsTradingDay(prev))
+            prev = prev.AddDays(-1);
+        return prev;
     }
 
     /// <summary>

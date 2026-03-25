@@ -1,4 +1,5 @@
 using AutomatedTrading.Core.Strategies;
+using AutomatedTrading.Core.Framework.Enums;
 
 namespace AutomatedTrading.Console.Backtesting;
 

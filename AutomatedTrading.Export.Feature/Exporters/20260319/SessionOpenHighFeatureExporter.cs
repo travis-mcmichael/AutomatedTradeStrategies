@@ -1,3 +1,4 @@
+using AutomatedTrading.Core.Framework;
 using AutomatedTrading.Core.Framework.DataLayer.Repositories;
 using AutomatedTrading.Core.Framework.Utility;
 using AutomatedTrading.Core.Models;
@@ -8,12 +9,6 @@ public class SessionOpenHighFeatureExporter
 {
     // Minimum prior sessions required to compute ATR20, SMA20, RSI14, etc.
     private const int MinLookback = 20;
-
-    // MES session times in CT (timestamps assumed to be in CT)
-    // Session opens at 16:00 (5 PM ET = 4 PM CT), closes at 15:00 (4 PM ET = 3 PM CT)
-    private static readonly TimeSpan SessionOpenTime = new(16, 0, 0);
-    private static readonly TimeSpan RthStartTime   = new( 8, 30, 0); // 9:30 AM ET
-    private static readonly TimeSpan RthEndTime     = new(15, 15, 0); // 4:15 PM ET
     private readonly string outputPath;
     private readonly IBarRepository barRepository;
 
@@ -190,17 +185,17 @@ public class SessionOpenHighFeatureExporter
         // Overnight = session open (16:00) through pre-RTH (< 08:30)
         // RTH = 08:30 to 15:15
         var overnight  = ordered.Where(b => 
-            b.Timestamp.TimeOfDay >= SessionOpenTime ||
-            b.Timestamp.TimeOfDay <  RthStartTime).ToList();
+            b.Timestamp.TimeOfDay >= AppConstants.SESSION_OPEN_TIME ||
+            b.Timestamp.TimeOfDay <  AppConstants.RTH_START_TIME).ToList();
         var rth = ordered.Where(b => 
-            b.Timestamp.TimeOfDay >= RthStartTime && 
-            b.Timestamp.TimeOfDay <  RthEndTime).ToList();
+            b.Timestamp.TimeOfDay >= AppConstants.RTH_START_TIME && 
+            b.Timestamp.TimeOfDay <  AppConstants.RTH_END_TIME).ToList();
         var firstHour = ordered.Where(b => 
-            b.Timestamp.TimeOfDay >= RthStartTime &&
-            b.Timestamp.TimeOfDay < RthStartTime + TimeSpan.FromHours(1)).ToList();
+            b.Timestamp.TimeOfDay >= AppConstants.RTH_START_TIME &&
+            b.Timestamp.TimeOfDay < AppConstants.RTH_START_TIME + TimeSpan.FromHours(1)).ToList();
         var lastHour = ordered.Where(b =>
-            b.Timestamp.TimeOfDay >= RthEndTime - TimeSpan.FromHours(1) &&
-            b.Timestamp.TimeOfDay <  RthEndTime).ToList();
+            b.Timestamp.TimeOfDay >= AppConstants.RTH_END_TIME - TimeSpan.FromHours(1) &&
+            b.Timestamp.TimeOfDay <  AppConstants.RTH_END_TIME).ToList();
 
         var sessionHigh = ordered.Max(b => b.High);
         var sessionLow = ordered.Min(b => b.Low);

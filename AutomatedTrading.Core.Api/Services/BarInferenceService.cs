@@ -1,4 +1,5 @@
 using AutomatedTrading.Core.Api.Models;
+using AutomatedTrading.Core.Framework;
 using AutomatedTrading.Core.Framework.DataLayer.Repositories;
 using AutomatedTrading.Core.Framework.ML;
 using AutomatedTrading.Core.Framework.Utility;
@@ -9,11 +10,6 @@ namespace AutomatedTrading.Core.Api.Services;
 
 public class BarInferenceService : IBarHighPredictor
 {
-    // MES session times in CT
-    private static readonly TimeSpan SessionOpenTime = new(16, 0, 0);
-    private static readonly TimeSpan RthStartTime = new( 8, 30, 0);
-    private static readonly TimeSpan RthEndTime = new(15, 15, 0);
-
     private const int HighFeatureCount = 38;
     private const int LowFeatureCount = 39;
 
@@ -174,17 +170,17 @@ public class BarInferenceService : IBarHighPredictor
         var totalVolume = ordered.Sum(b => b.Volume);
 
         var overnight = ordered.Where(b => 
-            b.Timestamp.TimeOfDay >= SessionOpenTime ||
-            b.Timestamp.TimeOfDay <  RthStartTime).ToList();
+            b.Timestamp.TimeOfDay >= AppConstants.SESSION_OPEN_TIME ||
+            b.Timestamp.TimeOfDay <  AppConstants.RTH_START_TIME).ToList();
         var rth = ordered.Where(b => 
-            b.Timestamp.TimeOfDay >= RthStartTime &&
-            b.Timestamp.TimeOfDay <  RthEndTime).ToList();
+            b.Timestamp.TimeOfDay >= AppConstants.RTH_START_TIME &&
+            b.Timestamp.TimeOfDay <  AppConstants.RTH_END_TIME).ToList();
         var firstHour = ordered.Where(b => 
-            b.Timestamp.TimeOfDay >= RthStartTime &&
-            b.Timestamp.TimeOfDay <  RthStartTime + TimeSpan.FromHours(1)).ToList();
+            b.Timestamp.TimeOfDay >= AppConstants.RTH_START_TIME &&
+            b.Timestamp.TimeOfDay <  AppConstants.RTH_START_TIME + TimeSpan.FromHours(1)).ToList();
         var lastHour = ordered.Where(b => 
-            b.Timestamp.TimeOfDay >= RthEndTime - TimeSpan.FromHours(1) &&
-            b.Timestamp.TimeOfDay <  RthEndTime).ToList();
+            b.Timestamp.TimeOfDay >= AppConstants.RTH_END_TIME - TimeSpan.FromHours(1) &&
+            b.Timestamp.TimeOfDay <  AppConstants.RTH_END_TIME).ToList();
 
         var sessionHigh = ordered.Max(b => b.High);
         var sessionLow = ordered.Min(b => b.Low);
@@ -216,17 +212,17 @@ public class BarInferenceService : IBarHighPredictor
         var totalVolume = ordered.Sum(b => b.Volume);
 
         var overnight = ordered.Where(b => 
-            b.Timestamp.TimeOfDay >= SessionOpenTime ||
-            b.Timestamp.TimeOfDay < RthStartTime).ToList();
+            b.Timestamp.TimeOfDay >= AppConstants.SESSION_OPEN_TIME ||
+            b.Timestamp.TimeOfDay < AppConstants.RTH_START_TIME).ToList();
         var rth = ordered.Where(b => 
-            b.Timestamp.TimeOfDay >= RthStartTime &&
-            b.Timestamp.TimeOfDay <  RthEndTime).ToList();
+            b.Timestamp.TimeOfDay >= AppConstants.RTH_START_TIME &&
+            b.Timestamp.TimeOfDay <  AppConstants.RTH_END_TIME).ToList();
         var firstHour = ordered.Where(b => 
-            b.Timestamp.TimeOfDay >= RthStartTime &&
-            b.Timestamp.TimeOfDay <  RthStartTime + TimeSpan.FromHours(1)).ToList();
+            b.Timestamp.TimeOfDay >= AppConstants.RTH_START_TIME &&
+            b.Timestamp.TimeOfDay <  AppConstants.RTH_START_TIME + TimeSpan.FromHours(1)).ToList();
         var lastHour = ordered.Where(b => 
-            b.Timestamp.TimeOfDay >= RthEndTime - TimeSpan.FromHours(1) &&
-            b.Timestamp.TimeOfDay <  RthEndTime).ToList();
+            b.Timestamp.TimeOfDay >= AppConstants.RTH_END_TIME - TimeSpan.FromHours(1) &&
+            b.Timestamp.TimeOfDay <  AppConstants.RTH_END_TIME).ToList();
 
         var sessionLow = ordered.Min(b => b.Low);
         var lowBarIndex = ordered.IndexOf(ordered.MinBy(b => b.Low)!);

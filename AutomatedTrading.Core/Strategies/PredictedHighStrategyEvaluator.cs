@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using AutomatedTrading.Core.Framework.Utility;
 using AutomatedTrading.Core.Framework.DataLayer.Repositories;
 using AutomatedTrading.Core.Models;
+using AutomatedTrading.Core.Framework.Enums;
 
 namespace AutomatedTrading.Core.Strategies;
 

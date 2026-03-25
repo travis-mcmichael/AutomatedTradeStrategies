@@ -1,5 +1,6 @@
 using AutomatedTrading.Core.Api.Models;
 using AutomatedTrading.Core.Strategies;
+using AutomatedTrading.Core.Framework.Enums;
 
 namespace AutomatedTrading.Core.Api.Endpoints;
 

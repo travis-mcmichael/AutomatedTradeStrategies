@@ -14,6 +14,12 @@ public static class AppConstants
     public static readonly string SQLITE_CONNECTION = "Data Source=C:\\dev\\data\\SQLite\\home.db";
     public static readonly int TICK_DATA_BATCH_SIZE = 250;
     public static readonly int BAR_DATA_BATCH_SIZE = 250;
+
+    // MES session times in CT (timestamps assumed to be in CT)
+    // Session opens 16:00 (5 PM ET), RTH 08:30-15:15 (9:30 AM - 4:15 PM ET)
+    public static readonly TimeSpan RTH_START_TIME = new (8, 30, 0);
+    public static readonly TimeSpan RTH_END_TIME = new (15, 15, 0);
+    public static readonly TimeSpan SESSION_OPEN_TIME = new (16, 0, 0);
     public static readonly string XGB_MODEL_FILENAME = "xgb_model.onnx";
     public static readonly string SCALER_FILENAME = "scaler_params.json";
 
