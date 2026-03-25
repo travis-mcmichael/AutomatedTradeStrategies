@@ -1,4 +1,3 @@
-using AutomatedTrading.Core.Api.Evaluators;
 using AutomatedTrading.Core.Api.Models;
 using AutomatedTrading.Core.Framework.DataLayer.Repositories;
 using AutomatedTrading.Core.Framework.ML;

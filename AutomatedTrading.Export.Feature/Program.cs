@@ -39,16 +39,16 @@ class Program
             string outputPath = Path.Combine(dir, "features.csv");
             await GenerateTickFeatureStreaming(outputPath, tickRepo);
         }
-        else if (execution == "bar-high")
+        else if (execution == "mes.day-bar.high")
         {
-            string dir = Path.Combine(path, "bar-high");
+            string dir = Path.Combine(path, "mes.day-bar.high");
             Directory.CreateDirectory(dir);
             string outputPath = Path.Combine(dir, "features.csv");
             await new SessionOpenHighFeatureExporter(outputPath, barRepo).GenerateFeatures(startDate, endDate);
         }
-        else if (execution == "bar-low")
+        else if (execution == "mes.day-bar.low")
         {
-            string dir = Path.Combine(path, "bar-low");
+            string dir = Path.Combine(path, "mes.day-bar.low");
             Directory.CreateDirectory(dir);
             string outputPath = Path.Combine(dir, "features.csv");
             await new SessionOpenLowFeatureExporter(outputPath, barRepo).GenerateFeatures(startDate, endDate);

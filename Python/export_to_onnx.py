@@ -13,8 +13,8 @@ FEATURES_BASE = "/mnt/c/dev/data/features"
 
 EXECUTION_CONFIGS = [
     # {"name": "tick",     "dir": os.path.join(FEATURES_BASE, "tick")},
-    {"name": "mes.day-bar.high", "dir": os.path.join(FEATURES_BASE, "bar-high")},
-    {"name": "mes.day-bar.low",  "dir": os.path.join(FEATURES_BASE, "bar-low")},
+    {"name": "mes.day-bar.high", "dir": os.path.join(FEATURES_BASE, "mes.day-bar.high")},
+    {"name": "mes.day-bar.low",  "dir": os.path.join(FEATURES_BASE, "mes.day-bar.low")},
 ]
 
 
