@@ -35,7 +35,7 @@ public class TickImporter
         try
         {
             string dateTimeRaw = parts[0].Trim();
-            string[] dtParts   = dateTimeRaw.Split(' ');
+            string[] dtParts = dateTimeRaw.Split(' ');
             if (dtParts.Length > 3 || dtParts.Length < 2) return null;
 
             string datePart = dtParts[0];
@@ -47,20 +47,20 @@ public class TickImporter
                 dt = dt.AddMilliseconds(microseconds / 1000.0);
 
             float lastPrice = float.Parse(parts[1], CultureInfo.InvariantCulture);
-            float bid       = float.Parse(parts[2], CultureInfo.InvariantCulture);
-            float ask       = float.Parse(parts[3], CultureInfo.InvariantCulture);
-            var   vol       = parts[4].Split(['.'], StringSplitOptions.RemoveEmptyEntries)[0];
-            int   volume    = int.Parse(vol);
-            long  tickTime  = new DateTimeOffset(dt).ToUnixTimeMilliseconds();
+            float bid = float.Parse(parts[2], CultureInfo.InvariantCulture);
+            float ask = float.Parse(parts[3], CultureInfo.InvariantCulture);
+            var   vol = parts[4].Split(['.'], StringSplitOptions.RemoveEmptyEntries)[0];
+            int   volume = int.Parse(vol);
+            long  tickTime = new DateTimeOffset(dt).ToUnixTimeMilliseconds();
 
             return new TickData
             {
                 Instrument = Instrument,
-                TickTime   = tickTime,
-                LastPrice  = lastPrice,
-                Volume     = volume,
-                Bid        = bid,
-                Ask        = ask
+                TickTime = tickTime,
+                LastPrice = lastPrice,
+                Volume = volume,
+                Bid = bid,
+                Ask = ask
             };
         }
         catch

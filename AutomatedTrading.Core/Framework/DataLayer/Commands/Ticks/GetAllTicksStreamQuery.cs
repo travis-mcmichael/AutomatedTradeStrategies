@@ -22,11 +22,11 @@ public class GetAllTicksStreamQuery : IDbStreamQuery<TickData>
             ct.ThrowIfCancellationRequested();
             await onItem(new TickData
             {
-                TickTime  = reader.GetInt64(0),
+                TickTime = reader.GetInt64(0),
                 LastPrice = reader.GetFloat(1),
-                Bid       = reader.IsDBNull(2) ? (float?)null : reader.GetFloat(2),
-                Ask       = reader.IsDBNull(3) ? (float?)null : reader.GetFloat(3),
-                Volume    = reader.GetInt32(4)
+                Bid = reader.IsDBNull(2) ? (float?)null : reader.GetFloat(2),
+                Ask = reader.IsDBNull(3) ? (float?)null : reader.GetFloat(3),
+                Volume = reader.GetInt32(4)
             });
         }
     }

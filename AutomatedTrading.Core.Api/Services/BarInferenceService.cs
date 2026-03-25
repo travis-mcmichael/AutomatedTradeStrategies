@@ -1,12 +1,14 @@
 using AutomatedTrading.Core.Api.Evaluators;
 using AutomatedTrading.Core.Api.Models;
 using AutomatedTrading.Core.Framework.DataLayer.Repositories;
+using AutomatedTrading.Core.Framework.ML;
 using AutomatedTrading.Core.Framework.Utility;
 using AutomatedTrading.Core.Models;
+using AutomatedTrading.Core.Strategies;
 
 namespace AutomatedTrading.Core.Api.Services;
 
-public class BarInferenceService
+public class BarInferenceService : IBarHighPredictor
 {
     // MES session times in CT
     private static readonly TimeSpan SessionOpenTime = new(16, 0, 0);
@@ -97,6 +99,16 @@ public class BarInferenceService
         var predictedLow  = sessionOpen - predictedMove;
 
         return new BarLowResponse(predictedLow, predictedMove);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // IBarHighPredictor
+    // ──────────────────────────────────────────────────────────────────────────
+
+    public async Task<BarHighPrediction?> PredictAsync(string sessionDate, double sessionOpen)
+    {
+        var result = await RunHighInference(sessionDate, sessionOpen);
+        return result is null ? null : new BarHighPrediction(result.PredictedHigh, result.PredictedMove);
     }
 
     // ──────────────────────────────────────────────────────────────────────────

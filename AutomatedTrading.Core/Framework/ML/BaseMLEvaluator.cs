@@ -1,7 +1,11 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
 
-namespace AutomatedTrading.Core.Api.Evaluators;
+namespace AutomatedTrading.Core.Framework.ML;
 
 public class BaseMLEvaluator : IDisposable
 {

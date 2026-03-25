@@ -14,8 +14,8 @@ FEATURES_BASE = "/mnt/c/dev/data/features"
 
 EXECUTION_CONFIGS = [
     #{"name": "tick",     "csv": os.path.join(FEATURES_BASE, "tick",     "features.csv")},
-    {"name": "bar-high", "csv": os.path.join(FEATURES_BASE, "bar-high", "features.csv")},
-    {"name": "bar-low",  "csv": os.path.join(FEATURES_BASE, "bar-low",  "features.csv")},
+    {"name": "mes.day-bar.high", "csv": os.path.join(FEATURES_BASE, "mes.day-bar.high", "features.csv")},
+    {"name": "mes.day-bar.low",  "csv": os.path.join(FEATURES_BASE, "mes.day-bar.low",  "features.csv")},
 ]
 
 TRAIN_SPLIT = 0.70

@@ -70,10 +70,10 @@ public class InsertTickBatchCommand : IDbCommand<int>
     private static void setParameters(DbCommand cmd, TickData tick)
     {
         cmd.Parameters["@Instrument"].Value = tick.Instrument ?? (object)DBNull.Value;
-        cmd.Parameters["@TickTime"].Value   = tick.TickTime;
-        cmd.Parameters["@LastPrice"].Value  = tick.LastPrice;
-        cmd.Parameters["@Volume"].Value     = tick.Volume;
-        cmd.Parameters["@Bid"].Value        = tick.Bid.HasValue ? (object)tick.Bid.Value : DBNull.Value;
-        cmd.Parameters["@Ask"].Value        = tick.Ask.HasValue ? (object)tick.Ask.Value : DBNull.Value;
+        cmd.Parameters["@TickTime"].Value = tick.TickTime;
+        cmd.Parameters["@LastPrice"].Value = tick.LastPrice;
+        cmd.Parameters["@Volume"].Value = tick.Volume;
+        cmd.Parameters["@Bid"].Value = tick.Bid.HasValue ? (object)tick.Bid.Value : DBNull.Value;
+        cmd.Parameters["@Ask"].Value = tick.Ask.HasValue ? (object)tick.Ask.Value : DBNull.Value;
     }
 }

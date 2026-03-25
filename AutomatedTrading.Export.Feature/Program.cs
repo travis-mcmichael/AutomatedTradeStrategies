@@ -10,7 +10,7 @@ namespace AutomatedTrading.Export.Feature;
 
 class Program
 {
-    static int sequenceLength    = 100;
+    static int sequenceLength = 100;
     static int predictionHorizon = 20;
 
     static async Task Main(string[] args)
@@ -22,33 +22,33 @@ class Program
             return;
         }
 
-        string path      = args[0];
+        string path = args[0];
         string execution = args[1].Trim().ToLower();
 
-        var factory    = new SqliteConnectionFactory(AppConstants.SQLITE_CONNECTION);
-        var barRepo    = new BarRepository(factory);
-        var tickRepo   = new TickRepository(factory);
+        var factory = new SqliteConnectionFactory(AppConstants.SQLITE_CONNECTION);
+        var barRepo = new BarRepository(factory);
+        var tickRepo = new TickRepository(factory);
 
-        var startDate  = new DateTime(2021, 1, 1);
-        var endDate    = new DateTime(2026, 2, 28);
+        var startDate = new DateTime(2021, 1, 1);
+        var endDate = new DateTime(2026, 2, 28);
 
         if (execution == "tick")
         {
-            string dir        = Path.Combine(path, "tick");
+            string dir = Path.Combine(path, "tick");
             Directory.CreateDirectory(dir);
             string outputPath = Path.Combine(dir, "features.csv");
             await GenerateTickFeatureStreaming(outputPath, tickRepo);
         }
         else if (execution == "bar-high")
         {
-            string dir        = Path.Combine(path, "bar-high");
+            string dir = Path.Combine(path, "bar-high");
             Directory.CreateDirectory(dir);
             string outputPath = Path.Combine(dir, "features.csv");
             await new SessionOpenHighFeatureExporter(outputPath, barRepo).GenerateFeatures(startDate, endDate);
         }
         else if (execution == "bar-low")
         {
-            string dir        = Path.Combine(path, "bar-low");
+            string dir = Path.Combine(path, "bar-low");
             Directory.CreateDirectory(dir);
             string outputPath = Path.Combine(dir, "features.csv");
             await new SessionOpenLowFeatureExporter(outputPath, barRepo).GenerateFeatures(startDate, endDate);
@@ -64,9 +64,9 @@ class Program
     static async Task GenerateTickFeatureStreaming(string outputPath, ITickRepository tickRepo)
     {
         using var writer = new StreamWriter(outputPath);
-        var tickBuffer   = new List<TickData>(sequenceLength + predictionHorizon + 1);
+        var tickBuffer = new List<TickData>(sequenceLength + predictionHorizon + 1);
         var featureCount = 10;
-        var sampleCount  = 0;
+        var sampleCount = 0;
         var headerWritten= false;
 
         await tickRepo.StreamTicksAsync(async tick =>
@@ -85,8 +85,8 @@ class Program
             }
 
             var currentIndex = tickBuffer.Count - predictionHorizon - 1;
-            var features     = new double[sequenceLength, featureCount];
-            var start        = currentIndex - sequenceLength + 1;
+            var features = new double[sequenceLength, featureCount];
+            var start = currentIndex - sequenceLength + 1;
 
             for (var j = 0; j < sequenceLength; j++)
             {
@@ -105,7 +105,7 @@ class Program
 
             var currentPrice = tickBuffer[currentIndex].LastPrice;
             var futurePrice  = tickBuffer[currentIndex + predictionHorizon].LastPrice;
-            var label        = futurePrice > currentPrice ? 1 : 0;
+            var label = futurePrice > currentPrice ? 1 : 0;
 
             for (var t = 0; t < sequenceLength; t++)
                 for (var f = 0; f < featureCount; f++)

@@ -1,7 +1,7 @@
-using AutomatedTrading.Core.Api.Evaluators;
 using AutomatedTrading.Core.Framework;
 using AutomatedTrading.Core.Framework.DataLayer.Repositories;
 using AutomatedTrading.Core.Framework.DataLayer.Sqlite;
+using AutomatedTrading.Core.Framework.ML;
 using AutomatedTrading.Core.Framework.Utility;
 using AutomatedTrading.Core.Models;
 
@@ -12,61 +12,37 @@ class Program
     // MES session times in CT (timestamps assumed to be in CT)
     // Session opens 16:00 (5 PM ET), RTH 08:30-15:15 (9:30 AM - 4:15 PM ET)
     static readonly TimeSpan SessionOpenTime = new(16,  0, 0);
-    static readonly TimeSpan RthStartTime    = new( 8, 30, 0);
-    static readonly TimeSpan RthEndTime      = new(15, 15, 0);
-
-    record ModelConfig(string Name, string ModelDate, int FeatureCount, bool IsHigh);
-
-    record SessionResult(string SessionDate, double Predicted, double Actual, double PredictedMove, double ActualMove, double Atr20);
-
-    // ==============================
-    // Model configuration
-    // ==============================
+    static readonly TimeSpan RthStartTime = new( 8, 30, 0);
+    static readonly TimeSpan RthEndTime = new(15, 15, 0);
     static readonly List<ModelConfig> ModelConfigs =
     [
-        new("bar-high", "20260322", 38, IsHigh: true),
-        new("bar-low",  "20260322", 39, IsHigh: false),
+        new("mes.day-bar.high", "20260322", 38, isHigh: true),
+        new("mes.day-bar.low",  "20260322", 39, isHigh: false),
     ];
 
     static async Task Main(string[] args)
     {
-        var evaluators = new Dictionary<string, BaseMLEvaluator>();
-
-        foreach (var config in ModelConfigs)
-        {
-            var dir        = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Models", config.ModelDate, config.Name);
-            var modelPath  = Path.Combine(dir, "xgb_model.onnx");
-            var scalerPath = Path.Combine(dir, "scaler_params.json");
-            var evaluator  = new BaseMLEvaluator(modelPath, scalerPath, config.FeatureCount);
-            evaluator.LoadModel();
-            if (!evaluator.SessionLoaded())
-            {
-                System.Console.WriteLine($"Model '{config.Name}' failed to load, skipping.");
-                continue;
-            }
-            evaluators[config.Name] = evaluator;
-        }
-
+        var evaluators = loadEvaluators();
         if (evaluators.Count == 0)
         {
             System.Console.WriteLine("No models loaded.");
             return;
         }
 
-        //var runDate = new DateTime(2026, 3, 23);
+        var runDate = new DateTime(2026, 3, 24);
 
-        var barRepo      = new BarRepository(new SqliteConnectionFactory(AppConstants.SQLITE_CONNECTION));
-        var rangeStart   = new DateTime(2026, 3, 1);
-        var rangeEnd     = DateTime.Today < new DateTime(2026, 12, 31) ? DateTime.Today : new DateTime(2026, 12, 31);
+        var barRepo = new BarRepository(new SqliteConnectionFactory(AppConstants.SQLITE_CONNECTION));
+        var rangeStart = runDate; //new DateTime(2026, 3, 1);
+        var rangeEnd = runDate; //DateTime.Today < new DateTime(2026, 12, 31) ? DateTime.Today : new DateTime(2026, 12, 31);
         var sessionDates = getSessionDates(rangeStart, rangeEnd);
-        var results      = evaluators.Keys.ToDictionary(k => k, _ => new List<SessionResult>());
-        var skipped      = 0;
+        var results = evaluators.Keys.ToDictionary(k => k, _ => new List<SessionResult>());
+        var skipped = 0;
         var activeConfigs = ModelConfigs.Where(c => evaluators.ContainsKey(c.Name)).ToList();
 
-        // ==============================
-        // Per-session table
-        // ==============================
-        System.Console.WriteLine($"\n{"Session",-10}  {"Model",-10}  {"PredMove",9}  {"ActMove",9}  {"Predicted",10}  {"Actual",10}  {"Error",8}  {"ATR",8}  {"Err/ATR",8}");
+        System.Console.WriteLine($"\n{"Session",-10}" + 
+        $" {"Model",-10}  {"PredMove",9}  {"ActMove",9} " + 
+        $" {"Predicted",10}  {"Actual",10}  {"Error",8} " + 
+        $" {"ATR",8}  {"Err/ATR",8}");
         System.Console.WriteLine(new string('-', 88));
 
         foreach (var sessionDate in sessionDates)
@@ -82,18 +58,12 @@ class Program
             foreach (var config in activeConfigs)
             {
                 if (!sessionResults.TryGetValue(config.Name, out var r)) continue;
-                var error   = r.Predicted - r.Actual;
-                var errAtr  = safeDiv(error, r.Atr20);
-                var dateCol = first ? sessionDate : new string(' ', 8);
-                System.Console.WriteLine($"{dateCol,-10}  {config.Name,-10}  {r.PredictedMove,9:F2}  {r.ActualMove,9:F2}  {r.Predicted,10:F2}  {r.Actual,10:F2}  {error,8:F2} {r.Atr20,8:F2} {errAtr,8:F3}");
+                printSession(r,config, sessionDate, first);
                 results[config.Name].Add(r);
                 first = false;
             }
         }
 
-        // ==============================
-        // Monthly breakdown
-        // ==============================
         var allMonths = results.Values
             .SelectMany(r => r.Select(x => x.SessionDate[..6]))
             .Distinct()
@@ -115,9 +85,6 @@ class Program
             }
         }
 
-        // ==============================
-        // Totals
-        // ==============================
         System.Console.WriteLine($"\n=== Totals  (skipped: {skipped}) ===");
 
         foreach (var config in activeConfigs)
@@ -130,21 +97,52 @@ class Program
             ev.Dispose();
     }
 
+    static Dictionary<string, BaseMLEvaluator> loadEvaluators()
+    {
+        var evaluators = new Dictionary<string, BaseMLEvaluator>();
+        foreach (var config in ModelConfigs)
+        {
+            var dir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Models", config.ModelDate, config.Name);
+            var modelPath = Path.Combine(dir, AppConstants.XGB_MODEL_FILENAME);
+            var scalerPath = Path.Combine(dir, AppConstants.SCALER_FILENAME);
+            var evaluator = new BaseMLEvaluator(modelPath, scalerPath, config.FeatureCount);
+            evaluator.LoadModel();
+            if (!evaluator.SessionLoaded())
+            {
+                System.Console.WriteLine($"Model '{config.Name}' failed to load, skipping.");
+                continue;
+            }
+            evaluators[config.Name] = evaluator;
+        }
+
+        return evaluators;
+    }
+
     static void printStats(string label, List<SessionResult> results)
     {
-        var errors       = results.Select(r => Math.Abs(r.Predicted - r.Actual)).ToList();
-        var avgAtr       = results.Average(r => r.Atr20);
-        var mae          = errors.Average();
-        var avgPredMove  = results.Average(r => r.PredictedMove);
-        var avgActMove   = results.Average(r => r.ActualMove);
-        var w05          = errors.Count(e => e < avgAtr * 0.5);
-        var w10          = errors.Count(e => e < avgAtr);
-        var n            = results.Count;
-
+        var errors = results.Select(r => Math.Abs(r.Predicted - r.Actual)).ToList();
+        var avgAtr = results.Average(r => r.Atr20);
+        var mae = errors.Average();
+        var avgPredMove = results.Average(r => r.PredictedMove);
+        var avgActMove = results.Average(r => r.ActualMove);
+        var w05 = errors.Count(e => e < avgAtr * 0.5);
+        var w10 = errors.Count(e => e < avgAtr);
+        var n = results.Count;
         System.Console.WriteLine(
             $"{label}  n={n,3} | AvgPredMove={avgPredMove,7:F2}  AvgActMove={avgActMove,7:F2} | " +
             $"MAE={mae,7:F2} pts | MAE/ATR={safeDiv(mae, avgAtr):F3} | " +
             $"W0.5={w05,3}/{n} ({(double)w05/n:P0}) | W1.0={w10,3}/{n} ({(double)w10/n:P0})");
+    }
+
+    static void printSession(SessionResult r, ModelConfig config, string sessionDate, bool first)
+    {
+        var error = r.Predicted - r.Actual;
+        var errAtr = safeDiv(error, r.Atr20);
+        var dateCol = first ? sessionDate : new string(' ', 8);
+        System.Console.WriteLine($"{dateCol,-10} " +
+        $"{config.Name,-10}  {r.PredictedMove,9:F2} {r.ActualMove,9:F2}" + 
+        $"{r.Predicted,10:F2}  {r.Actual,10:F2}  {error,8:F2}" +
+        $"{r.Atr20,8:F2} {errAtr,8:F3}");
     }
 
     static async Task<Dictionary<string, SessionResult>?> runSessionInference(
@@ -155,27 +153,27 @@ class Program
         var prevSessionDate = getPreviousSessionDate(sessionDate);
 
         var todayMinuteBars = await barRepo.GetBarsBySessionDateAsync(sessionDate);
-        if (!todayMinuteBars.Any()) return null;
+        if (todayMinuteBars.Count == 0) return null;
 
         var prevMinuteBars = await barRepo.GetBarsBySessionDateAsync(prevSessionDate);
-        if (!prevMinuteBars.Any()) return null;
+        if (prevMinuteBars.Count == 0) return null;
 
         var sequence = await loadRecentDailyBars(barRepo, prevSessionDate, 40);
         if (sequence.Count < 21) return null;
 
-        var j          = sequence.Count - 1;
-        var current    = sequence[j];
+        var j = sequence.Count - 1;
+        var current = sequence[j];
         var sessionOpen = todayMinuteBars.OrderBy(b => b.Timestamp).First().Open;
-        var atr5       = Computations.ATR(sequence, j,  5);
-        var atr10      = Computations.ATR(sequence, j, 10);
-        var atr20      = Computations.ATR(sequence, j, 20);
-        var sma5       = Computations.SMA(sequence, j,  5, x => x.Close);
-        var sma10      = Computations.SMA(sequence, j, 10, x => x.Close);
-        var sma20      = Computations.SMA(sequence, j, 20, x => x.Close);
-        var avgRange5  = Computations.AverageRange(sequence, j,  5);
+        var atr5 = Computations.ATR(sequence, j,  5);
+        var atr10 = Computations.ATR(sequence, j, 10);
+        var atr20 = Computations.ATR(sequence, j, 20);
+        var sma5 = Computations.SMA(sequence, j,  5, x => x.Close);
+        var sma10 = Computations.SMA(sequence, j, 10, x => x.Close);
+        var sma20 = Computations.SMA(sequence, j, 20, x => x.Close);
+        var avgRange5 = Computations.AverageRange(sequence, j,  5);
         var avgRange10 = Computations.AverageRange(sequence, j, 10);
-        var rsi14      = Computations.RSI(sequence, j, 14);
-        var today      = DateTime.ParseExact(sessionDate, "yyyyMMdd", null);
+        var rsi14 = Computations.RSI(sequence, j, 14);
+        var today = DateTime.ParseExact(sessionDate, "yyyyMMdd", null);
 
         System.Console.WriteLine($"Session Open: {sessionOpen}");
         // Shared prefix — identical across all bar models (indices 0-29)
@@ -215,7 +213,7 @@ class Program
 
         var output = new Dictionary<string, SessionResult>();
 
-        if (evaluators.TryGetValue("bar-high", out var highEval))
+        if (evaluators.TryGetValue("mes.day-bar.high", out var highEval))
         {
             var intraday  = computeHighIntradayFeatures(prevMinuteBars, atr20);
             double[] tail =
@@ -229,12 +227,15 @@ class Program
                 intraday.PrevOpenToHighRatio,
                 intraday.PrevOpenToLowRatio,
             ];
-            var scaled    = highEval.Scale([.. shared, .. tail]);
+            var scaled = highEval.Scale([.. shared, .. tail]);
             var predicted = sessionOpen + highEval.RunInference(scaled) * atr20;
-            var actual    = todayMinuteBars.Max(b => b.High);
-            output["bar-high"] = new SessionResult(sessionDate, predicted, actual,
-                PredictedMove: predicted - sessionOpen,
-                ActualMove:    actual    - sessionOpen,
+            var actual = todayMinuteBars.Max(b => b.High);
+            output["mes.day-bar.high"] = new SessionResult(
+                sessionDate, 
+                predicted,
+                actual,
+                predictedMove: predicted - sessionOpen,
+                actualMove: actual - sessionOpen,
                 atr20);
         }
 
@@ -256,9 +257,12 @@ class Program
             var scaled    = lowEval.Scale([.. shared, .. tail]);
             var predicted = sessionOpen - lowEval.RunInference(scaled) * atr20;
             var actual    = todayMinuteBars.Min(b => b.Low);
-            output["bar-low"] = new SessionResult(sessionDate, predicted, actual,
-                PredictedMove: sessionOpen - predicted,
-                ActualMove:    sessionOpen - actual,
+            output["bar-low"] = new SessionResult(
+                sessionDate, 
+                predicted, 
+                actual,
+                predictedMove: sessionOpen - predicted,
+                actualMove:    sessionOpen - actual,
                 atr20);
         }
 
@@ -266,25 +270,29 @@ class Program
     }
 
     static (double OvernightRange, double OvernightVolumeRatio, double RegularHoursRange,
-            double FirstHourRange, double LastHourRange, double HighTimeRatio,
-            double PrevOpenToHighRatio, double PrevOpenToLowRatio)
-        computeHighIntradayFeatures(List<BarData> bars, double atr20)
+        double FirstHourRange, double LastHourRange, double HighTimeRatio,
+        double PrevOpenToHighRatio, double PrevOpenToLowRatio)
+    computeHighIntradayFeatures(List<BarData> bars, double atr20)
     {
-        if (!bars.Any() || atr20 == 0)
+        if (bars.Count == 0 || atr20 == 0)
             return (0, 0, 0, 0, 0, 0.5, 0, 0);
 
-        var ordered      = bars.OrderBy(b => b.Timestamp).ToList();
+        var ordered = bars.OrderBy(b => b.Timestamp).ToList();
         var sessionOpenP = ordered.First().Open;
-        var totalVolume  = ordered.Sum(b => b.Volume);
+        var totalVolume = ordered.Sum(b => b.Volume);
 
-        var overnight = ordered.Where(b => b.Timestamp.TimeOfDay >= SessionOpenTime ||
-                                           b.Timestamp.TimeOfDay <  RthStartTime).ToList();
-        var rth       = ordered.Where(b => b.Timestamp.TimeOfDay >= RthStartTime &&
-                                           b.Timestamp.TimeOfDay <  RthEndTime).ToList();
-        var firstHour = ordered.Where(b => b.Timestamp.TimeOfDay >= RthStartTime &&
-                                           b.Timestamp.TimeOfDay <  RthStartTime + TimeSpan.FromHours(1)).ToList();
-        var lastHour  = ordered.Where(b => b.Timestamp.TimeOfDay >= RthEndTime - TimeSpan.FromHours(1) &&
-                                           b.Timestamp.TimeOfDay <  RthEndTime).ToList();
+        var overnight = ordered.Where(b => 
+            b.Timestamp.TimeOfDay >= SessionOpenTime || 
+            b.Timestamp.TimeOfDay <  RthStartTime).ToList();
+        var rth = ordered.Where(b => 
+            b.Timestamp.TimeOfDay >= RthStartTime && 
+            b.Timestamp.TimeOfDay <  RthEndTime).ToList();
+        var firstHour = ordered.Where(b => 
+            b.Timestamp.TimeOfDay >= RthStartTime && 
+            b.Timestamp.TimeOfDay < RthStartTime + TimeSpan.FromHours(1)).ToList();
+        var lastHour  = ordered.Where(b => 
+            b.Timestamp.TimeOfDay >= RthEndTime - TimeSpan.FromHours(1) &&
+            b.Timestamp.TimeOfDay <  RthEndTime).ToList();
 
         var sessionHigh  = ordered.Max(b => b.High);
         var sessionLow   = ordered.Min(b => b.Low);
@@ -292,63 +300,67 @@ class Program
         var highTimeRatio = ordered.Count > 1 ? (double)highBarIndex / (ordered.Count - 1) : 0.5;
 
         return (
-            OvernightRange:      overnight.Any() ? safeDiv(overnight.Max(b => b.High) - overnight.Min(b => b.Low), atr20) : 0,
+            OvernightRange: overnight.Count != 0 ? safeDiv(overnight.Max(b => b.High) - overnight.Min(b => b.Low), atr20) : 0,
             OvernightVolumeRatio:safeDiv(overnight.Sum(b => b.Volume), totalVolume),
-            RegularHoursRange:   rth.Any()       ? safeDiv(rth.Max(b => b.High) - rth.Min(b => b.Low), atr20) : 0,
-            FirstHourRange:      firstHour.Any() ? safeDiv(firstHour.Max(b => b.High) - firstHour.Min(b => b.Low), atr20) : 0,
-            LastHourRange:       lastHour.Any()  ? safeDiv(lastHour.Max(b => b.High) - lastHour.Min(b => b.Low), atr20) : 0,
-            HighTimeRatio:       highTimeRatio,
-            PrevOpenToHighRatio: safeDiv(sessionHigh  - sessionOpenP, atr20),
-            PrevOpenToLowRatio:  safeDiv(sessionOpenP - sessionLow,   atr20)
+            RegularHoursRange:   rth.Count != 0 ? safeDiv(rth.Max(b => b.High) - rth.Min(b => b.Low), atr20) : 0,
+            FirstHourRange: firstHour.Count != 0 ? safeDiv(firstHour.Max(b => b.High) - firstHour.Min(b => b.Low), atr20) : 0,
+            LastHourRange: lastHour.Count != 0 ? safeDiv(lastHour.Max(b => b.High) - lastHour.Min(b => b.Low), atr20) : 0,
+            HighTimeRatio: highTimeRatio,
+            PrevOpenToHighRatio: safeDiv(sessionHigh - sessionOpenP, atr20),
+            PrevOpenToLowRatio: safeDiv(sessionOpenP - sessionLow,   atr20)
         );
     }
 
     static (double OvernightRange, double OvernightVolumeRatio, double OvernightDropRatio,
-            double RegularHoursRange, double FirstHourRange, double LastHourRange,
-            double LowTimeRatio, double PrevOpenToLowRatio, double LastHourClosePosition)
-        computeLowIntradayFeatures(List<BarData> bars, double atr20)
+        double RegularHoursRange, double FirstHourRange, double LastHourRange,
+        double LowTimeRatio, double PrevOpenToLowRatio, double LastHourClosePosition)
+    computeLowIntradayFeatures(List<BarData> bars, double atr20)
     {
-        if (!bars.Any() || atr20 == 0)
+        if (bars.Count == 0 || atr20 == 0)
             return (0, 0, 0, 0, 0, 0, 0.5, 0, 0.5);
 
-        var ordered      = bars.OrderBy(b => b.Timestamp).ToList();
+        var ordered = bars.OrderBy(b => b.Timestamp).ToList();
         var sessionOpenP = ordered.First().Open;
-        var totalVolume  = ordered.Sum(b => b.Volume);
+        var totalVolume = ordered.Sum(b => b.Volume);
 
-        var overnight = ordered.Where(b => b.Timestamp.TimeOfDay >= SessionOpenTime ||
-                                           b.Timestamp.TimeOfDay <  RthStartTime).ToList();
-        var rth       = ordered.Where(b => b.Timestamp.TimeOfDay >= RthStartTime &&
-                                           b.Timestamp.TimeOfDay <  RthEndTime).ToList();
-        var firstHour = ordered.Where(b => b.Timestamp.TimeOfDay >= RthStartTime &&
-                                           b.Timestamp.TimeOfDay <  RthStartTime + TimeSpan.FromHours(1)).ToList();
-        var lastHour  = ordered.Where(b => b.Timestamp.TimeOfDay >= RthEndTime - TimeSpan.FromHours(1) &&
-                                           b.Timestamp.TimeOfDay <  RthEndTime).ToList();
+        var overnight = ordered.Where(b =>
+            b.Timestamp.TimeOfDay >= SessionOpenTime || 
+            b.Timestamp.TimeOfDay <  RthStartTime).ToList();
+        var rth = ordered.Where(b => 
+            b.Timestamp.TimeOfDay >= RthStartTime &&
+            b.Timestamp.TimeOfDay <  RthEndTime).ToList();
+        var firstHour = ordered.Where(b => 
+            b.Timestamp.TimeOfDay >= RthStartTime &&
+            b.Timestamp.TimeOfDay <  RthStartTime + TimeSpan.FromHours(1)).ToList();
+        var lastHour = ordered.Where(b => 
+            b.Timestamp.TimeOfDay >= RthEndTime - TimeSpan.FromHours(1) &&
+            b.Timestamp.TimeOfDay <  RthEndTime).ToList();
 
-        var sessionLow      = ordered.Min(b => b.Low);
-        var lowBarIndex     = ordered.IndexOf(ordered.MinBy(b => b.Low)!);
-        var lowTimeRatio    = ordered.Count > 1 ? (double)lowBarIndex / (ordered.Count - 1) : 0.5;
+        var sessionLow = ordered.Min(b => b.Low);
+        var lowBarIndex = ordered.IndexOf(ordered.MinBy(b => b.Low)!);
+        var lowTimeRatio = ordered.Count > 1 ? (double)lowBarIndex / (ordered.Count - 1) : 0.5;
 
-        var overnightLow       = overnight.Any() ? overnight.Min(b => b.Low) : sessionOpenP;
+        var overnightLow = overnight.Count != 0 ? overnight.Min(b => b.Low) : sessionOpenP;
         var overnightDropRatio = safeDiv(sessionOpenP - overnightLow, atr20);
 
         double lastHourClosePos = 0.5;
-        if (lastHour.Any())
+        if (lastHour.Count != 0)
         {
-            var lhHigh  = lastHour.Max(b => b.High);
-            var lhLow   = lastHour.Min(b => b.Low);
+            var lhHigh = lastHour.Max(b => b.High);
+            var lhLow = lastHour.Min(b => b.Low);
             var lhClose = lastHour.OrderBy(b => b.Timestamp).Last().Close;
             lastHourClosePos = lhHigh == lhLow ? 0.5 : (lhClose - lhLow) / (lhHigh - lhLow);
         }
 
         return (
-            OvernightRange:        overnight.Any() ? safeDiv(overnight.Max(b => b.High) - overnight.Min(b => b.Low), atr20) : 0,
-            OvernightVolumeRatio:  safeDiv(overnight.Sum(b => b.Volume), totalVolume),
-            OvernightDropRatio:    overnightDropRatio,
-            RegularHoursRange:     rth.Any()       ? safeDiv(rth.Max(b => b.High) - rth.Min(b => b.Low), atr20) : 0,
-            FirstHourRange:        firstHour.Any() ? safeDiv(firstHour.Max(b => b.High) - firstHour.Min(b => b.Low), atr20) : 0,
-            LastHourRange:         lastHour.Any()  ? safeDiv(lastHour.Max(b => b.High) - lastHour.Min(b => b.Low), atr20) : 0,
-            LowTimeRatio:          lowTimeRatio,
-            PrevOpenToLowRatio:    safeDiv(sessionOpenP - sessionLow, atr20),
+            OvernightRange: overnight.Count != 0 ? safeDiv(overnight.Max(b => b.High) - overnight.Min(b => b.Low), atr20) : 0,
+            OvernightVolumeRatio: safeDiv(overnight.Sum(b => b.Volume), totalVolume),
+            OvernightDropRatio: overnightDropRatio,
+            RegularHoursRange: rth.Count != 0 ? safeDiv(rth.Max(b => b.High) - rth.Min(b => b.Low), atr20) : 0,
+            FirstHourRange: firstHour.Count != 0 ? safeDiv(firstHour.Max(b => b.High) - firstHour.Min(b => b.Low), atr20) : 0,
+            LastHourRange: lastHour.Count != 0 ? safeDiv(lastHour.Max(b => b.High) - lastHour.Min(b => b.Low), atr20) : 0,
+            LowTimeRatio: lowTimeRatio,
+            PrevOpenToLowRatio: safeDiv(sessionOpenP - sessionLow, atr20),
             LastHourClosePosition: lastHourClosePos
         );
     }
@@ -369,21 +381,6 @@ class Program
         return dates;
     }
 
-    static BarData aggregateSession(List<BarData> bars)
-    {
-        var ordered = bars.OrderBy(b => b.Timestamp).ToList();
-        return new BarData
-        {
-            Timestamp   = ordered.First().Timestamp,
-            SessionDate = ordered.First().SessionDate,
-            Open        = ordered.First().Open,
-            Close       = ordered.Last().Close,
-            High        = ordered.Max(x => x.High),
-            Low         = ordered.Min(x => x.Low),
-            Volume      = ordered.Sum(x => x.Volume)
-        };
-    }
-
     static async Task<List<BarData>> loadRecentDailyBars(IBarRepository repo, string sessionDate, int lookbackDays)
     {
         var list = new List<BarData>();
@@ -391,10 +388,10 @@ class Program
 
         for (int i = lookbackDays; i >= 0; i--)
         {
-            var d    = date.AddDays(-i).ToString("yyyyMMdd");
+            var d = date.AddDays(-i).ToString("yyyyMMdd");
             var bars = await repo.GetBarsBySessionDateAsync(d);
             if (bars.Count == 0) continue;
-            list.Add(aggregateSession(bars));
+            list.Add(BarData.Aggregate(bars));
         }
 
         return list;
@@ -409,7 +406,7 @@ class Program
         {
             DayOfWeek.Monday => dt.AddDays(-3).ToString("yyyyMMdd"),
             DayOfWeek.Sunday => dt.AddDays(-2).ToString("yyyyMMdd"),
-            _                => dt.AddDays(-1).ToString("yyyyMMdd"),
+            _ => dt.AddDays(-1).ToString("yyyyMMdd"),
         };
     }
 }

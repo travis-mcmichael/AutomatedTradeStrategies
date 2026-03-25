@@ -4,6 +4,7 @@ using AutomatedTrading.Core.Framework.DataLayer;
 using AutomatedTrading.Core.Framework.DataLayer.Repositories;
 using AutomatedTrading.Core.Framework.DataLayer.Sqlite;
 using AutomatedTrading.Core.Models;
+using AutomatedTrading.Core.Strategies;
 using Microsoft.Data.Sqlite;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -17,6 +18,13 @@ builder.Services.AddSingleton<IBarRepository, BarRepository>();
 
 // ML inference (singleton — holds loaded ONNX InferenceSessions)
 builder.Services.AddSingleton<BarInferenceService>();
+builder.Services.AddSingleton<IBarHighPredictor>(sp => sp.GetRequiredService<BarInferenceService>());
+
+// Strategy evaluator (singleton — holds per-session trading state)
+builder.Services.AddSingleton<PredictedHighStrategyEvaluator>(sp =>
+    new PredictedHighStrategyEvaluator(
+        sp.GetRequiredService<IBarHighPredictor>(),
+        sp.GetRequiredService<IBarRepository>()));
 
 var app = builder.Build();
 
@@ -31,6 +39,7 @@ app.UseHttpsRedirection();
 
 BarHighEndpoints.Map(app);
 BarLowEndpoints.Map(app);
+PredictedHighEndpoints.Map(app);
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Tick data endpoints

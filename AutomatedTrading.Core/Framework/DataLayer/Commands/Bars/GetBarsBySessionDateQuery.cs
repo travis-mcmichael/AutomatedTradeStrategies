@@ -46,14 +46,14 @@ public class GetBarsBySessionDateQuery : IDbQuery<List<BarData>>
 
     private static BarData mapBar(DbDataReader r) => new BarData
     {
-        Instrument  = r.GetString(0),
-        Timeframe   = r.GetString(1),
-        Timestamp   = DateTimeOffset.FromUnixTimeMilliseconds(r.GetInt64(2)).UtcDateTime,
+        Instrument = r.GetString(0),
+        Timeframe = r.GetString(1),
+        Timestamp = DateTimeOffset.FromUnixTimeMilliseconds(r.GetInt64(2)).UtcDateTime,
         SessionDate = r.IsDBNull(3) ? null : r.GetString(3),
-        Open        = r.GetDouble(4),
-        High        = r.GetDouble(5),
-        Low         = r.GetDouble(6),
-        Close       = r.GetDouble(7),
-        Volume      = r.GetDouble(8)
+        Open = r.GetDouble(4),
+        High = r.GetDouble(5),
+        Low = r.GetDouble(6),
+        Close = r.GetDouble(7),
+        Volume = r.GetDouble(8)
     };
 }

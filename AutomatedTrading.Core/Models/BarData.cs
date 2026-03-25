@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace AutomatedTrading.Core.Models;
 
@@ -31,5 +33,20 @@ public class BarData
     public virtual string ToLog()
     {
         return $"timestamp={Timestamp:yyyy-MM-dd HH:mm:ss},sessiondate={SessionDate},open={Open},high={High},low={Low},close={Close},volume={Volume}";
+    }
+
+    public static BarData Aggregate(List<BarData> bars)
+    {
+        var ordered = bars.OrderBy(b => b.Timestamp).ToList();
+        return new BarData
+        {
+            Timestamp = ordered.First().Timestamp,
+            SessionDate = ordered.First().SessionDate,
+            Open = ordered.First().Open,
+            Close = ordered.Last().Close,
+            High = ordered.Max(x => x.High),
+            Low = ordered.Min(x => x.Low),
+            Volume = ordered.Sum(x => x.Volume)
+        };
     }
 }

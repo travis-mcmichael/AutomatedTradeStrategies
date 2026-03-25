@@ -37,26 +37,26 @@ public class BarImporter
 
     private static BarData? parseBarData(string line)
     {
-        var parts        = line.Split(';');
+        var parts = line.Split(';');
         var dateTimePart = parts[0];
-        var datePart     = dateTimePart.Substring(0, 8);
-        var timePart     = dateTimePart.Substring(9, 6);
-        var timestamp    = DateTime.ParseExact(datePart + timePart, "yyyyMMddHHmmss", CultureInfo.InvariantCulture);
+        var datePart = dateTimePart.Substring(0, 8);
+        var timePart = dateTimePart.Substring(9, 6);
+        var timestamp = DateTime.ParseExact(datePart + timePart, "yyyyMMddHHmmss", CultureInfo.InvariantCulture);
         timestamp = timestamp.AddHours(OFFSET_HOURS);
-        var sessionDate  = timestamp.Date;
+        var sessionDate = timestamp.Date;
         if (timestamp.Hour >= 16)
             sessionDate = sessionDate.AddDays(1);
 
         return new BarData
         {
-            Instrument  = "MES",
-            Timeframe   = "1m",
-            Timestamp   = timestamp,
-            Open        = double.Parse(parts[1], CultureInfo.InvariantCulture),
-            High        = double.Parse(parts[2], CultureInfo.InvariantCulture),
-            Low         = double.Parse(parts[3], CultureInfo.InvariantCulture),
-            Close       = double.Parse(parts[4], CultureInfo.InvariantCulture),
-            Volume      = double.Parse(parts[5], CultureInfo.InvariantCulture),
+            Instrument = "MES",
+            Timeframe = "1m",
+            Timestamp = timestamp,
+            Open = double.Parse(parts[1], CultureInfo.InvariantCulture),
+            High = double.Parse(parts[2], CultureInfo.InvariantCulture),
+            Low = double.Parse(parts[3], CultureInfo.InvariantCulture),
+            Close = double.Parse(parts[4], CultureInfo.InvariantCulture),
+            Volume = double.Parse(parts[5], CultureInfo.InvariantCulture),
             SessionDate = $"{sessionDate:yyyyMMdd}",
             SessionTime = $"{timestamp:HHmmss}"
         };

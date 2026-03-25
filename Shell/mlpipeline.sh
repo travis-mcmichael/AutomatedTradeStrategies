@@ -11,11 +11,11 @@ PYTHON="python3"
 DOT_NET="/mnt/c/Program Files/dotnet/dotnet.exe"
 dotnet() { "$DOT_NET" "$@"; }
 
-EXECUTION_TYPES=("bar-high" "bar-low")
+EXECUTION_TYPES=("mes.day-bar.high" "mes.day-bar.low")
 
 source /home/superuser/onnx-env/bin/activate
 
-API_MODELS="$REPO_ROOT/AutomatedTrading.Core.Api/Models/$MODEL_DATE"
+MODELS_DIR="$REPO_ROOT/Models/$MODEL_DATE"
 
 # ==============================
 # Step 1: Export features
@@ -69,7 +69,7 @@ for exec_type in "${EXECUTION_TYPES[@]}"; do
         continue
     fi
 
-    for dest_base in "$API_MODELS"; do
+    for dest_base in "$MODELS_DIR"; do
         dest="$dest_base/$exec_type"
         mkdir -p "$dest"
         cp "$onnx_file"   "$dest/xgb_model.onnx"
