@@ -112,6 +112,7 @@ app.MapPost("/insertTicks", async (InsertTicksRequest request, IConfiguration co
     if (request.Ticks.Count == 0)
         return Results.BadRequest("No ticks provided");
 
+    // should this be in a config?
     await using var connection = new SqliteConnection("Data Source=C:\\dev\\SQLite\\home.db;");
     await connection.OpenAsync();
     await using var transaction = await connection.BeginTransactionAsync();

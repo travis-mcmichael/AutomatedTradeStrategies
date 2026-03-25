@@ -95,8 +95,8 @@ public class SessionOpenLowFeatureExporter
                 var features = new double[]
                 {
                     // --- Previous complete session shape ---
-                    safeDiv(current.High, sessionOpen),              // PrevHighRatio
-                    safeDiv(current.Low,  sessionOpen),              // PrevLowRatio
+                    Operations.SafeDiv(current.High, sessionOpen),   // PrevHighRatio
+                    Operations.SafeDiv(current.Low,  sessionOpen),   // PrevLowRatio
                     Computations.HighLowRange(current, atr20),       // PrevRange
                     Computations.BodySize(current, atr20),           // PrevBodySize
                     Computations.UpperWick(current, atr20),          // PrevUpperWick
@@ -104,37 +104,37 @@ public class SessionOpenLowFeatureExporter
                     Computations.ClosePosition(current),             // PrevClosePosition (0=near low, 1=near high)
 
                     // --- Volatility / trend context ---
-                    safeDiv(atr5,  sessionOpen),                     // ATR5
-                    safeDiv(atr10, sessionOpen),                     // ATR10
-                    safeDiv(atr20, sessionOpen),                     // ATR20
-                    avgRange5,                                        // AvgRange5
-                    avgRange10,                                       // AvgRange10
-                    safeDiv(current.High - current.Low, avgRange10), // RangeRatio
+                    Operations.SafeDiv(atr5,  sessionOpen),          // ATR5
+                    Operations.SafeDiv(atr10, sessionOpen),          // ATR10
+                    Operations.SafeDiv(atr20, sessionOpen),          // ATR20
+                    avgRange5,                                       // AvgRange5
+                    avgRange10,                                      // AvgRange10
+                    Operations.SafeDiv(current.High - current.Low, avgRange10), // RangeRatio
                     Computations.Return(dailyBars, j, 1),            // Return1D
                     Computations.Return(dailyBars, j, 3),            // Return3D
                     Computations.Return(dailyBars, j, 5),            // Return5D
-                    safeDiv(sma5,  sma20),                           // SMA5SMA20Ratio
-                    safeDiv(sma10, sma20),                           // SMA10SMA20Ratio
-                    safeDiv(sessionOpen, sma5),                      // OpenSMA5Ratio
-                    safeDiv(sessionOpen, sma10),                     // OpenSMA10Ratio
-                    safeDiv(sessionOpen, sma20),                     // OpenSMA20Ratio
+                    Operations.SafeDiv(sma5,  sma20),                // SMA5SMA20Ratio
+                    Operations.SafeDiv(sma10, sma20),                // SMA10SMA20Ratio
+                    Operations.SafeDiv(sessionOpen, sma5),           // OpenSMA5Ratio
+                    Operations.SafeDiv(sessionOpen, sma10),          // OpenSMA10Ratio
+                    Operations.SafeDiv(sessionOpen, sma20),          // OpenSMA20Ratio
 
                     // --- Volume ---
-                    Computations.SMA(dailyBars, j, 20, b => b.Volume), // VolumeMA20
+                    Computations.SMA(dailyBars, j, 20, b => b.Volume),  // VolumeMA20
                     Computations.VolumeZScore(dailyBars, j, 20),        // VolumeZScore20
 
                     // --- Gap / distance from key levels ---
-                    safeDiv(sessionOpen - current.High, atr20),      // DistanceFromPrevHigh
-                    safeDiv(sessionOpen - current.Low,  atr20),      // DistanceFromPrevLow
-                    safeDiv(sessionOpen - current.Close, atr20),     // GapVsATR
+                    Operations.SafeDiv(sessionOpen - current.High, atr20),      // DistanceFromPrevHigh
+                    Operations.SafeDiv(sessionOpen - current.Low,  atr20),      // DistanceFromPrevLow
+                    Operations.SafeDiv(sessionOpen - current.Close, atr20),     // GapVsATR
 
                     // --- Regime ---
-                    safeDiv(atr10, atr20),                           // VolatilityRegime
-                    rsi14,                                            // RSI14
+                    Operations.SafeDiv(atr10, atr20),                // VolatilityRegime
+                    rsi14,                                           // RSI14
 
                     // --- Calendar ---
                     (int)sessionDate.DayOfWeek,                      // DayOfWeek
-                    sessionDate.Day,                                  // DayOfMonth
+                    sessionDate.Day,                                 // DayOfMonth
 
                     // --- Previous session intraday structure (downside-tuned) ---
                     intraday.OvernightRange,                         // OvernightRange
@@ -210,7 +210,7 @@ public class SessionOpenLowFeatureExporter
 
         // How far overnight dropped below the session open (downside measure)
         var overnightLow      = overnight.Any() ? overnight.Min(b => b.Low) : sessionOpen;
-        var overnightDropRatio = safeDiv(sessionOpen - overnightLow, atr20);
+        var overnightDropRatio = Operations.SafeDiv(sessionOpen - overnightLow, atr20);
 
         // Where price closed within the last hour's range (0 = at low, 1 = at high)
         double lastHourClosePosition = 0.5;
@@ -227,17 +227,17 @@ public class SessionOpenLowFeatureExporter
         return new IntradayFeatures
         {
             OvernightRange        = overnight.Any()
-                ? safeDiv(overnight.Max(b => b.High) - overnight.Min(b => b.Low), atr20) : 0,
-            OvernightVolumeRatio  = safeDiv(overnight.Sum(b => b.Volume), totalVolume),
+                ? Operations.SafeDiv(overnight.Max(b => b.High) - overnight.Min(b => b.Low), atr20) : 0,
+            OvernightVolumeRatio  = Operations.SafeDiv(overnight.Sum(b => b.Volume), totalVolume),
             OvernightDropRatio    = overnightDropRatio,
             RegularHoursRange     = rth.Any()
-                ? safeDiv(rth.Max(b => b.High) - rth.Min(b => b.Low), atr20) : 0,
+                ? Operations.SafeDiv(rth.Max(b => b.High) - rth.Min(b => b.Low), atr20) : 0,
             FirstHourRange        = firstHour.Any()
-                ? safeDiv(firstHour.Max(b => b.High) - firstHour.Min(b => b.Low), atr20) : 0,
+                ? Operations.SafeDiv(firstHour.Max(b => b.High) - firstHour.Min(b => b.Low), atr20) : 0,
             LastHourRange         = lastHour.Any()
-                ? safeDiv(lastHour.Max(b => b.High) - lastHour.Min(b => b.Low), atr20) : 0,
+                ? Operations.SafeDiv(lastHour.Max(b => b.High) - lastHour.Min(b => b.Low), atr20) : 0,
             LowTimeRatio          = lowTimeRatio,
-            PrevOpenToLowRatio    = safeDiv(sessionOpen - sessionLow, atr20),
+            PrevOpenToLowRatio    = Operations.SafeDiv(sessionOpen - sessionLow, atr20),
             LastHourClosePosition = lastHourClosePosition,
         };
     }
@@ -256,8 +256,6 @@ public class SessionOpenLowFeatureExporter
             Volume      = ordered.Sum(b => b.Volume),
         };
     }
-
-    private static double safeDiv(double a, double b) => b == 0 ? 0 : a / b;
 
     private class IntradayFeatures
     {

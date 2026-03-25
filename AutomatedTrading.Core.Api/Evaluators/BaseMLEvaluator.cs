@@ -5,6 +5,7 @@ namespace AutomatedTrading.Core.Api.Evaluators;
 
 public class BaseMLEvaluator : IDisposable
 {
+    // should the paths be in a config?
     private string model = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Models\\20260319", "xgb_model.onnx");
     private string scaler = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Models\\20260319", "scaler_params.json");
     private InferenceSession? session;
