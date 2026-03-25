@@ -119,9 +119,9 @@ public class BaseMLEvaluator : IDisposable
 
         try
         {
-            var jsonText   = File.ReadAllText(scalerPath);
+            var jsonText = File.ReadAllText(scalerPath);
             var scalerData = System.Text.Json.JsonDocument.Parse(jsonText).RootElement;
-            scalerMean  = [.. scalerData.GetProperty("mean").EnumerateArray().Select(x => x.GetDouble())];
+            scalerMean = [.. scalerData.GetProperty("mean").EnumerateArray().Select(x => x.GetDouble())];
             scalerScale = [.. scalerData.GetProperty("scale").EnumerateArray().Select(x => x.GetDouble())];
 
             if (scalerMean.Length != featureCount || scalerScale.Length != featureCount)

@@ -16,8 +16,8 @@ class Program
     static readonly TimeSpan RthEndTime = new(15, 15, 0);
     static readonly List<ModelConfig> ModelConfigs =
     [
-        new("mes.day-bar.high", "20260322", 38, isHigh: true),
-        new("mes.day-bar.low",  "20260322", 39, isHigh: false),
+        new("mes.day-bar.high", "20260324", 38, isHigh: true),
+        new("mes.day-bar.low",  "20260324", 39, isHigh: false),
     ];
 
     static async Task Main(string[] args)
@@ -239,7 +239,7 @@ class Program
                 atr20);
         }
 
-        if (evaluators.TryGetValue("bar-low", out var lowEval))
+        if (evaluators.TryGetValue("mes.day-bar.low", out var lowEval))
         {
             var intraday  = computeLowIntradayFeatures(prevMinuteBars, atr20);
             double[] tail =
@@ -257,7 +257,7 @@ class Program
             var scaled    = lowEval.Scale([.. shared, .. tail]);
             var predicted = sessionOpen - lowEval.RunInference(scaled) * atr20;
             var actual    = todayMinuteBars.Min(b => b.Low);
-            output["bar-low"] = new SessionResult(
+            output["mes.day-bar.low"] = new SessionResult(
                 sessionDate, 
                 predicted, 
                 actual,
