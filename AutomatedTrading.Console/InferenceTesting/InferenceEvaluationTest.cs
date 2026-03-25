@@ -4,7 +4,6 @@ using AutomatedTrading.Core.Framework.Utility;
 using AutomatedTrading.Core.Framework.DataLayer.Repositories;
 using AutomatedTrading.Core.Framework.ML;
 using AutomatedTrading.Core.Models;
-using Microsoft.OpenApi;
 
 namespace AutomatedTrading.Console.InferenceTesting;
 
