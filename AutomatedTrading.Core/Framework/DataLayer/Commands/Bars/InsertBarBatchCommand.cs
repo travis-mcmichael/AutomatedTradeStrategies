@@ -23,7 +23,7 @@ public class InsertBarBatchCommand : IDbCommand<int>
 
     public InsertBarBatchCommand(List<BarData> bars, int batchSize)
     {
-        this.bars      = bars;
+        this.bars = bars;
         this.batchSize = batchSize;
     }
 
@@ -58,7 +58,7 @@ public class InsertBarBatchCommand : IDbCommand<int>
     private static void addParameters(DbCommand cmd)
     {
         foreach (var name in new[] { "@Instrument", "@Timeframe", "@Timestamp", "@SessionDate",
-                                     "@SessionTime", "@Open", "@High", "@Low", "@Close", "@Volume" })
+            "@SessionTime", "@Open", "@High", "@Low", "@Close", "@Volume" })
         {
             var p = cmd.CreateParameter();
             p.ParameterName = name;
@@ -68,16 +68,16 @@ public class InsertBarBatchCommand : IDbCommand<int>
 
     private static void setParameters(DbCommand cmd, BarData bar)
     {
-        cmd.Parameters["@Instrument"].Value  = bar.Instrument  ?? (object)DBNull.Value;
-        cmd.Parameters["@Timeframe"].Value   = bar.Timeframe   ?? (object)DBNull.Value;
-        cmd.Parameters["@Timestamp"].Value   = new DateTimeOffset(bar.Timestamp, TimeSpan.Zero).ToUnixTimeMilliseconds();
+        cmd.Parameters["@Instrument"].Value = bar.Instrument ?? (object)DBNull.Value;
+        cmd.Parameters["@Timeframe"].Value = bar.Timeframe ?? (object)DBNull.Value;
+        cmd.Parameters["@Timestamp"].Value = new DateTimeOffset(bar.Timestamp, TimeSpan.Zero).ToUnixTimeMilliseconds();
         cmd.Parameters["@SessionDate"].Value = bar.SessionDate ?? (object)DBNull.Value;
         cmd.Parameters["@SessionTime"].Value = bar.SessionTime ?? (object)DBNull.Value;
-        cmd.Parameters["@Open"].Value        = safeDouble(bar.Open);
-        cmd.Parameters["@High"].Value        = safeDouble(bar.High);
-        cmd.Parameters["@Low"].Value         = safeDouble(bar.Low);
-        cmd.Parameters["@Close"].Value       = safeDouble(bar.Close);
-        cmd.Parameters["@Volume"].Value      = safeDouble(bar.Volume);
+        cmd.Parameters["@Open"].Value = safeDouble(bar.Open);
+        cmd.Parameters["@High"].Value = safeDouble(bar.High);
+        cmd.Parameters["@Low"].Value = safeDouble(bar.Low);
+        cmd.Parameters["@Close"].Value = safeDouble(bar.Close);
+        cmd.Parameters["@Volume"].Value = safeDouble(bar.Volume);
     }
 
     private static object safeDouble(double v) =>

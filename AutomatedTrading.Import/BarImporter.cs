@@ -45,14 +45,14 @@ public class BarImporter
 
         return new BarData
         {
-            Instrument  = "MES",
-            Timeframe   = "1m",
-            Timestamp   = timestamp,
-            Open        = double.Parse(parts[1], CultureInfo.InvariantCulture),
-            High        = double.Parse(parts[2], CultureInfo.InvariantCulture),
-            Low         = double.Parse(parts[3], CultureInfo.InvariantCulture),
-            Close       = double.Parse(parts[4], CultureInfo.InvariantCulture),
-            Volume      = double.Parse(parts[5], CultureInfo.InvariantCulture),
+            Instrument = "MES",
+            Timeframe = "1m",
+            Timestamp = timestamp,
+            Open = double.Parse(parts[1], CultureInfo.InvariantCulture),
+            High = double.Parse(parts[2], CultureInfo.InvariantCulture),
+            Low = double.Parse(parts[3], CultureInfo.InvariantCulture),
+            Close = double.Parse(parts[4], CultureInfo.InvariantCulture),
+            Volume = double.Parse(parts[5], CultureInfo.InvariantCulture),
             SessionDate = $"{sessionDate:yyyyMMdd}",
             SessionTime = $"{timestamp:HHmmss}"
         };
