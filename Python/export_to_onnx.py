@@ -1,57 +1,86 @@
+import os
 import xgboost as xgb
 import onnx
 import joblib
 import json
+from onnxmltools import convert_xgboost
+from onnxmltools.convert.common.data_types import FloatTensorType
 
 # ==============================
 # Configuration
 # ==============================
-MODEL_INPUT   = "xgb_model.json"
-SCALER_INPUT  = "scaler.pkl"
-ONNX_OUTPUT   = "xgb_model.onnx"
-SCALER_OUTPUT = "scaler_params.json"
+FEATURES_BASE = "/mnt/c/dev/data/features"
+
+EXECUTION_CONFIGS = [
+    # {"name": "tick",     "dir": os.path.join(FEATURES_BASE, "tick")},
+    {"name": "bar-high", "dir": os.path.join(FEATURES_BASE, "bar-high")},
+    {"name": "bar-low",  "dir": os.path.join(FEATURES_BASE, "bar-low")},
+]
+
 
 # ==============================
-# Export XGBoost → ONNX
-# Requires XGBoost 2.0+. Native export preserves full model fidelity
-# and removes the onnxmltools/skl2onnx dependency chain.
+# Export one execution type
 # ==============================
-print(f"Loading model from {MODEL_INPUT}...")
-model = xgb.XGBRegressor()
-model.load_model(MODEL_INPUT)
-print(f"  Features: {model.n_features_in_}")
-print(f"  Best iteration: {getattr(model, 'best_iteration', 'n/a')}")
+def export_model(name, model_input, scaler_input, onnx_output, scaler_output):
+    print(f"\n{'='*50}")
+    print(f"  Exporting: {name}")
+    print(f"{'='*50}")
 
-print(f"\nExporting to ONNX → {ONNX_OUTPUT}...")
-model.save_model(ONNX_OUTPUT)
+    print(f"Loading model from {model_input}...")
+    model = xgb.XGBRegressor()
+    model.load_model(model_input)
+    print(f"  Features: {model.n_features_in_}")
+    print(f"  Best iteration: {getattr(model, 'best_iteration', 'n/a')}")
 
-# Verify the exported model is well-formed
-print("Verifying ONNX model...")
-onnx_model = onnx.load(ONNX_OUTPUT)
+    print(f"\nExporting to ONNX → {onnx_output}...")
+    initial_type = [("float_input", FloatTensorType([None, model.n_features_in_]))]
+    onnx_proto = convert_xgboost(model, initial_types=initial_type)
+    with open(onnx_output, "wb") as f:
+        f.write(onnx_proto.SerializeToString())
 
-# check_model throws. Perhaps we wrap in try-except and handle gracefully?
-onnx.checker.check_model(onnx_model)
-print(f"  Input:  {onnx_model.graph.input[0].name}  "
-      f"{[d.dim_value for d in onnx_model.graph.input[0].type.tensor_type.shape.dim]}")
-print(f"  Output: {onnx_model.graph.output[0].name}")
-print("  Model is valid.")
+    # Verify the exported model is well-formed
+    print("Verifying ONNX model...")
+    onnx_model = onnx.load(onnx_output)
+    onnx.checker.check_model(onnx_model)
+    print(f"  Input:  {onnx_model.graph.input[0].name}  "
+          f"{[d.dim_value for d in onnx_model.graph.input[0].type.tensor_type.shape.dim]}")
+    print(f"  Output: {onnx_model.graph.output[0].name}")
+    print("  Model is valid.")
+
+    # Export Scaler Parameters → JSON
+    # The C# inference layer applies scaling manually, so we export
+    # mean and scale as plain JSON rather than the pkl binary.
+    print(f"\nExporting scaler params → {scaler_output}...")
+    scaler = joblib.load(scaler_input)
+
+    if len(scaler.mean_) != model.n_features_in_:
+        raise ValueError(
+            f"Scaler has {len(scaler.mean_)} features but model expects "
+            f"{model.n_features_in_}. Ensure model and scaler were trained together."
+        )
+
+    with open(scaler_output, "w") as f:
+        json.dump({"mean": scaler.mean_.tolist(), "scale": scaler.scale_.tolist()}, f)
+
+    print(f"  Features exported: {len(scaler.mean_)}")
+
 
 # ==============================
-# Export Scaler Parameters → JSON
-# The C# inference layer applies scaling manually, so we export
-# mean and scale as plain JSON rather than the pkl binary.
+# Main
 # ==============================
-print(f"\nExporting scaler params → {SCALER_OUTPUT}...")
-scaler = joblib.load(SCALER_INPUT)
+for config in EXECUTION_CONFIGS:
+    d             = config["dir"]
+    model_input   = os.path.join(d, "xgb_model.json")
+    scaler_input  = os.path.join(d, "scaler.pkl")
 
-if len(scaler.mean_) != model.n_features_in_:
-    raise ValueError(
-        f"Scaler has {len(scaler.mean_)} features but model expects "
-        f"{model.n_features_in_}. Ensure model and scaler were trained together."
-    )
+    if not os.path.isfile(model_input) or not os.path.isfile(scaler_input):
+        missing = [p for p in (model_input, scaler_input) if not os.path.isfile(p)]
+        print(f"\nSkipping '{config['name']}': missing {', '.join(missing)}")
+        continue
 
-with open(SCALER_OUTPUT, "w") as f:
-    json.dump({"mean": scaler.mean_.tolist(), "scale": scaler.scale_.tolist()}, f)
+    onnx_output   = os.path.join(d, "xgb_model.onnx")
+    scaler_output = os.path.join(d, "scaler_params.json")
 
-print(f"  Features exported: {len(scaler.mean_)}")
-print("Done.")
+    export_model(config["name"], model_input, scaler_input, onnx_output, scaler_output)
+
+print("\nDone.")

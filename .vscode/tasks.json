@@ -1,19 +1,39 @@
 {
 	"version": "2.0.0",
 	"tasks": [
-    {
-      "label": "build",
-      "command": "dotnet",
-      "type": "process",
-      "args": [
-        "build",
-        "${workspaceFolder}/NinjaTickImport/NinjaTickImport.csproj"
-      ],
-      "problemMatcher": "$msCompile",
-      "group": {
-        "kind": "build",
-        "isDefault": true
-      }
-    }
+		{
+			"label": "build: AutomatedTrading.Import",
+			"command": "dotnet",
+			"type": "process",
+			"args": [
+				"build",
+				"${workspaceFolder}/AutomatedTrading.Import/AutomatedTrading.Import.csproj"
+			],
+			"problemMatcher": "$msCompile",
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			}
+		},
+		{
+			"label": "build: AutomatedTrading.Export.Feature",
+			"command": "dotnet",
+			"type": "process",
+			"args": [
+				"build",
+				"${workspaceFolder}/AutomatedTrading.Export.Feature/AutomatedTrading.Export.Feature.csproj"
+			],
+			"problemMatcher": "$msCompile"
+		},
+		{
+			"label": "build: AutomatedTrading.Console",
+			"command": "dotnet",
+			"type": "process",
+			"args": [
+				"build",
+				"${workspaceFolder}/AutomatedTrading.Console/AutomatedTrading.Console.csproj"
+			],
+			"problemMatcher": "$msCompile"
+		}
 	]
 }

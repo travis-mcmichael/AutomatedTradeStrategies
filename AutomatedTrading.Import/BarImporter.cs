@@ -6,6 +6,7 @@ namespace AutomatedTrading.Import;
 
 public class BarImporter
 {
+    const int OFFSET_HOURS = -5;
     public static async Task<int> ImportBarData(string file, IBarRepository barRepository, int batchSize)
     {
         if (!File.Exists(file))
@@ -52,7 +53,8 @@ public class BarImporter
             Low         = double.Parse(parts[3], CultureInfo.InvariantCulture),
             Close       = double.Parse(parts[4], CultureInfo.InvariantCulture),
             Volume      = double.Parse(parts[5], CultureInfo.InvariantCulture),
-            SessionDate = $"{sessionDate:yyyyMMdd}"
+            SessionDate = $"{sessionDate:yyyyMMdd}",
+            SessionTime = $"{timestamp:HHmmss}"
         };
     }
 }
