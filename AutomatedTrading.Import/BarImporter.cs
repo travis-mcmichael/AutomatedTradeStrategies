@@ -37,7 +37,7 @@ public class BarImporter
     private static BarData? parseBarData(string line)
     {
         var parts        = line.Split(';');
-        var timestamp    = DateTimeConverter.UtcStringToLocal(parts[0]);
+        var timestamp    = DateTimeConverter.UtcStringToLocal(parts[0].Replace(" ", ""));
         var sessionDate  = timestamp.Date;
         if (timestamp.Hour >= 16)
             sessionDate = TradingCalendar.GetNextSessionDate(timestamp.Date);

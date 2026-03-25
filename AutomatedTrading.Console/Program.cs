@@ -16,8 +16,8 @@ class Program
     static readonly TimeSpan RthEndTime = new(15, 15, 0);
     static readonly List<ModelConfig> ModelConfigs =
     [
-        new("mes.day-bar.high", "20260324", 38, isHigh: true),
-        new("mes.day-bar.low",  "20260324", 39, isHigh: false),
+        new("mes.day-bar.high", "20260325", 38, isHigh: true),
+        new("mes.day-bar.low",  "20260325", 39, isHigh: false),
     ];
 
     static async Task Main(string[] args)

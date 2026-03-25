@@ -35,7 +35,7 @@ class Program
         try
         {
             var imported = 0;
-            var files    = Directory.GetFiles(directory);
+            var files = Directory.GetFiles(directory).OrderBy(x => x);
 
             if (importType == "bar")
             {
