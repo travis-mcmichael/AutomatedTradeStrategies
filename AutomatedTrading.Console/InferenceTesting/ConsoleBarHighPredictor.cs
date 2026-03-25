@@ -21,7 +21,7 @@ public class ConsoleBarHighPredictor : IBarHighPredictor, IDisposable
     {
         _barRepo = barRepo;
 
-        var dir = Path.Combine("C:\\dev\\AutomatedTradeStrategies\\Models", highConfig.ModelDate, highConfig.Name);
+        var dir = Path.Combine(AppConstants.MODEL_DIR, highConfig.ModelDate, highConfig.Name);
         _highEval = new BaseMLEvaluator(
             Path.Combine(dir, AppConstants.XGB_MODEL_FILENAME),
             Path.Combine(dir, AppConstants.SCALER_FILENAME),

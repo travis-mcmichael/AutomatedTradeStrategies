@@ -25,10 +25,9 @@ public class BarInferenceService : IBarHighPredictor
         this.barRepo = barRepo;
 
         var modelDate = config["Models:Date"] ?? "20260323";
-        var baseDir = AppDomain.CurrentDomain.BaseDirectory;
 
-        highEvaluator = createEvaluator(baseDir, modelDate, "mes.day-bar.high", HighFeatureCount);
-        lowEvaluator = createEvaluator(baseDir, modelDate, "mes.day-bar.low",  LowFeatureCount);
+        highEvaluator = createEvaluator(AppConstants.MODEL_DIR, modelDate, "mes.day-bar.high", HighFeatureCount);
+        lowEvaluator = createEvaluator(AppConstants.MODEL_DIR, modelDate, "mes.day-bar.low",  LowFeatureCount);
     }
 
     public async Task<BarHighResponse?> RunHighInference(string sessionDate, double sessionOpen)

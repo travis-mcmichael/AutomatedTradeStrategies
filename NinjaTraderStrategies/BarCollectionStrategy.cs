@@ -31,19 +31,18 @@ namespace NinjaTrader.NinjaScript.Strategies
 {
 	public class BarCollectionStrategy : Strategy
 	{
-		private const string ConnectionString = "Data Source=C:\\dev\\data\\SQLite\\home.db;";
 		private IBarRepository barRepository;
 
 		protected override void OnStateChange()
 		{
 			if (State == State.SetDefaults)
 			{
-				Name      = "BarCollectorStrategy";
+				Name = "BarCollectorStrategy";
 				Calculate = Calculate.OnBarClose;
 			}
 			else if (State == State.Configure)
 			{
-				barRepository = new BarRepository(new SqliteConnectionFactory(ConnectionString));
+				barRepository = new BarRepository(new SqliteConnectionFactory(AppConstants.SQLITE_CONNECTION));
 			}
 		}
 

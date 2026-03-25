@@ -81,7 +81,7 @@ public class InferenceEvaluationTest
         _evaluators = new Dictionary<string, BaseMLEvaluator>();
         foreach (var config in _modelConfigs)
         {
-            var dir = Path.Combine("C:\\dev\\AutomatedTradeStrategies\\Models", config.ModelDate, config.Name);
+            var dir = Path.Combine(AppConstants.MODEL_DIR, config.ModelDate, config.Name);
             var modelPath = Path.Combine(dir, AppConstants.XGB_MODEL_FILENAME);
             var scalerPath = Path.Combine(dir, AppConstants.SCALER_FILENAME);
             var evaluator = new BaseMLEvaluator(modelPath, scalerPath, config.FeatureCount);
