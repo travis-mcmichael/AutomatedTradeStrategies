@@ -40,7 +40,7 @@ public class BarImporter
         var timestamp    = DateTimeConverter.UtcStringToLocal(parts[0]);
         var sessionDate  = timestamp.Date;
         if (timestamp.Hour >= 16)
-            sessionDate = sessionDate.AddDays(1);
+            sessionDate = TradingCalendar.GetNextSessionDate(timestamp.Date);
 
         return new BarData
         {
