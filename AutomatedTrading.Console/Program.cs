@@ -16,8 +16,8 @@ class Program
     static readonly TimeSpan RthEndTime = new(15, 15, 0);
     static readonly List<ModelConfig> ModelConfigs =
     [
-        new("mes.day-bar.high", "20260324", 38, isHigh: true),
-        new("mes.day-bar.low",  "20260324", 39, isHigh: false),
+        new("mes.day-bar.high", "20260325", 38, isHigh: true),
+        new("mes.day-bar.low",  "20260325", 39, isHigh: false),
     ];
 
     static async Task Main(string[] args)
@@ -102,7 +102,7 @@ class Program
         var evaluators = new Dictionary<string, BaseMLEvaluator>();
         foreach (var config in ModelConfigs)
         {
-            var dir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Models", config.ModelDate, config.Name);
+            var dir = Path.Combine("C:\\dev\\AutomatedTradeStrategies\\Models", config.ModelDate, config.Name);
             var modelPath = Path.Combine(dir, AppConstants.XGB_MODEL_FILENAME);
             var scalerPath = Path.Combine(dir, AppConstants.SCALER_FILENAME);
             var evaluator = new BaseMLEvaluator(modelPath, scalerPath, config.FeatureCount);

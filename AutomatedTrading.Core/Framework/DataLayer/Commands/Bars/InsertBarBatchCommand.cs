@@ -70,7 +70,7 @@ public class InsertBarBatchCommand : IDbCommand<int>
     {
         cmd.Parameters["@Instrument"].Value = bar.Instrument ?? (object)DBNull.Value;
         cmd.Parameters["@Timeframe"].Value = bar.Timeframe ?? (object)DBNull.Value;
-        cmd.Parameters["@Timestamp"].Value = new DateTimeOffset(bar.Timestamp, TimeSpan.Zero).ToUnixTimeMilliseconds();
+        cmd.Parameters["@Timestamp"].Value = new DateTimeOffset(bar.Timestamp.ToUniversalTime()).ToUnixTimeMilliseconds();
         cmd.Parameters["@SessionDate"].Value = bar.SessionDate ?? (object)DBNull.Value;
         cmd.Parameters["@SessionTime"].Value = bar.SessionTime ?? (object)DBNull.Value;
         cmd.Parameters["@Open"].Value = safeDouble(bar.Open);
