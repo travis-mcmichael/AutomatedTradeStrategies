@@ -21,6 +21,10 @@ using NinjaTrader.Core.FloatingPoint;
 using NinjaTrader.NinjaScript.Indicators;
 using NinjaTrader.NinjaScript.DrawingTools;
 using Newtonsoft.Json;
+
+using AutomatedTrading.Core.Framework;
+using AutomatedTrading.Core.Framework.Utility;
+
 #endregion
 
 #region README IMPORTANT
@@ -66,6 +70,17 @@ namespace NinjaTrader.NinjaScript.Strategies
         private HttpClient _http;
         private bool       _inferenceReady;
         private double     _predictedHigh;
+
+        // ── Trade tracking ────────────────────────────────────────────────────
+        private string   _currentSessionDate;
+        private bool     _inTrade;
+        private DateTime _entryTime;
+        private double   _entryPrice;
+        private readonly List<NtTradeRecord> _trades = new List<NtTradeRecord>();
+        private double   _grossProfit;
+        private double   _grossLoss;
+        private int      _winningTrades;
+        private int      _losingTrades;
 
         // =====================================================================
         // Parameters
@@ -118,20 +133,20 @@ namespace NinjaTrader.NinjaScript.Strategies
             switch (State)
             {
                 case State.SetDefaults:
-                    Name                         = STRATEGY_ID;
-                    Calculate                    = Calculate.OnBarClose;
-                    EntriesPerDirection          = 1;
+                    Name = STRATEGY_ID;
+                    Calculate = Calculate.OnBarClose;
+                    EntriesPerDirection = 1;
                     IsExitOnSessionCloseStrategy = true;
-                    ExitOnSessionCloseSeconds    = 30;
-                    BarsRequiredToTrade          = 1;
+                    ExitOnSessionCloseSeconds = 30;
+                    BarsRequiredToTrade = 1;
 
-                    Proximity      = 0.5;
+                    Proximity = 0.5;
                     StopLossPoints = 5.0;
-                    TargetProfit   = 20.0;
-                    Trail          = 10.0;
+                    TargetProfit = 20.0;
+                    Trail = 10.0;
 
                     _inferenceReady = false;
-                    _predictedHigh  = double.MaxValue;
+                    _predictedHigh = double.MaxValue;
                     break;
 
                 case State.Configure:
@@ -140,6 +155,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                 case State.Terminated:
                     _http?.Dispose();
+                    printSummary();
                     break;
             }
         }
@@ -185,23 +201,32 @@ namespace NinjaTrader.NinjaScript.Strategies
         // =====================================================================
         // API calls
         // =====================================================================
+        // Mirrors BarImporter's convention: bars at 16:00+ belong to the next trading day's session.
+        private static DateTime sessionDateFor(DateTime barTime)
+        {
+            if (barTime.Hour <= 16) return barTime.Date;
+            return TradingCalendar.GetNextSessionDate(barTime.Date);
+        }
+
         private void startSession(DateTime barTime, double sessionOpen)
         {
+            var sessionDate     = sessionDateFor(barTime).ToString("yyyyMMdd");
+            _currentSessionDate = sessionDate;
             var body = JsonConvert.SerializeObject(new
             {
-                sessionDate    = barTime.ToString("yyyyMMdd"),
+                sessionDate,
                 sessionOpen,
-                proximity      = Proximity,
+                proximity = Proximity,
                 stopLossPoints = StopLossPoints,
-                targetProfit   = TargetProfit,
-                trail          = Trail,
+                targetProfit = TargetProfit,
+                trail = Trail,
             });
 
             try
             {
                 var content  = new StringContent(body, Encoding.UTF8, "application/json");
                 var response = _http.PostAsync($"{API_URL}/strategy/predicted-high/session", content)
-                                    .GetAwaiter().GetResult();
+                    .GetAwaiter().GetResult();
 
                 if (!response.IsSuccessStatusCode)
                 {
@@ -216,7 +241,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     _inferenceReady = true;
                     _predictedHigh  = result.PredictedHigh;
-                    Print($"PH {barTime:yyyyMMdd}: predictedHigh={_predictedHigh:F2}  dailyATR={result.DailyAtr:F2}  open={sessionOpen:F2}");
+                    Print($"PH {sessionDate}: predictedHigh={_predictedHigh:F2}  dailyATR={result.DailyAtr:F2}  open={sessionOpen:F2}");
                 }
             }
             catch (Exception ex)
@@ -257,12 +282,80 @@ namespace NinjaTrader.NinjaScript.Strategies
             }
         }
 
+        // =====================================================================
+        // Trade tracking
+        // =====================================================================
+        protected override void OnExecutionUpdate(Execution execution, string executionId,
+            double price, int quantity, MarketPosition marketPosition, string orderId, DateTime time)
+        {
+            if (marketPosition == MarketPosition.Short && !_inTrade)
+            {
+                _inTrade    = true;
+                _entryTime  = time;
+                _entryPrice = price;
+            }
+            else if (marketPosition == MarketPosition.Flat && _inTrade)
+            {
+                _inTrade = false;
+                var exitReason = execution.Order.OrderType == OrderType.StopMarket ? "Stop" : "SessionClose";
+                var pnl        = _entryPrice - price;
+                var trade      = new NtTradeRecord
+                {
+                    SessionDate = _currentSessionDate,
+                    EntryTime   = _entryTime,
+                    ExitTime    = time,
+                    Side        = "Short",
+                    EntryPrice  = _entryPrice,
+                    ExitPrice   = price,
+                    PnL         = pnl,
+                    ExitReason  = exitReason,
+                };
+                _trades.Add(trade);
+                if (pnl > 0) { _grossProfit += pnl; _winningTrades++; }
+                else          { _grossLoss   -= pnl; _losingTrades++;  }
+            }
+        }
+
+        private void printSummary()
+        {
+            if (_trades.Count == 0) return;
+            var net = _grossProfit - _grossLoss;
+            Print($"\n{"Run",-30} {"Trades",6} {"Wins",5} {"Losses",6} {"GrossP",9} {"GrossL",9} {"Net",9}");
+            Print(new string('-', 80));
+            Print($"{Name,-30} {_trades.Count,6} {_winningTrades,5} {_losingTrades,6}" +
+                  $" {_grossProfit,9:F2} {_grossLoss,9:F2} {net,9:F2}");
+            var counter = 0;
+            foreach (var trade in _trades)
+            {
+                var dollars = trade.PnL * AppConstants.DOLLARS_PER_POINT;
+                Print($"\tTrade # {++counter}, Session:{trade.SessionDate}, Pos:{trade.Side}," +
+                      $" profit (pts):{trade.PnL:F2} - ${dollars:F2}");
+                Print($"\t\tEntryTime:\t{trade.EntryTime:HHmmss}\t{"Entry",8}:{trade.EntryPrice,10:F2}");
+                Print($"\t\tExitTime:\t{trade.ExitTime:HHmmss}\t{"Exit",8}:{trade.ExitPrice,10:F2}\tReason:{trade.ExitReason,10}");
+            }
+        }
+
         private string positionString() => Position.MarketPosition switch
         {
-            MarketPosition.Long  => "Long",
+            MarketPosition.Long => "Long",
             MarketPosition.Short => "Short",
-            _                    => "Flat",
+            _ => "Flat"
         };
+
+        // =====================================================================
+        // Inner types
+        // =====================================================================
+        private class NtTradeRecord
+        {
+            public string   SessionDate;
+            public DateTime EntryTime;
+            public DateTime ExitTime;
+            public string   Side;
+            public double   EntryPrice;
+            public double   ExitPrice;
+            public double   PnL;
+            public string   ExitReason;
+        }
 
         // =====================================================================
         // API response POCOs

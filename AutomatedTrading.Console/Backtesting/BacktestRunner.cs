@@ -95,14 +95,15 @@ public class BacktestRunner
                             run.EntryPrice = bar.Close;
                             run.EntryTime  = bar.Timestamp;
                             run.StopPrice  = eval.StopPrice;
+                            System.Console.WriteLine($"EnterShort near predicted high ({prediction.PredictedHigh:F2}), stop {eval.StopPrice:F2}");
                             break;
-
                         case StrategySignal.ExitLong when run.Position == PositionSide.Long:
                             closePosition(run, bar.Timestamp, sessionDate, bar.Close, "ExitLong");
+                            System.Console.WriteLine($"ExitLong - price reached predicted high ({prediction.PredictedHigh})");
                             break;
-
                         case StrategySignal.UpdateStop:
                             run.StopPrice = eval.StopPrice;
+                            System.Console.WriteLine($"Trailing stop updated to {eval.StopPrice}");
                             break;
                     }
                 }

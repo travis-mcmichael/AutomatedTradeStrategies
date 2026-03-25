@@ -27,7 +27,6 @@ public class BaseMLEvaluator : IDisposable
 
     public void LoadModel()
     {
-        Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} - BaseMLEvaluator.LoadModel()");
         loadXgbModel();
         loadScalerParameters();
     }
