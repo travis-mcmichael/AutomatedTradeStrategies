@@ -7,13 +7,16 @@ CREATE TABLE IF NOT EXISTS BarData (
     Timeframe TEXT NOT NULL,              -- e.g. '1m', '5m', '1s'
     
     -- Timestamp
-    Timestamp INTEGER NOT NULL,        -- Unix epoch milliseconds
-    SessionDate TEXT,                     -- YYYY-MM-DD (optional partition helper)
+    Timestamp INTEGER NOT NULL,         -- Unix epoch milliseconds
+    SessionDate TEXT,                   -- YYYY-MM-DD (optional partition helper)
+    SessionTime TEXT,
 
     -- OHLCV
     Open REAL NOT NULL,
     High REAL NOT NULL,
     Low REAL NOT NULL,
     Close REAL NOT NULL,
-    Volume REAL NOT NULL
+    Volume REAL NOT NULL,
+
+    UNIQUE (Instrument, Timestamp)
 );

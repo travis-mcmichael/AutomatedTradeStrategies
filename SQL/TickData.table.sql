@@ -5,5 +5,7 @@ CREATE TABLE TickData (
     LastPrice REAL NOT NULL,
     Volume INTEGER NOT NULL,
     Bid REAL,
-    Ask REAL
+    Ask REAL,
+
+    UNIQUE (Instrument, TickTime)
 );

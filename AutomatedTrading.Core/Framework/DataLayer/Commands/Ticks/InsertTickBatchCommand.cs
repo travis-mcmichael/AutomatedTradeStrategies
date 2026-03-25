@@ -9,13 +9,16 @@ namespace AutomatedTrading.Core.Framework.DataLayer.Commands.Ticks;
 
 public class InsertTickBatchCommand : IDbCommand<int>
 {
-    // NOTE: INSERT OR REPLACE is SQLite syntax.
-    // For PostgreSQL, replace with: INSERT INTO TickData (...) VALUES (...) ON CONFLICT (Instrument, TickTime) DO UPDATE SET ...
     private const string Sql = @"
-        INSERT OR REPLACE INTO TickData
+        INSERT INTO TickData
             (Instrument, TickTime, LastPrice, Volume, Bid, Ask)
         VALUES
-            (@Instrument, @TickTime, @LastPrice, @Volume, @Bid, @Ask)";
+            (@Instrument, @TickTime, @LastPrice, @Volume, @Bid, @Ask)
+        ON CONFLICT (Instrument, TickTime) DO UPDATE SET
+            LastPrice = excluded.LastPrice,
+            Volume    = excluded.Volume,
+            Bid       = excluded.Bid,
+            Ask       = excluded.Ask";
 
     private readonly List<TickData> ticks;
     private readonly int batchSize;

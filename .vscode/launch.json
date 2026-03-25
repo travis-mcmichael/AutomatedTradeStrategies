@@ -8,7 +8,7 @@
             "name": "Debug - Tick Import",
             "type": "coreclr",
             "request": "launch",
-            "preLaunchTask": "dotnet: build",
+            "preLaunchTask": "build: AutomatedTrading.Import",
             "program": "${workspaceFolder}/AutomatedTrading.Import/bin/Debug/net10.0/AutomatedTrading.Import.dll",
             "args": [
                 "C:\\dev\\data\\AutomatedTrading.Core\\20260212",
@@ -21,7 +21,7 @@
             "name": "Debug - Bar Import",
             "type": "coreclr",
             "request": "launch",
-            "preLaunchTask": "dotnet: build",
+            "preLaunchTask": "build: AutomatedTrading.Import",
             "program": "${workspaceFolder}/AutomatedTrading.Import/bin/Debug/net10.0/AutomatedTrading.Import.dll",
             "args": [
                 "C:\\dev\\data\\ML",
@@ -34,7 +34,7 @@
             "name": "Debug - Feature Export",
             "type": "coreclr",
             "request": "launch",
-            "preLaunchTask": "dotnet: build",
+            "preLaunchTask": "build: AutomatedTrading.Export.Feature",
             "program": "${workspaceFolder}/AutomatedTrading.Export.Feature/bin/Debug/net10.0/AutomatedTrading.Export.Feature.dll",
             "args": [
                 "C:\\dev\\data\\features",
@@ -46,9 +46,9 @@
         {
             "name": "Debug - Console",
             "type": "coreclr",
-            "request":"launch",
-            "preLaunchTask": "dotnet: build",
-            "program":"${workspaceFolder}/AutomatedTrading.Console/bin/Debug/net10.0/AutomatedTrading.Console.dll",
+            "request": "launch",
+            "preLaunchTask": "build: AutomatedTrading.Console",
+            "program": "${workspaceFolder}/AutomatedTrading.Console/bin/Debug/net10.0/AutomatedTrading.Console.dll",
             "cwd": "${workspaceFolder}/AutomatedTrading.Console",
             "console": "integratedTerminal"
         }

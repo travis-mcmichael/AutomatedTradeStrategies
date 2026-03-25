@@ -1,0 +1,295 @@
+#region Using declarations
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.ComponentModel.DataAnnotations;
+using System.Linq;
+using System.Net.Http;
+using System.Text;
+using System.Windows;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Xml.Serialization;
+using NinjaTrader.Cbi;
+using NinjaTrader.Gui;
+using NinjaTrader.Gui.Chart;
+using NinjaTrader.Gui.SuperDom;
+using NinjaTrader.Gui.Tools;
+using NinjaTrader.Data;
+using NinjaTrader.NinjaScript;
+using NinjaTrader.Core.FloatingPoint;
+using NinjaTrader.NinjaScript.Indicators;
+using NinjaTrader.NinjaScript.DrawingTools;
+using Newtonsoft.Json;
+#endregion
+
+#region README IMPORTANT
+
+/*
+    This strategy calls the AutomatedTrading.Core.Api at session open to retrieve
+    the predicted HIGH level for the session. It trades a short reversal near that
+    level, and will flatten any open long if price reaches the predicted high.
+
+    Designed for RTH 1-minute bars (8:30 AM – 3:15 PM CT). Ensure the API is
+    running before the strategy is enabled.
+
+    Stop loss is anchored to the predicted level, not the entry price. If price
+    breaks through the predicted high by StopLossPoints, the prediction has
+    failed and the position is closed with a bounded loss.
+
+    Trailing stop:
+      Once a short position has moved TargetProfit points in profit (i.e.
+      entryPrice - price >= TargetProfit), a trailing stop activates and is
+      placed Trail points above the current bar's close. The stop only ratchets
+      downward — it never moves back up — locking in progressively more profit
+      as price continues to fall.
+
+    Entries:
+      Near predicted HIGH → EnterShort (or ExitLong to flatten)
+
+    Proximity is a multiplier on ATR(20), so the trigger zone automatically widens
+    during volatile sessions and tightens during quiet ones. Stop and trail
+    parameters remain fixed in points and are tunable via the strategy properties panel.
+*/
+
+#endregion
+
+//This namespace holds Strategies in this folder and is required. Do not change it.
+namespace NinjaTrader.NinjaScript.Strategies
+{
+    public class PredictedHighStrategy : Strategy
+    {
+        // =====================================================================
+        // Constants
+        // =====================================================================
+        private const string API_URL     = "http://localhost:5244";
+        private const string STRATEGY_ID = "PredictedHigh";
+        private const string ENTRY_LONG  = "PH_Long";
+        private const string ENTRY_SHORT = "PH_Short";
+
+        // =====================================================================
+        // Indicators
+        // =====================================================================
+        private ATR _atr;
+
+        // =====================================================================
+        // Session state
+        // =====================================================================
+        private double predictedHigh;
+        private bool   inferenceReady;
+        private bool   hasHighHit;
+        private double entryPrice;
+        private bool   trailingStopActive;
+        private double trailingStopPrice;
+
+        // =====================================================================
+        // Parameters
+        // =====================================================================
+
+        /// <summary>
+        /// Multiplier applied to the 20-period ATR to determine how close price must
+        /// get to the predicted high before triggering an entry or flatten.
+        /// Effective proximity = Proximity × ATR(20). Smaller = tighter, fewer triggers.
+        /// </summary>
+        [NinjaScriptProperty]
+        [Range(0.01, 10.0)]
+        [Display(Name = "Proximity (ATR×20 mult.)", Order = 1, GroupName = "Levels")]
+        public double Proximity { get; set; }
+
+        /// <summary>
+        /// How far (in points) beyond the predicted high the stop is placed.
+        /// The stop is anchored to the predicted high, not the entry price,
+        /// so maximum risk is ProximityPoints + StopLossPoints per contract.
+        /// </summary>
+        [NinjaScriptProperty]
+        [Range(0.25, double.MaxValue)]
+        [Display(Name = "Stop Loss Points", Order = 2, GroupName = "Levels")]
+        public double StopLossPoints { get; set; }
+
+        /// <summary>
+        /// Profit in points that must be achieved before the trailing stop activates.
+        /// Once entryPrice - currentPrice >= TargetProfit, the trail engages.
+        /// </summary>
+        [NinjaScriptProperty]
+        [Range(0.25, double.MaxValue)]
+        [Display(Name = "Target Profit (points)", Order = 3, GroupName = "Trailing Stop")]
+        public double TargetProfit { get; set; }
+
+        /// <summary>
+        /// Number of points above the current bar's close at which the trailing stop
+        /// is placed once TargetProfit has been reached. The stop only ratchets down
+        /// — it never moves back up — locking in more profit as price falls further.
+        /// </summary>
+        [NinjaScriptProperty]
+        [Range(0.25, double.MaxValue)]
+        [Display(Name = "Trail (points)", Order = 4, GroupName = "Trailing Stop")]
+        public double Trail { get; set; }
+
+        // =====================================================================
+        // Lifecycle
+        // =====================================================================
+        protected override void OnStateChange()
+        {
+            switch (State)
+            {
+                case State.SetDefaults:
+                    Name                          = STRATEGY_ID;
+                    Calculate                     = Calculate.OnBarClose;
+                    EntriesPerDirection           = 1;
+                    IsExitOnSessionCloseStrategy  = true;
+                    ExitOnSessionCloseSeconds     = 30;
+                    BarsRequiredToTrade           = 1;
+
+                    Proximity      = 0.5;
+                    StopLossPoints = 5.0;
+                    TargetProfit    = 20.0;
+                    Trail           = 10.0;
+
+                    inferenceReady     = false;
+                    predictedHigh      = double.MaxValue;
+                    hasHighHit         = false;
+                    entryPrice         = 0;
+                    trailingStopActive = false;
+                    trailingStopPrice  = double.MaxValue;
+                    break;
+
+                case State.Configure:
+                    _atr = ATR(20);
+                    break;
+
+                default:
+                    break;
+            }
+        }
+
+        // =====================================================================
+        // Bar update
+        // =====================================================================
+        protected override void OnBarUpdate()
+        {
+            if (Bars.IsFirstBarOfSession)
+            {
+                inferenceReady     = false;
+                predictedHigh      = double.MaxValue;
+                hasHighHit         = false;
+                entryPrice         = 0;
+                trailingStopActive = false;
+                trailingStopPrice  = double.MaxValue;
+                fetchPrediction(Time[0], Open[0]);
+            }
+
+            if (!inferenceReady)
+                return;
+
+            var position = Position.MarketPosition;
+
+            // ─── Near predicted HIGH: go short or flatten long ───────────────
+            double proximityPoints = Proximity * _atr[0];
+            if (High[0] >= predictedHigh - proximityPoints)
+            {
+                if (position == MarketPosition.Long)
+                {
+                    ExitLong(ENTRY_LONG);
+                    Print($"{Time[0]:HH:mm} PH: Flattening long — price reached predicted high ({predictedHigh:F2})");
+                }
+                else if (position == MarketPosition.Flat && !hasHighHit)
+                {
+                    SetStopLoss(ENTRY_SHORT, CalculationMode.Price, predictedHigh + StopLossPoints, false);
+                    EnterShort(ENTRY_SHORT);
+                    Print($"{Time[0]:HH:mm} PH: EnterShort (~current:{Close[0]}) near predicted high ({predictedHigh:F2}), proximity={proximityPoints:F2} (ATR={_atr[0]:F2}×{Proximity}), stop {predictedHigh + StopLossPoints:F2}");
+                }
+                hasHighHit = true;
+            }
+
+            // ─── Trailing stop management (short position only) ──────────────
+            if (position == MarketPosition.Short)
+            {
+                if (entryPrice == 0)
+                    entryPrice = Position.AveragePrice;
+
+                double profit = entryPrice - Close[0];
+
+                if (!trailingStopActive && profit >= TargetProfit)
+                {
+                    trailingStopActive = true;
+                    trailingStopPrice  = Close[0] + Trail;
+                    SetStopLoss(ENTRY_SHORT, CalculationMode.Price, trailingStopPrice, false);
+                    Print($"{Time[0]:HH:mm} PH: Trailing stop activated at {trailingStopPrice:F2} (profit={profit:F2}, entry={entryPrice:F2})");
+                }
+                else if (trailingStopActive)
+                {
+                    double newStop = Close[0] + Trail;
+                    if (newStop < trailingStopPrice)
+                    {
+                        trailingStopPrice = newStop;
+                        SetStopLoss(ENTRY_SHORT, CalculationMode.Price, trailingStopPrice, false);
+                        Print($"{Time[0]:HH:mm} PH: Trailing stop moved to {trailingStopPrice:F2}");
+                    }
+                }
+            }
+            else if (position == MarketPosition.Flat && entryPrice != 0)
+            {
+                // Reset trailing stop state once the position is closed.
+                entryPrice         = 0;
+                trailingStopActive = false;
+                trailingStopPrice  = double.MaxValue;
+            }
+        }
+
+        // =====================================================================
+        // API call
+        // =====================================================================
+        private void fetchPrediction(DateTime barTime, double sessionOpen)
+        {
+            var sessionDate = barTime.ToString("yyyyMMdd");
+            var requestBody = JsonConvert.SerializeObject(new
+            {
+                sessionDate = sessionDate,
+                sessionOpen = sessionOpen
+            });
+            var content = new StringContent(requestBody, Encoding.UTF8, "application/json");
+
+            try
+            {
+                using (var client = new HttpClient())
+                {
+                    client.Timeout = TimeSpan.FromSeconds(10);
+
+                    var response = client.PostAsync($"{API_URL}/inference/bar-high", content)
+                        .GetAwaiter().GetResult();
+
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        Print($"PH: bar-high API returned {(int)response.StatusCode} for {sessionDate}");
+                        return;
+                    }
+
+                    var json   = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+                    var result = JsonConvert.DeserializeObject<BarHighApiResponse>(json);
+                    if (result != null)
+                        predictedHigh = result.PredictedHigh;
+                }
+
+                inferenceReady = true;
+                Print($"PH {sessionDate}: predictedHigh={predictedHigh:F2}  open={sessionOpen:F2}");
+            }
+            catch (Exception ex)
+            {
+                Print($"PH: API call failed — {ex.Message}");
+                inferenceReady = false;
+            }
+        }
+
+        // =====================================================================
+        // API response POCO
+        // =====================================================================
+        private class BarHighApiResponse
+        {
+            [JsonProperty("predictedHigh")]
+            public double PredictedHigh { get; set; }
+
+            [JsonProperty("predictedMove")]
+            public double PredictedMove { get; set; }
+        }
+    }
+}
