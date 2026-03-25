@@ -102,7 +102,7 @@ class Program
         var evaluators = new Dictionary<string, BaseMLEvaluator>();
         foreach (var config in ModelConfigs)
         {
-            var dir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Models", config.ModelDate, config.Name);
+            var dir = Path.Combine("C:\\dev\\AutomatedTradeStrategies\\Models", config.ModelDate, config.Name);
             var modelPath = Path.Combine(dir, AppConstants.XGB_MODEL_FILENAME);
             var scalerPath = Path.Combine(dir, AppConstants.SCALER_FILENAME);
             var evaluator = new BaseMLEvaluator(modelPath, scalerPath, config.FeatureCount);
