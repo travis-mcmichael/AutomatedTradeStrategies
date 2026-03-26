@@ -10,7 +10,7 @@ namespace AutomatedTrading.Core.Framework.DataLayer.Commands.Bars;
 public class GetBarsBySessionDateQuery : IDbQuery<List<BarData>>
 {
     private const string Sql = @"
-        SELECT Instrument, Timeframe, Timestamp, SessionDate, Open, High, Low, Close, Volume
+        SELECT Instrument, Timeframe, Timestamp, SessionDate, SessionTime, Open, High, Low, Close, Volume
         FROM BarData
         WHERE SessionDate = @SessionDate
         ORDER BY Timestamp ASC";
@@ -48,12 +48,13 @@ public class GetBarsBySessionDateQuery : IDbQuery<List<BarData>>
     {
         Instrument = r.GetString(0),
         Timeframe = r.GetString(1),
-        Timestamp = DateTimeOffset.FromUnixTimeMilliseconds(r.GetInt64(2)).UtcDateTime,
+        Timestamp = DateTimeOffset.FromUnixTimeMilliseconds(r.GetInt64(2)).LocalDateTime,
         SessionDate = r.IsDBNull(3) ? null : r.GetString(3),
-        Open = r.GetDouble(4),
-        High = r.GetDouble(5),
-        Low = r.GetDouble(6),
-        Close = r.GetDouble(7),
-        Volume = r.GetDouble(8)
+        SessionTime = r.IsDBNull(4) ? null : r.GetString(4),
+        Open = r.GetDouble(5),
+        High = r.GetDouble(6),
+        Low = r.GetDouble(7),
+        Close = r.GetDouble(8),
+        Volume = r.GetDouble(9)
     };
 }

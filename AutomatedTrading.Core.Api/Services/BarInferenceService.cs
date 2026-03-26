@@ -2,9 +2,9 @@ using AutomatedTrading.Core.Api.Models;
 using AutomatedTrading.Core.Framework;
 using AutomatedTrading.Core.Framework.DataLayer.Repositories;
 using AutomatedTrading.Core.Framework.ML;
+using AutomatedTrading.Core.Framework.Predictors;
 using AutomatedTrading.Core.Framework.Utility;
 using AutomatedTrading.Core.Models;
-using AutomatedTrading.Core.Strategies;
 
 namespace AutomatedTrading.Core.Api.Services;
 

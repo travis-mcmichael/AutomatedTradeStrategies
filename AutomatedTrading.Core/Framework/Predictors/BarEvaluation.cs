@@ -1,5 +1,5 @@
 using AutomatedTrading.Core.Framework.Enums;
-namespace AutomatedTrading.Core.Strategies;
+namespace AutomatedTrading.Core.Framework.Predictors;
 public record BarEvaluation
 {
     public StrategySignal Signal { get; set; }

@@ -18,12 +18,12 @@ class Program
 
     static async Task Main(string[] args)
     {
-        var runDate = new DateTime(2026, 3, 24);
+        //var runDate = new DateTime(2026, 3, 18);
         var runType = "backtest";
         
         var barRepo = new BarRepository(new SqliteConnectionFactory(AppConstants.SQLITE_CONNECTION));
-        var rangeStart = new DateTime(2025, 1, 1);
-        var rangeEnd = new DateTime(2025, 1, 2); //DateTime.Today < new DateTime(2026, 12, 31) ? DateTime.Today : new DateTime(2026, 12, 31);
+        var rangeStart = new DateTime(2026, 3, 9);
+        var rangeEnd = new DateTime(2026, 3, 13);//new DateTime(2025, 1, 2); //DateTime.Today < new DateTime(2026, 12, 31) ? DateTime.Today : new DateTime(2026, 12, 31);
         
         if (runType == "inference")
         {
@@ -35,24 +35,13 @@ class Program
             var highConfig = ModelConfigs.First(c => c.IsHigh);
             using var predictor = new ConsoleBarHighPredictor(barRepo, highConfig);
 
-            var runs = new List<BacktestRun>();
-            // {
-            //     new("Prox0.3-SL5-TP20-T10",  new PredictedHighStrategyEvaluator(proximity: 0.3, stopLossPoints: 5.0, targetProfit: 20.0, trail: 10.0)),
-            //     new("Prox0.5-SL5-TP20-T10",  new PredictedHighStrategyEvaluator(proximity: 0.5, stopLossPoints: 5.0, targetProfit: 20.0, trail: 10.0)),
-            //     new("Prox0.7-SL5-TP20-T10",  new PredictedHighStrategyEvaluator(proximity: 0.7, stopLossPoints: 5.0, targetProfit: 20.0, trail: 10.0)),
-            // };
-
-            for (var p = 0.1;p < 1.0;p += 0.1)
+            var runs = new List<BacktestRun>
             {
-                for (var sl = 5.0; sl < 40; sl += 5.0)
-                {
-                    runs.Add(new($"Prox{p:F2}-{sl}-tp35-t15", new PredictedHighStrategyEvaluator(proximity: p, stopLossPoints: sl, targetProfit: 35.0, trail: 5.0)));
-                    runs.Add(new($"Prox{p:F2}-{sl}-tp35-t15", new PredictedHighStrategyEvaluator(proximity: p, stopLossPoints: sl, targetProfit: 35.0, trail: 15.0)));
-                    runs.Add(new($"Prox{p:F2}-{sl}-tp25-t15", new PredictedHighStrategyEvaluator(proximity: p, stopLossPoints: sl, targetProfit: 25.0, trail: 15.0)));
-                    runs.Add(new($"Prox{p:F2}-{sl}-tp25-t10", new PredictedHighStrategyEvaluator(proximity: p, stopLossPoints: sl, targetProfit: 25.0, trail: 10.0)));
-                    runs.Add(new($"Prox{p:F2}-{sl}-tp20-t15", new PredictedHighStrategyEvaluator(proximity: p, stopLossPoints: sl, targetProfit: 20.0, trail: 15.0)));
-                }
-            }
+                //new("Prox0.3-SL5-TP20-T10",  new PredictedHighStrategyEvaluator(proximity: 0.3, stopLossPoints: 5.0, targetProfit: 20.0, trail: 10.0)),
+                new("Prox0.5-SL5-TP20-T10",  new PredictedHighStrategyEvaluator(proximity: 0.5, stopLossPoints: 5.0, targetProfit: 20.0, trail: 10.0)),
+                //new("Prox0.7-SL5-TP20-T10",  new PredictedHighStrategyEvaluator(proximity: 0.7, stopLossPoints: 5.0, targetProfit: 20.0, trail: 10.0)),
+            };
+
 
             var runner = new BacktestRunner(barRepo, predictor);
             await runner.RunAsync(

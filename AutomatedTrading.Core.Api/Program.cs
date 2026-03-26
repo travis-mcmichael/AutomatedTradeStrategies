@@ -3,6 +3,7 @@ using AutomatedTrading.Core.Api.Services;
 using AutomatedTrading.Core.Framework.DataLayer;
 using AutomatedTrading.Core.Framework.DataLayer.Repositories;
 using AutomatedTrading.Core.Framework.DataLayer.Sqlite;
+using AutomatedTrading.Core.Framework.Predictors;
 using AutomatedTrading.Core.Strategies;
 
 var builder = WebApplication.CreateBuilder(args);

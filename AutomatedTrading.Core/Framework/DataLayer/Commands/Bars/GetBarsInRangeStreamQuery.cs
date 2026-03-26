@@ -9,7 +9,7 @@ namespace AutomatedTrading.Core.Framework.DataLayer.Commands.Bars;
 public class GetBarsInRangeStreamQuery : IDbStreamQuery<BarData>
 {
     private const string Sql = @"
-        SELECT Instrument, Timeframe, Timestamp, SessionDate, Open, High, Low, Close, Volume
+        SELECT Instrument, Timeframe, Timestamp, SessionDate, SessionTime, Open, High, Low, Close, Volume
         FROM BarData
         WHERE Timestamp >= @StartTimestamp AND Timestamp <= @EndTimestamp
         ORDER BY Timestamp ASC";
@@ -52,10 +52,11 @@ public class GetBarsInRangeStreamQuery : IDbStreamQuery<BarData>
         Timeframe = r.GetString(1),
         Timestamp = DateTimeOffset.FromUnixTimeMilliseconds(r.GetInt64(2)).UtcDateTime,
         SessionDate = r.IsDBNull(3) ? null : r.GetString(3),
-        Open = r.GetDouble(4),
-        High = r.GetDouble(5),
-        Low = r.GetDouble(6),
-        Close = r.GetDouble(7),
-        Volume = r.GetDouble(8)
+        SessionTime = r.IsDBNull(4) ? null : r.GetString(4),
+        Open = r.GetDouble(5),
+        High = r.GetDouble(6),
+        Low = r.GetDouble(7),
+        Close = r.GetDouble(8),
+        Volume = r.GetDouble(9)
     };
 }

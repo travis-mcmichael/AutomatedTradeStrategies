@@ -1,7 +1,6 @@
 using System.Threading.Tasks;
 
-namespace AutomatedTrading.Core.Strategies;
-
+namespace AutomatedTrading.Core.Framework.Predictors;
 public interface IBarLowPredictor
 {
     Task<BarLowPrediction?> PredictLowAsync(string sessionDate, double sessionOpen);
