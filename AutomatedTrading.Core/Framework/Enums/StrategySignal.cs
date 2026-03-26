@@ -1,9 +1,11 @@
 namespace AutomatedTrading.Core.Framework.Enums;
 
-public enum StrategySignal 
-{ 
-    None, 
-    EnterShort, 
+public enum StrategySignal
+{
+    None,
+    EnterShort,
+    EnterLong,
     ExitLong,
-    UpdateStop 
+    ExitShort,
+    UpdateStop
 }

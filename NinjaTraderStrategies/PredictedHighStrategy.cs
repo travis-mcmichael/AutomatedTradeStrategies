@@ -210,7 +210,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         private void startSession(DateTime barTime, double sessionOpen)
         {
-            var sessionDate     = sessionDateFor(barTime).ToString("yyyyMMdd");
+            var sessionDate = sessionDateFor(barTime).ToString("yyyyMMdd");
             _currentSessionDate = sessionDate;
             var body = JsonConvert.SerializeObject(new
             {

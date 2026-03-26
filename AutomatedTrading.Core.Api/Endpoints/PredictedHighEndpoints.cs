@@ -38,9 +38,9 @@ public static class PredictedHighEndpoints
         {
             var position = req.Position switch
             {
-                "Long"  => PositionSide.Long,
+                "Long" => PositionSide.Long,
                 "Short" => PositionSide.Short,
-                _       => PositionSide.Flat,
+                _ => PositionSide.Flat,
             };
 
             var eval = evaluator.Evaluate(req.High, req.Close, position, req.EntryPrice);

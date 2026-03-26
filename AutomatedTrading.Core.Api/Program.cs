@@ -34,5 +34,6 @@ app.UseHttpsRedirection();
 BarHighEndpoints.Map(app);
 BarLowEndpoints.Map(app);
 PredictedHighEndpoints.Map(app);
+PredictedLowEndpoints.Map(app);
 
 app.Run();
