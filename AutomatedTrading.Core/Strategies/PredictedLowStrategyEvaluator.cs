@@ -77,7 +77,7 @@ public class PredictedLowStrategyEvaluator
 
         if (_predictor is null || _barRepo is null) return;
 
-        var prediction = await _predictor.PredictAsync(sessionDate, sessionOpen);
+        var prediction = await _predictor.PredictLowAsync(sessionDate, sessionOpen);
         if (prediction is null) return;
 
         PredictedLow = prediction.PredictedLow;

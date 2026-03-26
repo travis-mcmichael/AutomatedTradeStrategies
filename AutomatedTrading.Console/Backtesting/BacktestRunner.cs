@@ -60,7 +60,7 @@ public class BacktestRunner
             var sessionOpen = ordered[0].Open;
 
             // ── Prediction (computed once, shared across all runs) ────────────
-            var prediction = await _predictor.PredictAsync(sessionDate, sessionOpen);
+            var prediction = await _predictor.PredictHighAsync(sessionDate, sessionOpen);
             if (prediction is null)
             {
                 log?.Invoke($"{sessionDate}: no prediction — skipping");

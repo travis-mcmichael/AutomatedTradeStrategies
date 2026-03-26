@@ -8,7 +8,7 @@ using AutomatedTrading.Core.Strategies;
 
 namespace AutomatedTrading.Core.Api.Services;
 
-public class BarInferenceService : IBarHighPredictor
+public class BarInferenceService : IBarHighPredictor, IBarLowPredictor
 {
     private const int HighFeatureCount = 38;
     private const int LowFeatureCount = 39;
@@ -97,10 +97,16 @@ public class BarInferenceService : IBarHighPredictor
     // IBarHighPredictor
     // ──────────────────────────────────────────────────────────────────────────
 
-    public async Task<BarHighPrediction?> PredictAsync(string sessionDate, double sessionOpen)
+    public async Task<BarHighPrediction?> PredictHighAsync(string sessionDate, double sessionOpen)
     {
         var result = await RunHighInference(sessionDate, sessionOpen);
         return result is null ? null : new BarHighPrediction(result.PredictedHigh, result.PredictedMove);
+    }
+
+    public async Task<BarLowPrediction?> PredictLowAsync(string sessionDate, double sessionOpen)
+    {
+        var result = await RunLowInference(sessionDate, sessionOpen);
+        return result is null ? null : new BarLowPrediction(result.PredictedLow, result.PredictedMove);
     }
 
     // ──────────────────────────────────────────────────────────────────────────

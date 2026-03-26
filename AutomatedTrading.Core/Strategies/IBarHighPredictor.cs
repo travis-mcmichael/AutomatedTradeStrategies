@@ -4,7 +4,7 @@ namespace AutomatedTrading.Core.Strategies;
 
 public interface IBarHighPredictor
 {
-    Task<BarHighPrediction?> PredictAsync(string sessionDate, double sessionOpen);
+    Task<BarHighPrediction?> PredictHighAsync(string sessionDate, double sessionOpen);
 }
 
 public record BarHighPrediction
