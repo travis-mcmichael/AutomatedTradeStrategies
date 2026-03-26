@@ -32,8 +32,6 @@ namespace NinjaTrader.NinjaScript.Strategies
 	public class TickCollectionStrategy : Strategy
 	{
 		private readonly List<TickData> tickBatch = new List<TickData>();
-		private const int BatchSize = 250;
-		private const string ConnectionString = "Data Source=C:\\dev\\SQLite\\home.db;";
 		private ITickRepository tickRepository;
 
 		protected override void OnStateChange()
@@ -44,7 +42,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 			}
 			else if (State == State.Configure)
 			{
-				tickRepository = new TickRepository(new SqliteConnectionFactory(ConnectionString));
+				tickRepository = new TickRepository(new SqliteConnectionFactory(AppConstants.SQLITE_CONNECTION));
 			}
 			else if (State == State.Terminated)
 			{
@@ -75,7 +73,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 
 			tickBatch.Add(tick);
 
-			if (tickBatch.Count >= BatchSize)
+			if (tickBatch.Count >= AppConstants.TICK_DATA_BATCH_SIZE)
 			{
 				var batchCopy = new List<TickData>(tickBatch);
 				tickBatch.Clear();

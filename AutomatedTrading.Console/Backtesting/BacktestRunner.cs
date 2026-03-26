@@ -1,6 +1,7 @@
 using AutomatedTrading.Core.Framework.DataLayer.Repositories;
 using AutomatedTrading.Core.Framework.Utility;
 using AutomatedTrading.Core.Models;
+using AutomatedTrading.Core.Framework.Enums;
 using AutomatedTrading.Core.Strategies;
 
 namespace AutomatedTrading.Console.Backtesting;
@@ -48,10 +49,8 @@ public class BacktestRunner
         var start = DateTime.ParseExact(startDate, "yyyyMMdd", null);
         var end = DateTime.ParseExact(endDate, "yyyyMMdd", null);
 
-        for (var date = start; date <= end; date = date.AddDays(1))
+        for (var date = start; date <= end; date = TradingCalendar.GetNextSessionDate(date))
         {
-            if (date.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday)
-                continue;
 
             var sessionDate = date.ToString("yyyyMMdd");
             var bars = await _barRepo.GetBarsBySessionDateAsync(sessionDate);
@@ -96,14 +95,15 @@ public class BacktestRunner
                             run.EntryPrice = bar.Close;
                             run.EntryTime  = bar.Timestamp;
                             run.StopPrice  = eval.StopPrice;
+                            System.Console.WriteLine($"EnterShort near predicted high ({prediction.PredictedHigh:F2}), stop {eval.StopPrice:F2}");
                             break;
-
                         case StrategySignal.ExitLong when run.Position == PositionSide.Long:
                             closePosition(run, bar.Timestamp, sessionDate, bar.Close, "ExitLong");
+                            System.Console.WriteLine($"ExitLong - price reached predicted high ({prediction.PredictedHigh})");
                             break;
-
                         case StrategySignal.UpdateStop:
                             run.StopPrice = eval.StopPrice;
+                            System.Console.WriteLine($"Trailing stop updated to {eval.StopPrice}");
                             break;
                     }
                 }

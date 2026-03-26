@@ -29,8 +29,8 @@ class Program
         var barRepo = new BarRepository(factory);
         var tickRepo = new TickRepository(factory);
 
-        var startDate = new DateTime(2021, 1, 1);
-        var endDate = new DateTime(2026, 2, 28);
+        var startDate = new DateTime(2020, 1, 1);
+        var endDate = new DateTime(2025, 12, 31);
 
         if (execution == "tick")
         {

@@ -1,3 +1,4 @@
+using AutomatedTrading.Core.Framework;
 using AutomatedTrading.Core.Framework.DataLayer.Repositories;
 using AutomatedTrading.Core.Framework.Utility;
 using AutomatedTrading.Core.Models;
@@ -17,11 +18,6 @@ namespace AutomatedTrading.Export.Feature.Exporters;
 public class SessionOpenLowFeatureExporter
 {
     private const int MinLookback = 20;
-
-    // MES session times in CT
-    private static readonly TimeSpan SessionOpenTime = new(16,  0, 0);
-    private static readonly TimeSpan RthStartTime = new( 8, 30, 0);
-    private static readonly TimeSpan RthEndTime = new(15, 15, 0);
 
     private readonly string outputPath;
     private readonly IBarRepository barRepository;
@@ -195,17 +191,17 @@ public class SessionOpenLowFeatureExporter
         var totalVolume = ordered.Sum(b => b.Volume);
 
         var overnight = ordered.Where(b => 
-            b.Timestamp.TimeOfDay >= SessionOpenTime ||
-            b.Timestamp.TimeOfDay <  RthStartTime).ToList();
+            b.Timestamp.TimeOfDay >= AppConstants.SESSION_OPEN_TIME ||
+            b.Timestamp.TimeOfDay < AppConstants.RTH_START_TIME).ToList();
         var rth = ordered.Where(b => 
-            b.Timestamp.TimeOfDay >= RthStartTime &&
-            b.Timestamp.TimeOfDay <  RthEndTime).ToList();
+            b.Timestamp.TimeOfDay >= AppConstants.RTH_START_TIME &&
+            b.Timestamp.TimeOfDay < AppConstants.RTH_END_TIME).ToList();
         var firstHour = ordered.Where(b => 
-            b.Timestamp.TimeOfDay >= RthStartTime &&
-            b.Timestamp.TimeOfDay <  RthStartTime + TimeSpan.FromHours(1)).ToList();
+            b.Timestamp.TimeOfDay >= AppConstants.RTH_START_TIME &&
+            b.Timestamp.TimeOfDay < AppConstants.RTH_START_TIME + TimeSpan.FromHours(1)).ToList();
         var lastHour = ordered.Where(b => 
-            b.Timestamp.TimeOfDay >= RthEndTime - TimeSpan.FromHours(1) &&
-            b.Timestamp.TimeOfDay <  RthEndTime).ToList();
+            b.Timestamp.TimeOfDay >= AppConstants.RTH_END_TIME - TimeSpan.FromHours(1) &&
+            b.Timestamp.TimeOfDay < AppConstants.RTH_END_TIME).ToList();
 
         var sessionLow = ordered.Min(b => b.Low);
         var lowBar = ordered.MinBy(b => b.Low)!;
@@ -213,7 +209,7 @@ public class SessionOpenLowFeatureExporter
         var lowTimeRatio = ordered.Count > 1 ? (double)lowBarIndex / (ordered.Count - 1) : 0.5;
 
         // How far overnight dropped below the session open (downside measure)
-        var overnightLow      = overnight.Any() ? overnight.Min(b => b.Low) : sessionOpen;
+        var overnightLow = overnight.Any() ? overnight.Min(b => b.Low) : sessionOpen;
         var overnightDropRatio = Operations.SafeDiv(sessionOpen - overnightLow, atr20);
 
         // Where price closed within the last hour's range (0 = at low, 1 = at high)
@@ -230,18 +226,18 @@ public class SessionOpenLowFeatureExporter
 
         return new IntradayFeatures
         {
-            OvernightRange        = overnight.Any()
+            OvernightRange = overnight.Any()
                 ? Operations.SafeDiv(overnight.Max(b => b.High) - overnight.Min(b => b.Low), atr20) : 0,
-            OvernightVolumeRatio  = Operations.SafeDiv(overnight.Sum(b => b.Volume), totalVolume),
-            OvernightDropRatio    = overnightDropRatio,
-            RegularHoursRange     = rth.Any()
+            OvernightVolumeRatio = Operations.SafeDiv(overnight.Sum(b => b.Volume), totalVolume),
+            OvernightDropRatio = overnightDropRatio,
+            RegularHoursRange = rth.Any()
                 ? Operations.SafeDiv(rth.Max(b => b.High) - rth.Min(b => b.Low), atr20) : 0,
-            FirstHourRange        = firstHour.Any()
+            FirstHourRange = firstHour.Any()
                 ? Operations.SafeDiv(firstHour.Max(b => b.High) - firstHour.Min(b => b.Low), atr20) : 0,
-            LastHourRange         = lastHour.Any()
+            LastHourRange = lastHour.Any()
                 ? Operations.SafeDiv(lastHour.Max(b => b.High) - lastHour.Min(b => b.Low), atr20) : 0,
-            LowTimeRatio          = lowTimeRatio,
-            PrevOpenToLowRatio    = Operations.SafeDiv(sessionOpen - sessionLow, atr20),
+            LowTimeRatio = lowTimeRatio,
+            PrevOpenToLowRatio = Operations.SafeDiv(sessionOpen - sessionLow, atr20),
             LastHourClosePosition = lastHourClosePosition,
         };
     }

@@ -1,9 +1,5 @@
+using AutomatedTrading.Core.Framework.Enums;
 namespace AutomatedTrading.Core.Strategies;
-
-public enum StrategySignal { None, EnterShort, ExitLong, UpdateStop }
-
-public enum PositionSide { Flat, Long, Short }
-
 public record BarEvaluation
 {
     public StrategySignal Signal { get; set; }

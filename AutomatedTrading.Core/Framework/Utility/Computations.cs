@@ -290,6 +290,113 @@ public class Computations
         return (nextHigh - nextOpen) / atr;
     }
 
+    public static double OvernightRange(List<BarData> bars, double atr)
+    {
+        var ordered = bars.OrderBy(b => b.Timestamp).ToList(); 
+        var overnight = ordered.Where(b => 
+            b.Timestamp.TimeOfDay >= AppConstants.SESSION_OPEN_TIME || 
+            b.Timestamp.TimeOfDay <  AppConstants.RTH_START_TIME).ToList();
+        return overnight.Count != 0 ? Operations.SafeDiv(overnight.Max(b => b.High) - overnight.Min(b => b.Low), atr) : 0;
+    }
+
+    public static double OvernightVolumeRatio(List<BarData> bars)
+    {
+        var ordered = bars.OrderBy(b => b.Timestamp).ToList();
+        var totalVolume = ordered.Sum(b => b.Volume);
+        var overnight = ordered.Where(b => 
+            b.Timestamp.TimeOfDay >= AppConstants.SESSION_OPEN_TIME || 
+            b.Timestamp.TimeOfDay <  AppConstants.RTH_START_TIME).ToList();
+        return Operations.SafeDiv(overnight.Sum(b => b.Volume), totalVolume);
+    }
+
+    public static double OvernightDropRatio(List<BarData> bars, double atr)
+    {
+        var ordered = bars.OrderBy(b => b.Timestamp).ToList();
+        var sessionOpen = ordered.First().Open;
+        var overnight = ordered.Where(b =>
+            b.Timestamp.TimeOfDay >= AppConstants.SESSION_OPEN_TIME || 
+            b.Timestamp.TimeOfDay <  AppConstants.RTH_START_TIME).ToList();
+        var overnightLow = overnight.Count != 0 ? overnight.Min(b => b.Low) : sessionOpen;
+
+        return Operations.SafeDiv(sessionOpen - overnightLow, atr);
+    }
+
+    public static double RegularHoursRange(List<BarData> bars, double atr)
+    {
+        var ordered = bars.OrderBy(b => b.Timestamp).ToList();
+        var rth = ordered.Where(b => 
+            b.Timestamp.TimeOfDay >= AppConstants.SESSION_OPEN_TIME || 
+            b.Timestamp.TimeOfDay <  AppConstants.RTH_START_TIME).ToList();
+        return rth.Count != 0 ? Operations.SafeDiv(rth.Max(b => b.High) - rth.Min(b => b.Low), atr) : 0;
+    }
+
+    public static double FirstHourRange(List<BarData> bars, double atr)
+    {
+        var ordered = bars.OrderBy(b => b.Timestamp).ToList();
+        var firstHour = ordered.Where(b => 
+            b.Timestamp.TimeOfDay >= AppConstants.RTH_START_TIME && 
+            b.Timestamp.TimeOfDay < AppConstants.RTH_START_TIME + TimeSpan.FromHours(1)).ToList();
+        return firstHour.Count != 0 ? Operations.SafeDiv(firstHour.Max(b => b.High) - firstHour.Min(b => b.Low), atr) : 0;
+    }
+
+    public static double LastHourRange(List<BarData> bars, double atr)
+    {
+        var ordered = bars.OrderBy(b => b.Timestamp).ToList();
+        var lastHour  = ordered.Where(b => 
+            b.Timestamp.TimeOfDay >= AppConstants.RTH_END_TIME - TimeSpan.FromHours(1) &&
+            b.Timestamp.TimeOfDay <  AppConstants.RTH_END_TIME).ToList();
+        return lastHour.Count != 0 ? Operations.SafeDiv(lastHour.Max(b => b.High) - lastHour.Min(b => b.Low), atr) : 0;
+    }
+
+    public static double HighTimeRatio(List<BarData> bars)
+    {
+        var ordered = bars.OrderBy(b => b.Timestamp).ToList();
+        var high = ordered.Max(b => b.High);
+        var highBarIndex = ordered.IndexOf(ordered.First(b => b.High == high)!);
+        return ordered.Count > 1 ? (double)highBarIndex / (ordered.Count - 1) : 0.5;
+    }
+
+    public static double LowTimeRatio(List<BarData> bars)
+    {
+        var ordered = bars.OrderBy(b => b.Timestamp).ToList();
+        var low = ordered.Min(b => b.Low);
+        var lowBarIndex = ordered.IndexOf(ordered.First(b => b.Low == low)!);
+        return ordered.Count > 1 ? (double)lowBarIndex / (ordered.Count - 1) : 0.5;
+    }
+
+    public static double PrevOpenToHighRatio(List<BarData> bars, double atr)
+    {
+        var ordered = bars.OrderBy(b => b.Timestamp).ToList();
+        var sessionOpen = ordered.First().Open;
+        var sessionHigh  = ordered.Max(b => b.High);
+        return Operations.SafeDiv(sessionHigh - sessionOpen, atr);
+    }
+
+    public static double PrevOpenToLowRatio(List<BarData> bars, double atr)
+    {
+        var ordered = bars.OrderBy(b => b.Timestamp).ToList();
+        var sessionOpen = ordered.First().Open;
+        var sessionLow   = ordered.Min(b => b.Low);
+        return Operations.SafeDiv(sessionOpen - sessionLow, atr);
+    }
+
+    public static double LastHourClosePosition(List<BarData> bars)
+    {
+        var ordered = bars.OrderBy(b => b.Timestamp).ToList();
+        var lastHour = ordered.Where(b => 
+            b.Timestamp.TimeOfDay >= AppConstants.RTH_END_TIME - TimeSpan.FromHours(1) &&
+            b.Timestamp.TimeOfDay <  AppConstants.RTH_END_TIME).ToList();
+        double lastHourClosePos = 0.5;
+        if (lastHour.Count != 0)
+        {
+            var lhHigh = lastHour.Max(b => b.High);
+            var lhLow = lastHour.Min(b => b.Low);
+            var lhClose = lastHour.OrderBy(b => b.Timestamp).Last().Close;
+            lastHourClosePos = lhHigh == lhLow ? 0.5 : (lhClose - lhLow) / (lhHigh - lhLow);
+        }
+        return lastHourClosePos;
+    }
+
     #endregion
 
     #region - Tick Calculations - 
