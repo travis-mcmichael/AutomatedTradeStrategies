@@ -183,17 +183,17 @@ namespace NinjaTrader.NinjaScript.Strategies
                 case "EnterShort":
                     SetStopLoss(ENTRY_SHORT, CalculationMode.Price, eval.StopPrice, false);
                     EnterShort(ENTRY_SHORT);
-                    Print($"{Time[0]:HH:mm} PH: EnterShort near predicted high ({_predictedHigh:F2}), stop={eval.StopPrice:F2}");
+                    Print($"{Time[0]:yyyyMMDd HHmmss} - EnterShort @{Close[0]} near predicted high ({_predictedHigh:F2}), stop={eval.StopPrice:F2}");
                     break;
 
                 case "ExitLong":
                     ExitLong(ENTRY_LONG);
-                    Print($"{Time[0]:HH:mm} PH: ExitLong — price reached predicted high ({_predictedHigh:F2})");
+                    Print($"{Time[0]:yyyyMMDd HHmmss} - ExitLong @{Close[0]} price reached predicted high ({_predictedHigh:F2})");
                     break;
 
                 case "UpdateStop":
                     SetStopLoss(ENTRY_SHORT, CalculationMode.Price, eval.StopPrice, false);
-                    Print($"{Time[0]:HH:mm} PH: Trailing stop updated to {eval.StopPrice:F2}");
+                    Print($"{Time[0]:yyyyMMDd HHmmss} - Price @{Close[0]}, trailing stop updated to {eval.StopPrice:F2}");
                     break;
             }
         }
@@ -210,7 +210,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         private void startSession(DateTime barTime, double sessionOpen)
         {
-            var sessionDate     = sessionDateFor(barTime).ToString("yyyyMMdd");
+            var sessionDate = sessionDateFor(barTime).ToString("yyyyMMdd");
             _currentSessionDate = sessionDate;
             var body = JsonConvert.SerializeObject(new
             {

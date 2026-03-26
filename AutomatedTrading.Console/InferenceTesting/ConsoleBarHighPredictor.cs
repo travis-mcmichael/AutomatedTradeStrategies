@@ -1,9 +1,9 @@
 using AutomatedTrading.Core.Framework;
 using AutomatedTrading.Core.Framework.DataLayer.Repositories;
 using AutomatedTrading.Core.Framework.ML;
+using AutomatedTrading.Core.Framework.Predictors;
 using AutomatedTrading.Core.Framework.Utility;
 using AutomatedTrading.Core.Models;
-using AutomatedTrading.Core.Strategies;
 
 namespace AutomatedTrading.Console.InferenceTesting;
 
@@ -32,7 +32,7 @@ public class ConsoleBarHighPredictor : IBarHighPredictor, IDisposable
             throw new InvalidOperationException($"Model '{highConfig.Name}' failed to load.");
     }
 
-    public async Task<BarHighPrediction?> PredictAsync(string sessionDate, double sessionOpen)
+    public async Task<BarHighPrediction?> PredictHighAsync(string sessionDate, double sessionOpen)
     {
         var prevSessionDate = TradingCalendar.GetPreviousSessionDate(
             DateTime.ParseExact(sessionDate, "yyyyMMdd", null)).ToString("yyyyMMdd");
@@ -45,10 +45,10 @@ public class ConsoleBarHighPredictor : IBarHighPredictor, IDisposable
 
         var j = sequence.Count - 1;
         var current = sequence[j];
-        var atr5  = Computations.ATR(sequence, j,  5);
+        var atr5  = Computations.ATR(sequence, j, 5);
         var atr10 = Computations.ATR(sequence, j, 10);
         var atr20 = Computations.ATR(sequence, j, 20);
-        var sma5  = Computations.SMA(sequence, j,  5, x => x.Close);
+        var sma5  = Computations.SMA(sequence, j, 5, x => x.Close);
         var sma10 = Computations.SMA(sequence, j, 10, x => x.Close);
         var sma20 = Computations.SMA(sequence, j, 20, x => x.Close);
         var avgRange5  = Computations.AverageRange(sequence, j,  5);
@@ -59,13 +59,13 @@ public class ConsoleBarHighPredictor : IBarHighPredictor, IDisposable
         double[] shared =
         [
             Operations.SafeDiv(current.High, sessionOpen),
-            Operations.SafeDiv(current.Low,  sessionOpen),
+            Operations.SafeDiv(current.Low, sessionOpen),
             Computations.HighLowRange(current, atr20),
             Computations.BodySize(current, atr20),
             Computations.UpperWick(current, atr20),
             Computations.LowerWick(current, atr20),
             Computations.ClosePosition(current),
-            Operations.SafeDiv(atr5,  sessionOpen),
+            Operations.SafeDiv(atr5, sessionOpen),
             Operations.SafeDiv(atr10, sessionOpen),
             Operations.SafeDiv(atr20, sessionOpen),
             avgRange5,
@@ -74,15 +74,15 @@ public class ConsoleBarHighPredictor : IBarHighPredictor, IDisposable
             Computations.Return(sequence, j, 1),
             Computations.Return(sequence, j, 3),
             Computations.Return(sequence, j, 5),
-            Operations.SafeDiv(sma5,  sma20),
+            Operations.SafeDiv(sma5, sma20),
             Operations.SafeDiv(sma10, sma20),
             Operations.SafeDiv(sessionOpen, sma5),
             Operations.SafeDiv(sessionOpen, sma10),
             Operations.SafeDiv(sessionOpen, sma20),
             Computations.SMA(sequence, j, 20, x => x.Volume),
             Computations.VolumeZScore(sequence, j, 20),
-            Operations.SafeDiv(sessionOpen - current.High,  atr20),
-            Operations.SafeDiv(sessionOpen - current.Low,   atr20),
+            Operations.SafeDiv(sessionOpen - current.High, atr20),
+            Operations.SafeDiv(sessionOpen - current.Low, atr20),
             Operations.SafeDiv(sessionOpen - current.Close, atr20),
             Operations.SafeDiv(atr10, atr20),
             rsi14,
