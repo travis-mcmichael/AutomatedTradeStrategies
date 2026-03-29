@@ -1,22 +1,28 @@
 import os
+import json
 import xgboost as xgb
 import onnx
 import joblib
-import json
+from datetime import datetime
 from onnxmltools import convert_xgboost
 from onnxmltools.convert.common.data_types import FloatTensorType
 
 # ==============================
 # Configuration
 # ==============================
-FEATURES_BASE = "/mnt/c/dev/data/features"
+TODAY = datetime.today().strftime("%Y%m%d")
+
+MODELS_CONFIG_PATH = "/mnt/c/dev/AutomatedTradeStrategies/Models/Config/models.json"
+with open(MODELS_CONFIG_PATH) as f:
+    _config = json.load(f)
 
 EXECUTION_CONFIGS = [
-    # {"name": "tick",     "dir": os.path.join(FEATURES_BASE, "tick")},
-    {"name": "mes.day-bar.high", "dir": os.path.join(FEATURES_BASE, "mes.day-bar.high")},
-    {"name": "mes.day-bar.low", "dir": os.path.join(FEATURES_BASE, "mes.day-bar.low")},
-    {"name": "mes.trade-day-bar.high", "dir": os.path.join(FEATURES_BASE, "mes.trade-day-bar.high")},
-    {"name": "mes.trade-day-bar.low", "dir": os.path.join(FEATURES_BASE, "mes.trade-day-bar.low")},
+    {
+        "name": m["modelName"],
+        "dir":  os.path.join(m["featureLocation"], TODAY),
+    }
+    for m in _config["models"]
+    if m.get("active") and m.get("export")
 ]
 
 # ==============================

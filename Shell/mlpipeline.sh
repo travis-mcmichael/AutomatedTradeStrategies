@@ -25,13 +25,8 @@ echo "======================================================"
 echo "  Step 1: Export features"
 echo "======================================================"
 
-for exec_type in "${EXECUTION_TYPES[@]}"; do
-    echo ""
-    echo "  Exporting: $exec_type"
-    dotnet run --project "$(wslpath -w "$REPO_ROOT/AutomatedTrading.Export.Feature")" \
-        --configuration Release \
-        -- "$(wslpath -w "$FEATURES_BASE")" "$exec_type"
-done
+dotnet run --project "$(wslpath -w "$REPO_ROOT/AutomatedTrading.Export.Feature")" \
+    --configuration Release
 
 # ==============================
 # Step 2: Train XGBoost models
@@ -60,7 +55,7 @@ echo "  Step 4: Copy models → project ($MODEL_DATE)"
 echo "======================================================"
 
 for exec_type in "${EXECUTION_TYPES[@]}"; do
-    src="$FEATURES_BASE/$exec_type"
+    src="$FEATURES_BASE/$exec_type/$MODEL_DATE"
     onnx_file="$src/xgb_model.onnx"
     scaler_file="$src/scaler_params.json"
 
@@ -69,13 +64,11 @@ for exec_type in "${EXECUTION_TYPES[@]}"; do
         continue
     fi
 
-    for dest_base in "$MODELS_DIR"; do
-        dest="$dest_base/$exec_type"
-        mkdir -p "$dest"
-        cp "$onnx_file"   "$dest/xgb_model.onnx"
-        cp "$scaler_file" "$dest/scaler_params.json"
-        echo "  Copied $exec_type → $dest"
-    done
+    dest="$MODELS_DIR/$exec_type"
+    mkdir -p "$dest"
+    cp "$onnx_file"   "$dest/xgb_model.onnx"
+    cp "$scaler_file" "$dest/scaler_params.json"
+    echo "  Copied $exec_type → $dest"
 done
 
 echo ""

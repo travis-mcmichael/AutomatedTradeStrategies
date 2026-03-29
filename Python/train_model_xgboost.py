@@ -1,23 +1,30 @@
 import os
+import json
 import pandas as pd
 import numpy as np
 import xgboost as xgb
 import joblib
 
+from datetime import datetime
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
 # ==============================
 # Configuration
 # ==============================
-FEATURES_BASE = "/mnt/c/dev/data/features"
+TODAY = datetime.today().strftime("%Y%m%d")
+
+MODELS_CONFIG_PATH = "/mnt/c/dev/AutomatedTradeStrategies/Models/Config/models.json"
+with open(MODELS_CONFIG_PATH) as f:
+    _config = json.load(f)
 
 EXECUTION_CONFIGS = [
-    #{"name": "tick", "csv": os.path.join(FEATURES_BASE, "tick", "features.csv")},
-    {"name": "mes.day-bar.high", "csv": os.path.join(FEATURES_BASE, "mes.day-bar.high", "features.csv")},
-    {"name": "mes.day-bar.low",  "csv": os.path.join(FEATURES_BASE, "mes.day-bar.low", "features.csv")},
-    {"name": "mes.trade-day-bar.high", "csv": os.path.join(FEATURES_BASE, "mes.trade-day-bar.high", "features.csv")},
-    {"name": "mes.trade-day-bar.low", "csv": os.path.join(FEATURES_BASE, "mes.trade-day-bar.low", "features.csv")}
+    {
+        "name": m["modelName"],
+        "csv":  os.path.join(m["featureLocation"], "features.csv"),
+    }
+    for m in _config["models"]
+    if m.get("active") and m.get("export")
 ]
 
 TRAIN_SPLIT = 0.70
@@ -52,7 +59,8 @@ def evaluate(model, split_name, X_data, y_data):
 # Train for one execution type
 # ==============================
 def train_model(name, csv_path):
-    output_dir    = os.path.dirname(csv_path)
+    output_dir    = os.path.join(os.path.dirname(csv_path), TODAY)
+    os.makedirs(output_dir, exist_ok=True)
     model_output  = os.path.join(output_dir, "xgb_model.json")
     scaler_output = os.path.join(output_dir, "scaler.pkl")
 
