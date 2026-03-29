@@ -1,3 +1,4 @@
+using System.Text.Json;
 using AutomatedTrading.Core.Api.Models;
 using AutomatedTrading.Core.Framework;
 using AutomatedTrading.Core.Framework.DataLayer.Repositories;
@@ -10,35 +11,24 @@ namespace AutomatedTrading.Core.Api.Services;
 
 public class BarInferenceService : IBarHighPredictor, IBarLowPredictor, ITradeDayHighPredictor, ITradeDayLowPredictor
 {
-    private const int SessionHighFeatureCount = 38;
-    private const int SessionLowFeatureCount = 39;
-    private const int TradeDayHighFeatureCount = 42;
-    private const int TradeDayLowFeatureCount = 43;
-
     private readonly IBarRepository barRepo;
-    private readonly BaseMLEvaluator sessionHighEvaluator;
-    private readonly BaseMLEvaluator sessionLowEvaluator;
-    private readonly BaseMLEvaluator tradeDayHighEvaluator;
-    private readonly BaseMLEvaluator tradeDayLowEvaluator;
+    private readonly Dictionary<string, BaseMLEvaluator> evaluators;
 
-    public bool SessionHighLoaded => sessionHighEvaluator.SessionLoaded();
-    public bool SessionLowLoaded => sessionLowEvaluator.SessionLoaded();
-    public bool TradeDayHighLoaded => tradeDayHighEvaluator.SessionLoaded();
-    public bool TradeDayLowLoaded => tradeDayLowEvaluator.SessionLoaded();
-
-    public BarInferenceService(IBarRepository barRepo, IConfiguration config)
+    public BarInferenceService(IBarRepository barRepo)
     {
         this.barRepo = barRepo;
-        var modelDate = config["Models:Date"] ?? "20260323";
-        sessionHighEvaluator = createEvaluator(AppConstants.MODEL_DIR, modelDate, "mes.session-day-bar.high", SessionHighFeatureCount);
-        sessionLowEvaluator = createEvaluator(AppConstants.MODEL_DIR, modelDate, "mes.session-day-bar.low", SessionLowFeatureCount);
-        tradeDayHighEvaluator = createEvaluator(AppConstants.MODEL_DIR, modelDate, "mes.trade-day.high", TradeDayHighFeatureCount);
-        tradeDayLowEvaluator  = createEvaluator(AppConstants.MODEL_DIR, modelDate, "mes.trade-day.low", TradeDayLowFeatureCount);
+        evaluators = loadEvaluators();
     }
 
-    public async Task<BarHighResponse?> RunHighInference(string sessionDate, double sessionOpen)
+    // ──────────────────────────────────────────────────────────────────────────
+    // Session-day-bar inference (session open → session high/low)
+    // ──────────────────────────────────────────────────────────────────────────
+
+    public async Task<BarHighResponse?> RunSessionHighInference(string sessionDate, double sessionOpen)
     {
-        if (!sessionHighEvaluator.SessionLoaded()) return null;
+        if (!isLoaded("mes.session-day-bar.high")) return null;
+        var eval = evaluators["mes.session-day-bar.high"];
+
         var (sequence, prevMinuteBars) = await loadSessionData(sessionDate);
         if (sequence is null || prevMinuteBars is null) return null;
         var j = sequence.Count - 1;
@@ -56,15 +46,16 @@ public class BarInferenceService : IBarHighPredictor, IBarLowPredictor, ITradeDa
             Computations.PrevOpenToHighRatio(prevMinuteBars, atr20),
             Computations.PrevOpenToLowRatio(prevMinuteBars, atr20)
         ];
-        var scaled = sessionHighEvaluator.Scale([.. shared, .. tail]);
-        var predictedMove = sessionHighEvaluator.RunInference(scaled) * atr20;
-        var predictedHigh = sessionOpen + predictedMove;
-        return new BarHighResponse(predictedHigh, predictedMove);
+        var scaled = eval.Scale([.. shared, .. tail]);
+        var predictedMove = eval.RunInference(scaled) * atr20;
+        return new BarHighResponse(sessionOpen + predictedMove, predictedMove);
     }
 
-    public async Task<BarLowResponse?> RunLowInference(string sessionDate, double sessionOpen)
+    public async Task<BarLowResponse?> RunSessionLowInference(string sessionDate, double sessionOpen)
     {
-        if (!sessionLowEvaluator.SessionLoaded()) return null;
+        if (!isLoaded("mes.session-day-bar.low")) return null;
+        var eval = evaluators["mes.session-day-bar.low"];
+
         var (sequence, prevMinuteBars) = await loadSessionData(sessionDate);
         if (sequence is null || prevMinuteBars is null) return null;
         var j = sequence.Count - 1;
@@ -83,26 +74,9 @@ public class BarInferenceService : IBarHighPredictor, IBarLowPredictor, ITradeDa
             Computations.PrevOpenToLowRatio(prevMinuteBars, atr20),
             Computations.LastHourClosePosition(prevMinuteBars),
         ];
-        var scaled = sessionLowEvaluator.Scale([.. shared, .. tail]);
-        var predictedMove = sessionLowEvaluator.RunInference(scaled) * atr20;
-        var predictedLow = sessionOpen - predictedMove;
-        return new BarLowResponse(predictedLow, predictedMove);
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // IBarHighPredictor
-    // ──────────────────────────────────────────────────────────────────────────
-
-    public async Task<BarHighPrediction?> PredictHighAsync(string sessionDate, double sessionOpen)
-    {
-        var result = await RunHighInference(sessionDate, sessionOpen);
-        return result is null ? null : new BarHighPrediction(result.PredictedHigh, result.PredictedMove);
-    }
-
-    public async Task<BarLowPrediction?> PredictLowAsync(string sessionDate, double sessionOpen)
-    {
-        var result = await RunLowInference(sessionDate, sessionOpen);
-        return result is null ? null : new BarLowPrediction(result.PredictedLow, result.PredictedMove);
+        var scaled = eval.Scale([.. shared, .. tail]);
+        var predictedMove = eval.RunInference(scaled) * atr20;
+        return new BarLowResponse(sessionOpen - predictedMove, predictedMove);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -111,15 +85,14 @@ public class BarInferenceService : IBarHighPredictor, IBarLowPredictor, ITradeDa
 
     public async Task<TradeDayHighResponse?> RunTradeDayHighInference(string sessionDate, double rthOpen)
     {
-        if (!tradeDayHighEvaluator.SessionLoaded()) return null;
+        if (!isLoaded("mes.trade-day-bar.high")) return null;
+        var eval = evaluators["mes.trade-day-bar.high"];
 
         var (sequence, prevMinuteBars, currentMinuteBars) = await loadTradeDayData(sessionDate);
         if (sequence is null || prevMinuteBars is null || currentMinuteBars is null) return null;
-
         var j = sequence.Count - 1;
         var current = sequence[j];
         var atr20 = Computations.ATR(sequence, j, 20);
-
         var shared = buildSharedFeatures(sequence, j, current, rthOpen, atr20, sessionDate);
         double[] preMarket =
         [
@@ -139,25 +112,21 @@ public class BarInferenceService : IBarHighPredictor, IBarLowPredictor, ITradeDa
             Computations.RthOpenToHighRatio(prevMinuteBars, atr20),
             Computations.RthOpenToLowRatio(prevMinuteBars, atr20),
         ];
-
-        var scaled = tradeDayHighEvaluator.Scale([.. shared, .. preMarket, .. rthTail]);
-        var predictedMove = tradeDayHighEvaluator.RunInference(scaled) * atr20;
-        var predictedHigh = rthOpen + predictedMove;
-
-        return new TradeDayHighResponse(predictedHigh, predictedMove);
+        var scaled = eval.Scale([.. shared, .. preMarket, .. rthTail]);
+        var predictedMove = eval.RunInference(scaled) * atr20;
+        return new TradeDayHighResponse(rthOpen + predictedMove, predictedMove);
     }
 
     public async Task<TradeDayLowResponse?> RunTradeDayLowInference(string sessionDate, double rthOpen)
     {
-        if (!tradeDayLowEvaluator.SessionLoaded()) return null;
+        if (!isLoaded("mes.trade-day-bar.low")) return null;
+        var eval = evaluators["mes.trade-day-bar.low"];
 
         var (sequence, prevMinuteBars, currentMinuteBars) = await loadTradeDayData(sessionDate);
         if (sequence is null || prevMinuteBars is null || currentMinuteBars is null) return null;
-
         var j = sequence.Count - 1;
         var current = sequence[j];
         var atr20 = Computations.ATR(sequence, j, 20);
-
         var shared = buildSharedFeatures(sequence, j, current, rthOpen, atr20, sessionDate);
         double[] preMarket =
         [
@@ -178,12 +147,25 @@ public class BarInferenceService : IBarHighPredictor, IBarLowPredictor, ITradeDa
             Computations.RthOpenToLowRatio(prevMinuteBars, atr20),
             Computations.LastHourClosePosition(prevMinuteBars),
         ];
+        var scaled = eval.Scale([.. shared, .. preMarket, .. rthTail]);
+        var predictedMove = eval.RunInference(scaled) * atr20;
+        return new TradeDayLowResponse(rthOpen - predictedMove, predictedMove);
+    }
 
-        var scaled = tradeDayLowEvaluator.Scale([.. shared, .. preMarket, .. rthTail]);
-        var predictedMove = tradeDayLowEvaluator.RunInference(scaled) * atr20;
-        var predictedLow  = rthOpen - predictedMove;
+    // ──────────────────────────────────────────────────────────────────────────
+    // IBarHighPredictor / IBarLowPredictor
+    // ──────────────────────────────────────────────────────────────────────────
 
-        return new TradeDayLowResponse(predictedLow, predictedMove);
+    public async Task<BarHighPrediction?> PredictSessionHighAsync(string sessionDate, double sessionOpen)
+    {
+        var result = await RunSessionHighInference(sessionDate, sessionOpen);
+        return result is null ? null : new BarHighPrediction(result.PredictedHigh, result.PredictedMove);
+    }
+
+    public async Task<BarLowPrediction?> PredictSessionLowAsync(string sessionDate, double sessionOpen)
+    {
+        var result = await RunSessionLowInference(sessionDate, sessionOpen);
+        return result is null ? null : new BarLowPrediction(result.PredictedLow, result.PredictedMove);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -256,6 +238,7 @@ public class BarInferenceService : IBarHighPredictor, IBarLowPredictor, ITradeDa
     // ──────────────────────────────────────────────────────────────────────────
     // Data loading
     // ──────────────────────────────────────────────────────────────────────────
+
     private async Task<(List<BarData>? sequence, List<BarData>? prevMinuteBars)> loadSessionData(string sessionDate)
     {
         var date = DateTime.ParseExact(sessionDate, "yyyyMMdd", null);
@@ -269,18 +252,12 @@ public class BarInferenceService : IBarHighPredictor, IBarLowPredictor, ITradeDa
         return (sequence, prevMinuteBars);
     }
 
-    /// <summary>
-    /// Loads data required for trade-day (RTH) inference:
-    ///   sequence        — daily bars up through the previous session (for ATR/SMA/etc.)
-    ///   prevMinuteBars  — previous session's 1-min bars (for prev-RTH intraday features)
-    ///   currentMinuteBars — current session's 1-min bars (for pre-market features)
-    /// </summary>
     private async Task<(List<BarData>? sequence, List<BarData>? prevMinuteBars, List<BarData>? currentMinuteBars)> loadTradeDayData(string sessionDate)
     {
         var date = DateTime.ParseExact(sessionDate, "yyyyMMdd", null);
         var prevSessionDate = TradingCalendar.GetPreviousSessionDate(date).ToString("yyyyMMdd");
 
-        var prevMinuteBars = await barRepo.GetBarsBySessionDateAsync(prevSessionDate);
+        var prevMinuteBars    = await barRepo.GetBarsBySessionDateAsync(prevSessionDate);
         var currentMinuteBars = await barRepo.GetBarsBySessionDateAsync(sessionDate);
 
         if (!prevMinuteBars.Any() || !currentMinuteBars.Any()) return (null, null, null);
@@ -308,17 +285,43 @@ public class BarInferenceService : IBarHighPredictor, IBarLowPredictor, ITradeDa
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // Helpers
+    // Startup
     // ──────────────────────────────────────────────────────────────────────────
 
-    private static BaseMLEvaluator createEvaluator(string baseDir, string modelDate, string name, int featureCount)
+    private bool isLoaded(string name) =>
+        evaluators.TryGetValue(name, out var e) && e.SessionLoaded();
+
+    private static Dictionary<string, BaseMLEvaluator> loadEvaluators()
     {
-        var dir = Path.Combine(baseDir, modelDate, name);
-        var eval  = new BaseMLEvaluator(
-            Path.Combine(dir, "xgb_model.onnx"),
-            Path.Combine(dir, "scaler_params.json"),
-            featureCount);
-        eval.LoadModel();
-        return eval;
+        var configPath = Operations.NormalizePath(AppConstants.MODELS_CONFIG_PATH);
+        var json = File.ReadAllText(configPath);
+        var config = JsonSerializer.Deserialize<ModelsConfigFile>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+        var result = new Dictionary<string, BaseMLEvaluator>();
+        foreach (var m in config?.Models ?? [])
+        {
+            if (!m.Active) continue;
+            var dir = Path.Combine(Operations.NormalizePath(m.OutputLocation), m.Version, m.ModelName);
+            var eval = new BaseMLEvaluator(
+                Path.Combine(dir, AppConstants.XGB_MODEL_FILENAME),
+                Path.Combine(dir, AppConstants.SCALER_FILENAME),
+                m.FeatureCount);
+            eval.LoadModel();
+            if (!eval.SessionLoaded())
+            {
+                Console.WriteLine($"Warning: model '{m.ModelName}' failed to load from {dir}");
+                continue;
+            }
+            result[m.ModelName] = eval;
+        }
+        return result;
     }
+
+    private record ModelsConfigFile(List<ModelEntry> Models);
+    private record ModelEntry(
+        string ModelName,
+        string Version,
+        string OutputLocation,
+        int    FeatureCount,
+        bool   Active);
 }

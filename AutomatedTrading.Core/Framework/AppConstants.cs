@@ -1,6 +1,4 @@
 using System;
-using Microsoft.Extensions.Configuration;
-
 namespace AutomatedTrading.Core.Framework;
 
 public static class AppConstants
@@ -24,5 +22,4 @@ public static class AppConstants
     public static readonly string XGB_MODEL_FILENAME = "xgb_model.onnx";
     public static readonly string SCALER_FILENAME = "scaler_params.json";
     public static readonly string MODELS_CONFIG_PATH = $"C:\\dev\\AutomatedTradeStrategies\\Models\\Config\\models.json";
-
 }

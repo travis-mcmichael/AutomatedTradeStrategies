@@ -36,10 +36,7 @@
             "request": "launch",
             "preLaunchTask": "build: AutomatedTrading.Export.Feature",
             "program": "${workspaceFolder}/AutomatedTrading.Export.Feature/bin/Debug/net10.0/AutomatedTrading.Export.Feature.dll",
-            "args": [
-                "C:\\dev\\data\\features",
-                "bar-low"
-            ],
+            "args": [],
             "cwd": "${workspaceFolder}/AutomatedTrading.Export.Feature",
             "console": "integratedTerminal"
         },

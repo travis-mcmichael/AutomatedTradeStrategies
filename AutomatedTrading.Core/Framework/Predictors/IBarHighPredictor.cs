@@ -3,7 +3,7 @@ using System.Threading.Tasks;
 namespace AutomatedTrading.Core.Framework.Predictors;
 public interface IBarHighPredictor
 {
-    Task<BarHighPrediction?> PredictHighAsync(string sessionDate, double sessionOpen);
+    Task<BarHighPrediction?> PredictSessionHighAsync(string sessionDate, double sessionOpen);
 }
 
 public record BarHighPrediction

@@ -18,7 +18,7 @@ class Program
     {
         Console.WriteLine("Feature Export starting...");
 
-        var configPath = NormalizePath(AppConstants.MODELS_CONFIG_PATH);
+        var configPath = Operations.NormalizePath(AppConstants.MODELS_CONFIG_PATH);
         if (!File.Exists(configPath))
         {
             Console.WriteLine($"Config not found: {configPath}");
@@ -42,11 +42,11 @@ class Program
         foreach (var model in config.Models.Where(m => m.Active && m.Export))
         {
             Console.WriteLine($"\nExporting: {model.ModelName}");
-            var path = NormalizePath(model.FeatureLocation);
+            var path = Operations.NormalizePath(model.FeatureLocation);
             if (!Directory.Exists(path))
                 Directory.CreateDirectory(path);
 
-            var outPath = Path.Combine(NormalizePath(model.FeatureLocation), "features.csv");
+            var outPath = Path.Combine(Operations.NormalizePath(model.FeatureLocation), "features.csv");
 
             var start = DateTime.ParseExact(model.TrainingStart, "yyyyMMdd", null);
             var end = DateTime.ParseExact(model.TrainingEnd,   "yyyyMMdd", null);
@@ -76,26 +76,6 @@ class Program
 
         Console.WriteLine("\nOutput complete.");
     }
-
-    // Converts paths between WSL (/mnt/c/...) and Windows (C:\...) formats
-    // based on the current OS, so the same config works in both environments.
-    static string NormalizePath(string path)
-    {
-        if (OperatingSystem.IsWindows() && path.StartsWith("/mnt/") && path.Length > 6)
-        {
-            var drive = char.ToUpper(path[5]);
-            var rest  = path[6..].Replace('/', '\\');
-            return $"{drive}:{rest}";
-        }
-        if (!OperatingSystem.IsWindows() && path.Length >= 3 && char.IsLetter(path[0]) && path[1] == ':')
-        {
-            var drive = char.ToLower(path[0]);
-            var rest  = path[2..].Replace('\\', '/');
-            return $"/mnt/{drive}{rest}";
-        }
-        return path;
-    }
-
     static async Task GenerateTickFeatureStreaming(string outputPath, ITickRepository tickRepo)
     {
         using var writer = new StreamWriter(outputPath);

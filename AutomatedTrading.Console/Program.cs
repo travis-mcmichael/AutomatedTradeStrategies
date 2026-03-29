@@ -64,7 +64,7 @@ class Program
 
             var runner = new BacktestRunner(barRepo, async (date, bars) =>
             {
-                var p = await predictor.PredictHighAsync(date, bars[0].Open);
+                var p = await predictor.PredictSessionHighAsync(date, bars[0].Open);
                 return p?.PredictedHigh;
             });
             await runner.RunAsync(
