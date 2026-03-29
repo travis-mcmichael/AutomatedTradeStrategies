@@ -63,14 +63,14 @@ public class InferenceEvaluationTest
                     .Where(r => r.SessionDate[..6] == month)
                     .ToList();
                 if (monthResults.Count == 0) continue;
-                logStats($"  {config.Name,-10}", monthResults);
+                logStats($"  {config.Name,-22}",monthResults);
             }
         }
         logSkipped(skipped);
         foreach(var config in activeConfigs)
         {
             if (results[config.Name].Count == 0) continue;
-            logStats($"  {config.Name,-10}", results[config.Name]);
+            logStats($"  {config.Name,-22}",results[config.Name]);
         }
         foreach (var ev in _evaluators.Values)
             ev.Dispose();
@@ -225,6 +225,139 @@ public class InferenceEvaluationTest
                 atr20);
         }
 
+        var rthBars = todayMinuteBars
+            .OrderBy(b => b.Timestamp)
+            .Where(b => b.Timestamp.TimeOfDay >= AppConstants.RTH_START_TIME &&
+                        b.Timestamp.TimeOfDay <  AppConstants.RTH_END_TIME)
+            .ToList();
+
+        if (_evaluators.TryGetValue("mes.trade-day-bar.high", out var tradeDayHighEval) && rthBars.Count > 0)
+        {
+            var tradeDayOpen = rthBars.First().Open;
+            double[] tradeDayShared =
+            [
+                Operations.SafeDiv(current.High, tradeDayOpen),              // PrevHighRatio
+                Operations.SafeDiv(current.Low,  tradeDayOpen),              // PrevLowRatio
+                Computations.HighLowRange(current, atr20),                   // PrevRange
+                Computations.BodySize(current, atr20),                       // PrevBodySize
+                Computations.UpperWick(current, atr20),                      // PrevUpperWick
+                Computations.LowerWick(current, atr20),                      // PrevLowerWick
+                Computations.ClosePosition(current),                         // PrevClosePosition
+                Operations.SafeDiv(atr5,  tradeDayOpen),                     // ATR5
+                Operations.SafeDiv(atr10, tradeDayOpen),                     // ATR10
+                Operations.SafeDiv(atr20, tradeDayOpen),                     // ATR20
+                avgRange5,                                                    // AvgRange5
+                avgRange10,                                                   // AvgRange10
+                Operations.SafeDiv(current.High - current.Low, avgRange10),  // RangeRatio
+                Computations.Return(sequence, j, 1),                         // Return1D
+                Computations.Return(sequence, j, 3),                         // Return3D
+                Computations.Return(sequence, j, 5),                         // Return5D
+                Operations.SafeDiv(sma5,  sma20),                            // SMA5SMA20Ratio
+                Operations.SafeDiv(sma10, sma20),                            // SMA10SMA20Ratio
+                Operations.SafeDiv(tradeDayOpen, sma5),                      // OpenSMA5Ratio
+                Operations.SafeDiv(tradeDayOpen, sma10),                     // OpenSMA10Ratio
+                Operations.SafeDiv(tradeDayOpen, sma20),                     // OpenSMA20Ratio
+                Computations.SMA(sequence, j, 20, x => x.Volume),            // VolumeMA20
+                Computations.VolumeZScore(sequence, j, 20),                  // VolumeZScore20
+                Operations.SafeDiv(tradeDayOpen - current.High,  atr20),     // DistanceFromPrevHigh
+                Operations.SafeDiv(tradeDayOpen - current.Low,   atr20),     // DistanceFromPrevLow
+                Operations.SafeDiv(tradeDayOpen - current.Close, atr20),     // GapVsATR
+                Operations.SafeDiv(atr10, atr20),                            // VolatilityRegime
+                rsi14,                                                        // RSI14
+                (int)today.DayOfWeek,                                        // DayOfWeek
+                today.Day,                                                    // DayOfMonth
+            ];
+            double[] tail =
+            [
+                Computations.PreMarketRange(todayMinuteBars, atr20),                      // PreMarketRange
+                Computations.PreMarketHighVsOpen(todayMinuteBars, tradeDayOpen, atr20),   // PreMarketHighVsOpen
+                Computations.PreMarketLowVsOpen(todayMinuteBars, tradeDayOpen, atr20),    // PreMarketLowVsOpen
+                Computations.GapToRthOpen(tradeDayOpen, current.Close, atr20),            // GapToRthOpen
+                Computations.PreMarketVolumeRatio(todayMinuteBars),                       // PreMarketVolumeRatio
+                Computations.RthRange(prevMinuteBars, atr20),                             // PrevRthRange
+                Computations.FirstHalfHourRange(prevMinuteBars, atr20),                   // PrevRthFirstHalfHourRange
+                Computations.FirstHourRange(prevMinuteBars, atr20),                       // PrevRthFirstHourRange
+                Computations.LastHourRange(prevMinuteBars, atr20),                        // PrevRthLastHourRange
+                Computations.RthHighTimeRatio(prevMinuteBars),                            // PrevRthHighTimeRatio
+                Computations.RthOpenToHighRatio(prevMinuteBars, atr20),                   // PrevRthOpenToHighRatio
+                Computations.RthOpenToLowRatio(prevMinuteBars, atr20),                    // PrevRthOpenToLowRatio
+            ];
+            var scaled = tradeDayHighEval.Scale([.. tradeDayShared, .. tail]);
+            var predicted = tradeDayOpen + tradeDayHighEval.RunInference(scaled) * atr20;
+            var actual = rthBars.Max(b => b.High);
+            output["mes.trade-day-bar.high"] = new SessionResult(
+                sessionDate,
+                predicted,
+                actual,
+                predictedMove: predicted - tradeDayOpen,
+                actualMove: actual - tradeDayOpen,
+                atr20);
+        }
+
+        if (_evaluators.TryGetValue("mes.trade-day-bar.low", out var tradeDayLowEval) && rthBars.Count > 0)
+        {
+            var tradeDayOpen = rthBars.First().Open;
+            double[] tradeDayShared =
+            [
+                Operations.SafeDiv(current.High, tradeDayOpen),              // PrevHighRatio
+                Operations.SafeDiv(current.Low,  tradeDayOpen),              // PrevLowRatio
+                Computations.HighLowRange(current, atr20),                   // PrevRange
+                Computations.BodySize(current, atr20),                       // PrevBodySize
+                Computations.UpperWick(current, atr20),                      // PrevUpperWick
+                Computations.LowerWick(current, atr20),                      // PrevLowerWick
+                Computations.ClosePosition(current),                         // PrevClosePosition
+                Operations.SafeDiv(atr5,  tradeDayOpen),                     // ATR5
+                Operations.SafeDiv(atr10, tradeDayOpen),                     // ATR10
+                Operations.SafeDiv(atr20, tradeDayOpen),                     // ATR20
+                avgRange5,                                                    // AvgRange5
+                avgRange10,                                                   // AvgRange10
+                Operations.SafeDiv(current.High - current.Low, avgRange10),  // RangeRatio
+                Computations.Return(sequence, j, 1),                         // Return1D
+                Computations.Return(sequence, j, 3),                         // Return3D
+                Computations.Return(sequence, j, 5),                         // Return5D
+                Operations.SafeDiv(sma5,  sma20),                            // SMA5SMA20Ratio
+                Operations.SafeDiv(sma10, sma20),                            // SMA10SMA20Ratio
+                Operations.SafeDiv(tradeDayOpen, sma5),                      // OpenSMA5Ratio
+                Operations.SafeDiv(tradeDayOpen, sma10),                     // OpenSMA10Ratio
+                Operations.SafeDiv(tradeDayOpen, sma20),                     // OpenSMA20Ratio
+                Computations.SMA(sequence, j, 20, x => x.Volume),            // VolumeMA20
+                Computations.VolumeZScore(sequence, j, 20),                  // VolumeZScore20
+                Operations.SafeDiv(tradeDayOpen - current.High,  atr20),     // DistanceFromPrevHigh
+                Operations.SafeDiv(tradeDayOpen - current.Low,   atr20),     // DistanceFromPrevLow
+                Operations.SafeDiv(tradeDayOpen - current.Close, atr20),     // GapVsATR
+                Operations.SafeDiv(atr10, atr20),                            // VolatilityRegime
+                rsi14,                                                        // RSI14
+                (int)today.DayOfWeek,                                        // DayOfWeek
+                today.Day,                                                    // DayOfMonth
+            ];
+            double[] tail =
+            [
+                Computations.PreMarketRange(todayMinuteBars, atr20),                      // PreMarketRange
+                Computations.PreMarketHighVsOpen(todayMinuteBars, tradeDayOpen, atr20),   // PreMarketHighVsOpen
+                Computations.PreMarketLowVsOpen(todayMinuteBars, tradeDayOpen, atr20),    // PreMarketLowVsOpen
+                Computations.GapToRthOpen(tradeDayOpen, current.Close, atr20),            // GapToRthOpen
+                Computations.PreMarketVolumeRatio(todayMinuteBars),                       // PreMarketVolumeRatio
+                Computations.RthRange(prevMinuteBars, atr20),                             // PrevRthRange
+                Computations.FirstHalfHourRange(prevMinuteBars, atr20),                   // PrevRthFirstHalfHourRange
+                Computations.FirstHourRange(prevMinuteBars, atr20),                       // PrevRthFirstHourRange
+                Computations.LastHourRange(prevMinuteBars, atr20),                        // PrevRthLastHourRange
+                Computations.RthLowTimeRatio(prevMinuteBars),                             // PrevRthLowTimeRatio
+                Computations.RthOpenToHighRatio(prevMinuteBars, atr20),                   // PrevRthOpenToHighRatio
+                Computations.RthOpenToLowRatio(prevMinuteBars, atr20),                    // PrevRthOpenToLowRatio
+                Computations.LastHourClosePosition(prevMinuteBars),                       // PrevRthLastHourClosePosition
+            ];
+            var scaled = tradeDayLowEval.Scale([.. tradeDayShared, .. tail]);
+            var predicted = tradeDayOpen - tradeDayLowEval.RunInference(scaled) * atr20;
+            var actual = rthBars.Min(b => b.Low);
+            output["mes.trade-day-bar.low"] = new SessionResult(
+                sessionDate,
+                predicted,
+                actual,
+                predictedMove: tradeDayOpen - predicted,
+                actualMove: tradeDayOpen - actual,
+                atr20);
+        }
+
         return output.Count > 0 ? output : null;
     }
 
@@ -246,11 +379,9 @@ public class InferenceEvaluationTest
 
     private void logHeader()
     {
-        System.Console.WriteLine($"\n{"Session",-10}" + 
-        $" {"Model",-10}  {"PredMove",9}  {"ActMove",9} " + 
-        $" {"Predicted",10}  {"Actual",10}  {"Error",8} " + 
-        $" {"ATR",8}  {"Err/ATR",8}");
-        System.Console.WriteLine(new string('-', 88));
+        System.Console.WriteLine(
+            $"\n{"Session",-10} {"Model",-22}  {"PredMove",9}  {"ActMove",9}  {"Predicted",10}  {"Actual",10}  {"Error",8}  {"ATR",8}  {"Err/ATR",8}");
+        System.Console.WriteLine(new string('-', 109));
     }
 
     private void logMonthHeader(string month)
@@ -266,13 +397,11 @@ public class InferenceEvaluationTest
 
     private void logSession(SessionResult r, ModelConfig config, string sessionDate, bool first)
     {
-                var error = r.Predicted - r.Actual;
+        var error = r.Predicted - r.Actual;
         var errAtr = Operations.SafeDiv(error, r.Atr20);
         var dateCol = first ? sessionDate : new string(' ', 8);
-        System.Console.WriteLine($"{dateCol,-10} " +
-        $"{config.Name,-10}  {r.PredictedMove,9:F2} {r.ActualMove,9:F2}" + 
-        $"{r.Predicted,10:F2}  {r.Actual,10:F2}  {error,8:F2}" +
-        $"{r.Atr20,8:F2} {errAtr,8:F3}");
+        System.Console.WriteLine(
+            $"{dateCol,-10} {config.Name,-22}  {r.PredictedMove,9:F2}  {r.ActualMove,9:F2}  {r.Predicted,10:F2}  {r.Actual,10:F2}  {error,8:F2}  {r.Atr20,8:F2}  {errAtr,8:F3}");
     }
 
     private void logStats(string label, List<SessionResult> results)

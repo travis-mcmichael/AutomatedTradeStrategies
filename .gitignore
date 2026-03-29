@@ -64,3 +64,4 @@ coverage/
 
 .fake
 Models/*
+Config/*

@@ -14,9 +14,10 @@ FEATURES_BASE = "/mnt/c/dev/data/features"
 EXECUTION_CONFIGS = [
     # {"name": "tick",     "dir": os.path.join(FEATURES_BASE, "tick")},
     {"name": "mes.day-bar.high", "dir": os.path.join(FEATURES_BASE, "mes.day-bar.high")},
-    {"name": "mes.day-bar.low",  "dir": os.path.join(FEATURES_BASE, "mes.day-bar.low")},
+    {"name": "mes.day-bar.low", "dir": os.path.join(FEATURES_BASE, "mes.day-bar.low")},
+    {"name": "mes.trade-day-bar.high", "dir": os.path.join(FEATURES_BASE, "mes.trade-day-bar.high")},
+    {"name": "mes.trade-day-bar.low", "dir": os.path.join(FEATURES_BASE, "mes.trade-day-bar.low")},
 ]
-
 
 # ==============================
 # Export one execution type
@@ -69,16 +70,16 @@ def export_model(name, model_input, scaler_input, onnx_output, scaler_output):
 # Main
 # ==============================
 for config in EXECUTION_CONFIGS:
-    d             = config["dir"]
-    model_input   = os.path.join(d, "xgb_model.json")
-    scaler_input  = os.path.join(d, "scaler.pkl")
+    d = config["dir"]
+    model_input = os.path.join(d, "xgb_model.json")
+    scaler_input = os.path.join(d, "scaler.pkl")
 
     if not os.path.isfile(model_input) or not os.path.isfile(scaler_input):
         missing = [p for p in (model_input, scaler_input) if not os.path.isfile(p)]
         print(f"\nSkipping '{config['name']}': missing {', '.join(missing)}")
         continue
 
-    onnx_output   = os.path.join(d, "xgb_model.onnx")
+    onnx_output = os.path.join(d, "xgb_model.onnx")
     scaler_output = os.path.join(d, "scaler_params.json")
 
     export_model(config["name"], model_input, scaler_input, onnx_output, scaler_output)

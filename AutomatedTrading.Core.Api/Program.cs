@@ -19,15 +19,25 @@ builder.Services.AddSingleton<IBarRepository, BarRepository>();
 builder.Services.AddSingleton<BarInferenceService>();
 builder.Services.AddSingleton<IBarHighPredictor>(sp => sp.GetRequiredService<BarInferenceService>());
 builder.Services.AddSingleton<IBarLowPredictor>(sp => sp.GetRequiredService<BarInferenceService>());
+builder.Services.AddSingleton<ITradeDayHighPredictor>(sp => sp.GetRequiredService<BarInferenceService>());
+builder.Services.AddSingleton<ITradeDayLowPredictor>(sp => sp.GetRequiredService<BarInferenceService>());
 
 // Strategy evaluators (singleton — holds per-session trading state)
 builder.Services.AddSingleton(sp =>
-    new PredictedHighStrategyEvaluator(
+    new SessionHighStrategyEvaluator(
         sp.GetRequiredService<IBarHighPredictor>(),
         sp.GetRequiredService<IBarRepository>()));
 builder.Services.AddSingleton(sp =>
-    new PredictedLowStrategyEvaluator(
+    new SessionLowStrategyEvaluator(
         sp.GetRequiredService<IBarLowPredictor>(),
+        sp.GetRequiredService<IBarRepository>()));
+builder.Services.AddSingleton(sp =>
+    new TradeDayHighStrategyEvaluator(
+        sp.GetRequiredService<ITradeDayHighPredictor>(),
+        sp.GetRequiredService<IBarRepository>()));
+builder.Services.AddSingleton(sp =>
+    new TradeDayLowStrategyEvaluator(
+        sp.GetRequiredService<ITradeDayLowPredictor>(),
         sp.GetRequiredService<IBarRepository>()));
 
 var app = builder.Build();
@@ -37,9 +47,9 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-BarHighEndpoints.Map(app);
-BarLowEndpoints.Map(app);
-PredictedHighEndpoints.Map(app);
+SessionHighEndpoints.Map(app);
 PredictedLowEndpoints.Map(app);
+TradeDayHighEndpoints.Map(app);
+TradeDayLowEndpoints.Map(app);
 
 app.Run();

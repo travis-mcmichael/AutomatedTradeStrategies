@@ -2,8 +2,6 @@ using AutomatedTrading.Core.Framework.DataLayer.Repositories;
 using AutomatedTrading.Core.Framework.Utility;
 using AutomatedTrading.Core.Models;
 using AutomatedTrading.Core.Framework.Enums;
-using AutomatedTrading.Core.Strategies;
-using AutomatedTrading.Core.Framework.Predictors;
 
 namespace AutomatedTrading.Console.Backtesting;
 
@@ -11,29 +9,44 @@ namespace AutomatedTrading.Console.Backtesting;
 /// Loops through a calendar range of sessions, feeds each bar to every
 /// <see cref="BacktestRun"/> in the provided list, and records trades.
 ///
-/// Usage — single strategy, three parameter combinations:
+/// The <paramref name="predict"/> delegate is called once per session and its
+/// result shared across all runs, so a parameter sweep does not multiply
+/// inference calls. The delegate receives the ordered bar list so it can
+/// extract whichever open price the model requires (session open vs RTH open).
+///
+/// Usage — session-high strategy, two parameter combinations:
 /// <code>
 ///   var runs = new[]
 ///   {
-///       new BacktestRun("Prox0.3", new PredictedHighStrategyEvaluator(proximity: 0.3, ...)),
-///       new BacktestRun("Prox0.5", new PredictedHighStrategyEvaluator(proximity: 0.5, ...)),
-///       new BacktestRun("Prox0.7", new PredictedHighStrategyEvaluator(proximity: 0.7, ...)),
+///       new BacktestRun("Prox0.3", new HighBacktestEvaluator(
+///           new SessionHighStrategyEvaluator(0.3, 5, 20, 10).StartSession,
+///           new SessionHighStrategyEvaluator(0.3, 5, 20, 10).Evaluate)),
+///       new BacktestRun("Prox0.5", new HighBacktestEvaluator(...)),
 ///   };
+///
+///   var runner = new BacktestRunner(barRepo, async (date, bars) =>
+///   {
+///       var p = await predictor.PredictHighAsync(date, bars[0].Open);
+///       return p?.PredictedHigh;
+///   });
+///
 ///   await runner.RunAsync("20260101", "20260331", runs);
 /// </code>
-///
-/// The prediction (predicted high + daily ATR) is fetched once per session and
-/// injected into all runs, so a parameter sweep does not multiply inference calls.
 /// </summary>
 public class BacktestRunner
 {
     private readonly IBarRepository _barRepo;
-    private readonly IBarHighPredictor _predictor;
+    private readonly Func<string, IReadOnlyList<BarData>, Task<double?>> _predict;
 
-    public BacktestRunner(IBarRepository barRepo, IBarHighPredictor predictor)
+    /// <param name="predict">
+    /// Async delegate that accepts the session date and the full ordered bar list,
+    /// and returns the predicted price level (e.g. predicted high or predicted low)
+    /// or <c>null</c> if no prediction is available for that session.
+    /// </param>
+    public BacktestRunner(IBarRepository barRepo, Func<string, IReadOnlyList<BarData>, Task<double?>> predict)
     {
         _barRepo = barRepo;
-        _predictor = predictor;
+        _predict = predict;
     }
 
     /// <summary>
@@ -48,20 +61,18 @@ public class BacktestRunner
         Action<string>? log = null)
     {
         var start = DateTime.ParseExact(startDate, "yyyyMMdd", null);
-        var end = DateTime.ParseExact(endDate, "yyyyMMdd", null);
+        var end   = DateTime.ParseExact(endDate,   "yyyyMMdd", null);
 
         for (var date = start; date <= end; date = TradingCalendar.GetNextSessionDate(date))
         {
-
             var sessionDate = date.ToString("yyyyMMdd");
             var bars = await _barRepo.GetBarsBySessionDateAsync(sessionDate);
             if (bars.Count == 0) continue;
 
             var ordered = bars.OrderBy(b => b.Timestamp).ToList();
-            var sessionOpen = ordered[0].Open;
 
             // ── Prediction (computed once, shared across all runs) ────────────
-            var prediction = await _predictor.PredictHighAsync(sessionDate, sessionOpen);
+            var prediction = await _predict(sessionDate, ordered);
             if (prediction is null)
             {
                 log?.Invoke($"{sessionDate}: no prediction — skipping");
@@ -69,42 +80,51 @@ public class BacktestRunner
             }
 
             var dailyAtr = await loadDailyAtrAsync(sessionDate);
-            log?.Invoke($"{sessionDate}: predictedHigh={prediction.PredictedHigh:F2}  dailyAtr={dailyAtr:F2}  open={sessionOpen:F2}");
+            log?.Invoke($"{sessionDate}: prediction={prediction:F2}  dailyAtr={dailyAtr:F2}");
 
             // ── Arm every evaluator for this session ──────────────────────────
             foreach (var run in runs)
-                run.Evaluator.StartSession(prediction.PredictedHigh, dailyAtr);
+                run.Evaluator.StartSession(prediction.Value, dailyAtr);
 
             // ── Bar-by-bar simulation ─────────────────────────────────────────
             foreach (var bar in ordered)
             {
                 foreach (var run in runs)
                 {
-                    // 1. Check stop loss before evaluating the bar.
-                    //    For a short, the stop is hit when the bar's high reaches
-                    //    the stop price (fill at stop price — no gap assumption).
-                    if (run.Position == PositionSide.Short && bar.High >= run.StopPrice)
+                    // 1. Check stop before evaluating the bar.
+                    if (run.Evaluator.IsStopTriggered(bar, run.Position, run.StopPrice))
                         closePosition(run, bar.Timestamp, sessionDate, run.StopPrice, "Stop");
 
-                    // 2. Evaluate the bar and execute the returned signal.
-                    var eval = run.Evaluator.Evaluate(bar.High, bar.Close, run.Position, run.EntryPrice);
+                    // 2. Evaluate the bar and act on the returned signal.
+                    var eval = run.Evaluator.Evaluate(bar, run.Position, run.EntryPrice);
 
                     switch (eval.Signal)
                     {
                         case StrategySignal.EnterShort:
-                            run.Position   = PositionSide.Short;
+                            run.Position = PositionSide.Short;
                             run.EntryPrice = bar.Close;
-                            run.EntryTime  = bar.Timestamp;
-                            run.StopPrice  = eval.StopPrice;
-                            System.Console.WriteLine($"{bar.SessionDate} {bar.SessionTime} - EnterShort @{bar.Close} near predicted high ({prediction.PredictedHigh:F2}), stop {eval.StopPrice:F2}");
+                            run.EntryTime = bar.Timestamp;
+                            run.StopPrice = eval.StopPrice;
+                            System.Console.WriteLine($"{bar.SessionDate} {bar.SessionTime} - EnterShort @{bar.Close}  stop {eval.StopPrice:F2}  prediction {prediction:F2}");
+                            break;
+                        case StrategySignal.EnterLong:
+                            run.Position = PositionSide.Long;
+                            run.EntryPrice = bar.Close;
+                            run.EntryTime = bar.Timestamp;
+                            run.StopPrice = eval.StopPrice;
+                            System.Console.WriteLine($"{bar.SessionDate} {bar.SessionTime} - EnterLong  @{bar.Close}  stop {eval.StopPrice:F2}  prediction {prediction:F2}");
                             break;
                         case StrategySignal.ExitLong when run.Position == PositionSide.Long:
                             closePosition(run, bar.Timestamp, sessionDate, bar.Close, "ExitLong");
-                            System.Console.WriteLine($"{bar.SessionDate} {bar.SessionTime} - ExitLong @{bar.Close} price reached predicted high ({prediction.PredictedHigh})");
+                            System.Console.WriteLine($"{bar.SessionDate} {bar.SessionTime} - ExitLong   @{bar.Close}  prediction {prediction:F2}");
+                            break;
+                        case StrategySignal.ExitShort when run.Position == PositionSide.Short:
+                            closePosition(run, bar.Timestamp, sessionDate, bar.Close, "ExitShort");
+                            System.Console.WriteLine($"{bar.SessionDate} {bar.SessionTime} - ExitShort  @{bar.Close}  prediction {prediction:F2}");
                             break;
                         case StrategySignal.UpdateStop:
                             run.StopPrice = eval.StopPrice;
-                            System.Console.WriteLine($"{bar.SessionDate} {bar.SessionTime} - Price @{bar.Close}, trailing stop updated to {eval.StopPrice}");
+                            System.Console.WriteLine($"{bar.SessionDate} {bar.SessionTime} - UpdateStop @{bar.Close}  new stop {eval.StopPrice:F2}");
                             break;
                     }
                 }

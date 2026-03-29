@@ -32,30 +32,36 @@ class Program
         var startDate = new DateTime(2020, 1, 1);
         var endDate = new DateTime(2025, 12, 31);
 
-        if (execution == "tick")
+        switch (execution)
         {
-            string dir = Path.Combine(path, "tick");
-            Directory.CreateDirectory(dir);
-            string outputPath = Path.Combine(dir, "features.csv");
-            await GenerateTickFeatureStreaming(outputPath, tickRepo);
-        }
-        else if (execution == "mes.day-bar.high")
-        {
-            string dir = Path.Combine(path, "mes.day-bar.high");
-            Directory.CreateDirectory(dir);
-            string outputPath = Path.Combine(dir, "features.csv");
-            await new SessionOpenHighFeatureExporter(outputPath, barRepo).GenerateFeatures(startDate, endDate);
-        }
-        else if (execution == "mes.day-bar.low")
-        {
-            string dir = Path.Combine(path, "mes.day-bar.low");
-            Directory.CreateDirectory(dir);
-            string outputPath = Path.Combine(dir, "features.csv");
-            await new SessionOpenLowFeatureExporter(outputPath, barRepo).GenerateFeatures(startDate, endDate);
-        }
-        else
-        {
-            Console.WriteLine("Unknown execution type. Expected: tick | bar-high | bar-low");
+            case "tick":
+            string tickDir = Path.Combine(path, "tick");
+            Directory.CreateDirectory(tickDir);
+            await GenerateTickFeatureStreaming(Path.Combine(tickDir, "features.csv"), tickRepo);
+            break;
+            case "mes.day-bar.high":
+            string mesDayBarHighDir = Path.Combine(path, "mes.day-bar.high");
+            Directory.CreateDirectory(mesDayBarHighDir);
+            await new SessionOpenHighFeatureExporter(Path.Combine(mesDayBarHighDir, "features.csv"), barRepo).GenerateFeatures(startDate, endDate);
+            break;
+            case "mes.day-bar.low":
+            string mesDayBarLowDir = Path.Combine(path, "mes.day-bar.low");
+            Directory.CreateDirectory(mesDayBarLowDir);
+            await new SessionOpenLowFeatureExporter(Path.Combine(mesDayBarLowDir, "features.csv"), barRepo).GenerateFeatures(startDate, endDate);
+            break;
+            case "mes.trade-day-bar.high":
+            string mesTradeDayBarHighDir = Path.Combine(path, "mes.trade-day-bar.high");
+            Directory.CreateDirectory(mesTradeDayBarHighDir);
+            await new TradeDayOpenHighFeatureExporter(Path.Combine(mesTradeDayBarHighDir, "features.csv"), barRepo).GenerateFeatures(startDate, endDate);
+            break;
+            case "mes.trade-day-bar.low":
+            string mesTradeDayBarLowDir = Path.Combine(path, "mes.trade-day-bar.low");
+            Directory.CreateDirectory(mesTradeDayBarLowDir);
+            await new TradeDayOpenLowFeatureExporter(Path.Combine(mesTradeDayBarLowDir, "features.csv"), barRepo).GenerateFeatures(startDate, endDate);
+            break;
+            default:
+            Console.WriteLine("Unknown execution type. Expected: {instrument}.{data-type}.{prediction}");
+            break;
         }
 
         Console.WriteLine("Output complete.");

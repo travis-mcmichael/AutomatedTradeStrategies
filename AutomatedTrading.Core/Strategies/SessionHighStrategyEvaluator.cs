@@ -2,15 +2,29 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using AutomatedTrading.Core.Framework.Utility;
 using AutomatedTrading.Core.Framework.DataLayer.Repositories;
+using AutomatedTrading.Core.Models;
 using AutomatedTrading.Core.Framework.Enums;
 using AutomatedTrading.Core.Framework.Predictors;
-using AutomatedTrading.Core.Framework.Utility;
-using AutomatedTrading.Core.Models;
 
 namespace AutomatedTrading.Core.Strategies;
 
-public class PredictedLowStrategyEvaluator
+/// <summary>
+/// Encapsulates all trading logic for the PredictedHigh strategy so it can be exercised
+/// independently of NinjaTrader in automated tests or a backtesting runner.
+///
+/// Production use (via the REST API):
+///   var evaluator = new PredictedHighStrategyEvaluator(predictor, barRepo);
+///   await evaluator.StartSessionAsync(sessionDate, sessionOpen, proximity, ...);
+///   var eval = evaluator.Evaluate(barHigh, barClose, position, entryPrice);
+///
+/// Test use (inject values directly, no DB or ML required):
+///   var evaluator = new PredictedHighStrategyEvaluator(proximity: 0.5, stopLossPoints: 5.0, ...);
+///   evaluator.StartSession(predictedHigh: 4500.0, dailyAtr: 20.0);
+///   var eval = evaluator.Evaluate(4499.0, 4497.0, PositionSide.Flat);
+/// </summary>
+public class SessionHighStrategyEvaluator
 {
     // ─── Configuration ────────────────────────────────────────────────────────
     public double Proximity { get; private set; }
@@ -20,20 +34,20 @@ public class PredictedLowStrategyEvaluator
 
     // ─── Observable session state ─────────────────────────────────────────────
     public bool IsReady { get; private set; }
-    public double PredictedLow { get; private set; }
+    public double PredictedHigh { get; private set; }
     public double DailyAtr { get; private set; }
-    
+
     // ─── Internal state ───────────────────────────────────────────────────────
-    private bool _hasLowHit;
+    private bool _hasHighHit;
     private bool _trailingStopActive;
     private double _trailingStopPrice;
-    private readonly IBarLowPredictor? _predictor;
+    private readonly IBarHighPredictor? _predictor;
     private readonly IBarRepository? _barRepo;
-    
+
     // ─── Constructors ─────────────────────────────────────────────────────────
 
     /// <summary>Production constructor — injected with the ML predictor and bar repository.</summary>
-    public PredictedLowStrategyEvaluator(IBarLowPredictor predictor, IBarRepository barRepo)
+    public SessionHighStrategyEvaluator(IBarHighPredictor predictor, IBarRepository barRepo)
     {
         _predictor = predictor;
         _barRepo = barRepo;
@@ -45,7 +59,7 @@ public class PredictedLowStrategyEvaluator
     }
 
     /// <summary>Test constructor — no external dependencies needed.</summary>
-    public PredictedLowStrategyEvaluator(
+    public SessionHighStrategyEvaluator(
         double proximity, double stopLossPoints, double targetProfit, double trail)
     {
         Proximity = proximity;
@@ -54,7 +68,7 @@ public class PredictedLowStrategyEvaluator
         Trail = trail;
         resetState();
     }
-    
+
     // ─── Session initialisation ───────────────────────────────────────────────
 
     /// <summary>
@@ -78,21 +92,26 @@ public class PredictedLowStrategyEvaluator
 
         if (_predictor is null || _barRepo is null) return;
 
-        var prediction = await _predictor.PredictLowAsync(sessionDate, sessionOpen);
+        var prediction = await _predictor.PredictHighAsync(sessionDate, sessionOpen);
         if (prediction is null) return;
 
-        PredictedLow = prediction.PredictedLow;
+        PredictedHigh = prediction.PredictedHigh;
         DailyAtr = await loadDailyAtrAsync(sessionDate);
         IsReady = true;
     }
 
-    public void StartSession(double predictedLow, double dailyAtr)
+    /// <summary>
+    /// Test path: inject a known prediction and ATR directly, bypassing the ML model and DB.
+    /// </summary>
+    public void StartSession(double predictedHigh, double dailyAtr)
     {
         resetState();
-        PredictedLow = predictedLow;
+        PredictedHigh = predictedHigh;
         DailyAtr = dailyAtr;
         IsReady = true;
     }
+
+    // ─── Per-bar evaluation ───────────────────────────────────────────────────
 
     /// <summary>
     /// Evaluates a single completed bar and returns the signal to act on.
@@ -100,52 +119,62 @@ public class PredictedLowStrategyEvaluator
     /// is <see cref="PositionSide.Short"/>; if omitted the bar close is used as a proxy.</para>
     /// </summary>
     public BarEvaluation Evaluate(
-        double barLow,
+        double barHigh,
         double barClose,
         PositionSide position,
         double entryPrice = 0)
     {
-        if (!IsReady) return new (StrategySignal.None, 0);
-        if (barLow <= PredictedLow + Proximity * DailyAtr)
+        if (!IsReady) return new(StrategySignal.None, 0);
+
+        // ── Near predicted HIGH: enter short or flatten long ─────────────────
+        if (barHigh >= PredictedHigh - Proximity * DailyAtr)
         {
-            if (position == PositionSide.Short)
+            if (position == PositionSide.Long)
             {
-                _hasLowHit = true;
-                return new (StrategySignal.ExitShort, 0);
+                _hasHighHit = true;
+                return new(StrategySignal.ExitLong, 0);
             }
-            if (position == PositionSide.Flat && !_hasLowHit)
+
+            if (position == PositionSide.Flat && !_hasHighHit)
             {
-                _hasLowHit = true;
-                return new (StrategySignal.EnterLong, PredictedLow - StopLossPoints);
+                _hasHighHit = true;
+                return new(StrategySignal.EnterShort, PredictedHigh + StopLossPoints);
             }
-            _hasLowHit = true;
+
+            _hasHighHit = true;
         }
-        if (position == PositionSide.Long)
+
+        // ── Trailing stop management (short position only) ───────────────────
+        if (position == PositionSide.Short)
         {
             var ep = entryPrice > 0 ? entryPrice : barClose;
-            var profit = barClose - ep;
+            var profit = ep - barClose;
+
             if (!_trailingStopActive && profit >= TargetProfit)
             {
                 _trailingStopActive = true;
-                _trailingStopPrice = barClose - Trail;
-                return new (StrategySignal.UpdateStop, _trailingStopPrice);
+                _trailingStopPrice  = barClose + Trail;
+                return new(StrategySignal.UpdateStop, _trailingStopPrice);
             }
+
             if (_trailingStopActive)
             {
-                var candidate = barClose - Trail;
-                if (candidate > _trailingStopPrice)
+                var candidate = barClose + Trail;
+                if (candidate < _trailingStopPrice)
                 {
                     _trailingStopPrice = candidate;
-                    return new (StrategySignal.UpdateStop, _trailingStopPrice);
+                    return new(StrategySignal.UpdateStop, _trailingStopPrice);
                 }
             }
         }
         else if (_trailingStopActive)
         {
+            // Position was closed (stop hit or manual exit) — reset trailing state.
             _trailingStopActive = false;
-            _trailingStopPrice = double.MinValue;
+            _trailingStopPrice = double.MaxValue;
         }
-        return new (StrategySignal.None, 0);
+
+        return new(StrategySignal.None, 0);
     }
 
     // ─── Private helpers ──────────────────────────────────────────────────────
@@ -153,9 +182,9 @@ public class PredictedLowStrategyEvaluator
     private void resetState()
     {
         IsReady = false;
-        PredictedLow = double.MinValue;
+        PredictedHigh = double.MaxValue;
         DailyAtr = 0;
-        _hasLowHit = false;
+        _hasHighHit = false;
         _trailingStopActive = false;
         _trailingStopPrice = double.MaxValue;
     }

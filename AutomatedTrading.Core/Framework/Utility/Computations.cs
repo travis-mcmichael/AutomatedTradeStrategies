@@ -383,7 +383,7 @@ public class Computations
     public static double LastHourClosePosition(List<BarData> bars)
     {
         var ordered = bars.OrderBy(b => b.Timestamp).ToList();
-        var lastHour = ordered.Where(b => 
+        var lastHour = ordered.Where(b =>
             b.Timestamp.TimeOfDay >= AppConstants.RTH_END_TIME - TimeSpan.FromHours(1) &&
             b.Timestamp.TimeOfDay <  AppConstants.RTH_END_TIME).ToList();
         double lastHourClosePos = 0.5;
@@ -395,6 +395,130 @@ public class Computations
             lastHourClosePos = lhHigh == lhLow ? 0.5 : (lhClose - lhLow) / (lhHigh - lhLow);
         }
         return lastHourClosePos;
+    }
+
+    // ── RTH-scoped intraday features (prev session) ───────────────────────────
+
+    /// <summary>High-low range of the RTH window only, normalised by ATR.</summary>
+    public static double RthRange(List<BarData> bars, double atr)
+    {
+        var rth = bars.Where(b =>
+            b.Timestamp.TimeOfDay >= AppConstants.RTH_START_TIME &&
+            b.Timestamp.TimeOfDay <  AppConstants.RTH_END_TIME).ToList();
+        return rth.Count != 0 ? Operations.SafeDiv(rth.Max(b => b.High) - rth.Min(b => b.Low), atr) : 0;
+    }
+
+    /// <summary>Range of the first 30 minutes of RTH, normalised by ATR.</summary>
+    public static double FirstHalfHourRange(List<BarData> bars, double atr)
+    {
+        var firstHalfHour = bars.Where(b =>
+            b.Timestamp.TimeOfDay >= AppConstants.RTH_START_TIME &&
+            b.Timestamp.TimeOfDay <  AppConstants.RTH_START_TIME + TimeSpan.FromMinutes(30)).ToList();
+        return firstHalfHour.Count != 0
+            ? Operations.SafeDiv(firstHalfHour.Max(b => b.High) - firstHalfHour.Min(b => b.Low), atr) : 0;
+    }
+
+    /// <summary>
+    /// Fractional position (0 = start of RTH, 1 = end of RTH) at which the session high
+    /// occurred, computed over RTH bars only.
+    /// </summary>
+    public static double RthHighTimeRatio(List<BarData> bars)
+    {
+        var rth = bars.Where(b =>
+            b.Timestamp.TimeOfDay >= AppConstants.RTH_START_TIME &&
+            b.Timestamp.TimeOfDay <  AppConstants.RTH_END_TIME)
+            .OrderBy(b => b.Timestamp).ToList();
+        if (rth.Count == 0) return 0.5;
+        var max = rth.Max(x => x.High);
+        var highBar = rth.FirstOrDefault(b => b.High == max)!;
+        var idx = rth.IndexOf(highBar);
+        return rth.Count > 1 ? (double)idx / (rth.Count - 1) : 0.5;
+    }
+
+    /// <summary>
+    /// Fractional position (0 = start of RTH, 1 = end of RTH) at which the session low
+    /// occurred, computed over RTH bars only.
+    /// </summary>
+    public static double RthLowTimeRatio(List<BarData> bars)
+    {
+        var rth = bars.Where(b =>
+            b.Timestamp.TimeOfDay >= AppConstants.RTH_START_TIME &&
+            b.Timestamp.TimeOfDay <  AppConstants.RTH_END_TIME)
+            .OrderBy(b => b.Timestamp).ToList();
+        if (rth.Count == 0) return 0.5;
+        var min = rth.Min(x => x.Low);
+        var lowBar = rth.FirstOrDefault(x => x.Low == min)!;
+        var idx = rth.IndexOf(lowBar);
+        return rth.Count > 1 ? (double)idx / (rth.Count - 1) : 0.5;
+    }
+
+    /// <summary>How far above the RTH open the session high reached, normalised by ATR.</summary>
+    public static double RthOpenToHighRatio(List<BarData> bars, double atr)
+    {
+        var rth = bars.Where(b =>
+            b.Timestamp.TimeOfDay >= AppConstants.RTH_START_TIME &&
+            b.Timestamp.TimeOfDay <  AppConstants.RTH_END_TIME)
+            .OrderBy(b => b.Timestamp).ToList();
+        if (rth.Count == 0) return 0;
+        var rthOpen = rth.First().Open;
+        var rthHigh = rth.Max(b => b.High);
+        return Operations.SafeDiv(rthHigh - rthOpen, atr);
+    }
+
+    /// <summary>How far below the RTH open the session low reached, normalised by ATR.</summary>
+    public static double RthOpenToLowRatio(List<BarData> bars, double atr)
+    {
+        var rth = bars.Where(b =>
+            b.Timestamp.TimeOfDay >= AppConstants.RTH_START_TIME &&
+            b.Timestamp.TimeOfDay <  AppConstants.RTH_END_TIME)
+            .OrderBy(b => b.Timestamp).ToList();
+        if (rth.Count == 0) return 0;
+        var rthOpen = rth.First().Open;
+        var rthLow  = rth.Min(b => b.Low);
+        return Operations.SafeDiv(rthOpen - rthLow, atr);
+    }
+
+    // ── Pre-market features (current session, known before RTH opens) ─────────
+
+    /// <summary>High-low range of the pre-market window, normalised by ATR.</summary>
+    public static double PreMarketRange(List<BarData> bars, double atr)
+    {
+        var pm = bars.Where(b =>
+            b.Timestamp.TimeOfDay >= AppConstants.SESSION_OPEN_TIME ||
+            b.Timestamp.TimeOfDay <  AppConstants.RTH_START_TIME).ToList();
+        return pm.Count != 0 ? Operations.SafeDiv(pm.Max(b => b.High) - pm.Min(b => b.Low), atr) : 0;
+    }
+
+    /// <summary>How far above the RTH open the pre-market high reached, normalised by ATR.</summary>
+    public static double PreMarketHighVsOpen(List<BarData> bars, double rthOpen, double atr)
+    {
+        var pm = bars.Where(b =>
+            b.Timestamp.TimeOfDay >= AppConstants.SESSION_OPEN_TIME ||
+            b.Timestamp.TimeOfDay <  AppConstants.RTH_START_TIME).ToList();
+        return pm.Count != 0 ? Operations.SafeDiv(pm.Max(b => b.High) - rthOpen, atr) : 0;
+    }
+
+    /// <summary>How far below the RTH open the pre-market low reached, normalised by ATR.</summary>
+    public static double PreMarketLowVsOpen(List<BarData> bars, double rthOpen, double atr)
+    {
+        var pm = bars.Where(b =>
+            b.Timestamp.TimeOfDay >= AppConstants.SESSION_OPEN_TIME ||
+            b.Timestamp.TimeOfDay <  AppConstants.RTH_START_TIME).ToList();
+        return pm.Count != 0 ? Operations.SafeDiv(pm.Min(b => b.Low) - rthOpen, atr) : 0;
+    }
+
+    /// <summary>Overnight gap: RTH open minus previous day's close, normalised by ATR.</summary>
+    public static double GapToRthOpen(double rthOpen, double prevClose, double atr)
+        => Operations.SafeDiv(rthOpen - prevClose, atr);
+
+    /// <summary>Fraction of the full session's volume that traded during the pre-market window.</summary>
+    public static double PreMarketVolumeRatio(List<BarData> bars)
+    {
+        var total = bars.Sum(b => b.Volume);
+        var pm = bars.Where(b =>
+            b.Timestamp.TimeOfDay >= AppConstants.SESSION_OPEN_TIME ||
+            b.Timestamp.TimeOfDay <  AppConstants.RTH_START_TIME).ToList();
+        return Operations.SafeDiv(pm.Sum(b => b.Volume), total);
     }
 
     #endregion

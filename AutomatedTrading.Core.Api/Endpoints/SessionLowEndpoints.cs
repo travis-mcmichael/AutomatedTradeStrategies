@@ -10,8 +10,8 @@ public static class PredictedLowEndpoints
     public static void Map(WebApplication app)
     {
         app.MapPost("/strategy/predicted-low/session", async (
-            PredictedLowSessionRequest req,
-            PredictedLowStrategyEvaluator evaluator) => 
+            SessionLowSessionRequest req,
+            SessionLowStrategyEvaluator evaluator) => 
         {
             if (string.IsNullOrWhiteSpace(req.SessionDate))
                 return Results.BadRequest("SessionDate is required"); 
@@ -22,14 +22,14 @@ public static class PredictedLowEndpoints
                 req.StopLossPoints,
                 req.TargetProfit,
                 req.Trail);
-            return Results.Ok(new PredictedLowSessionResponse(
+            return Results.Ok(new SessionLowSessionResponse(
                 evaluator.IsReady,
                 evaluator.PredictedLow,
                 evaluator.DailyAtr));
         });
         app.MapPost("/strategy/predicted-low/bar", (
-            PredictedLowBarRequest req,
-            PredictedLowStrategyEvaluator evaluator) =>
+            SessionLowBarRequest req,
+            SessionLowStrategyEvaluator evaluator) =>
         {
             var position = req.Position switch
             {
@@ -38,7 +38,7 @@ public static class PredictedLowEndpoints
                 _ => PositionSide.Flat,
             };
             var eval = evaluator.Evaluate(req.Low, req.Close, position, req.EntryPrice);
-            return Results.Ok(new PredictedLowBarResponse(eval.Signal.ToString(), eval.StopPrice));
+            return Results.Ok(new SessionLowBarResponse(eval.Signal.ToString(), eval.StopPrice));
         });
     }
 }
