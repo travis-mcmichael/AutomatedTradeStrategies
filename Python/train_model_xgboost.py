@@ -13,14 +13,15 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 FEATURES_BASE = "/mnt/c/dev/data/features"
 
 EXECUTION_CONFIGS = [
-    #{"name": "tick",     "csv": os.path.join(FEATURES_BASE, "tick",     "features.csv")},
+    #{"name": "tick", "csv": os.path.join(FEATURES_BASE, "tick", "features.csv")},
     {"name": "mes.day-bar.high", "csv": os.path.join(FEATURES_BASE, "mes.day-bar.high", "features.csv")},
-    {"name": "mes.day-bar.low",  "csv": os.path.join(FEATURES_BASE, "mes.day-bar.low",  "features.csv")},
+    {"name": "mes.day-bar.low",  "csv": os.path.join(FEATURES_BASE, "mes.day-bar.low", "features.csv")},
+    {"name": "mes.trade-day-bar.high", "csv": os.path.join(FEATURES_BASE, "mes.trade-day-bar.high", "features.csv")},
+    {"name": "mes.trade-day-bar.low", "csv": os.path.join(FEATURES_BASE, "mes.trade-day-bar.low", "features.csv")}
 ]
 
 TRAIN_SPLIT = 0.70
 VAL_SPLIT   = 0.15   # remaining 15% = test
-
 
 # ==============================
 # Evaluate helper
@@ -32,13 +33,17 @@ def evaluate(model, split_name, X_data, y_data):
     rmse = np.sqrt(mean_squared_error(y_data, preds))
     r2   = r2_score(y_data, preds)
 
+    within_tenth_atr = np.mean(np.abs(preds - y_data) < 0.1)
+    within_quarter_atr = np.mean(np.abs(preds- y_data) < 0.25)
     within_half_atr = np.mean(np.abs(preds - y_data) < 0.5)
     within_one_atr  = np.mean(np.abs(preds - y_data) < 1.0)
 
     print(f"\n=== {split_name} ===")
-    print(f"  MAE:               {mae:.4f}")
-    print(f"  RMSE:              {rmse:.4f}")
-    print(f"  R²:                {r2:.4f}")
+    print(f"  MAE:              {mae:.4f}")
+    print(f"  RMSE:             {rmse:.4f}")
+    print(f"  R²:               {r2:.4f}")
+    print(f"  Within .10x ATR:  {within_tenth_atr:.2%}")
+    print(f"  Within .25x ATR:  {within_quarter_atr:.2%}")
     print(f"  Within 0.5x ATR:  {within_half_atr:.2%}")
     print(f"  Within 1.0x ATR:  {within_one_atr:.2%}")
 
@@ -76,13 +81,13 @@ def train_model(name, csv_path):
     print(f"  Std:  {np.std(y):.4f}")
 
     # Chronological Split
-    n         = len(X)
+    n = len(X)
     train_end = int(n * TRAIN_SPLIT)
-    val_end   = int(n * (TRAIN_SPLIT + VAL_SPLIT))
+    val_end = int(n * (TRAIN_SPLIT + VAL_SPLIT))
 
     X_train, y_train = X[:train_end],        y[:train_end]
-    X_val,   y_val   = X[train_end:val_end],  y[train_end:val_end]
-    X_test,  y_test  = X[val_end:],           y[val_end:]
+    X_val, y_val = X[train_end:val_end],  y[train_end:val_end]
+    X_test, y_test = X[val_end:],           y[val_end:]
 
     print("\nDataset splits:")
     print(f"  Train:      {len(X_train)}")
@@ -90,10 +95,10 @@ def train_model(name, csv_path):
     print(f"  Test:       {len(X_test)}")
 
     # Normalize (fit on train only)
-    scaler         = StandardScaler()
+    scaler = StandardScaler()
     X_train_scaled = scaler.fit_transform(X_train)
-    X_val_scaled   = scaler.transform(X_val)
-    X_test_scaled  = scaler.transform(X_test)
+    X_val_scaled = scaler.transform(X_val)
+    X_test_scaled = scaler.transform(X_test)
 
     # Train XGBoost Regression
     print("\nTraining XGBoost Regressor...")
@@ -124,14 +129,14 @@ def train_model(name, csv_path):
     print(f"\nBest iteration: {model.best_iteration}  |  Best val score: {model.best_score:.6f}")
 
     # Evaluate
-    evaluate(model, "Train",      X_train_scaled, y_train)
+    evaluate(model, "Train", X_train_scaled, y_train)
     evaluate(model, "Validation", X_val_scaled,   y_val)
-    evaluate(model, "Test",       X_test_scaled,  y_test)
+    evaluate(model, "Test", X_test_scaled,  y_test)
 
     # Feature Importance
     feature_names = df.columns[:-1]
-    importance    = model.feature_importances_
-    indices       = np.argsort(importance)[::-1]
+    importance = model.feature_importances_
+    indices = np.argsort(importance)[::-1]
 
     print("\nTop Feature Importances:")
     for i in range(min(15, len(indices))):
