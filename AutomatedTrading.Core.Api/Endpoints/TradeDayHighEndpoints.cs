@@ -4,15 +4,15 @@ using AutomatedTrading.Core.Framework.Enums;
 
 namespace AutomatedTrading.Core.Api.Endpoints;
 
-public static class PredictedHighEndpoints
+public static class TradeDayHighEndpoints
 {
     public static void Map(WebApplication app)
     {
-        // Called once at RTH session open. Runs ML inference, loads daily ATR,
+        // Called once at RTH open. Runs ML inference, loads daily ATR,
         // and arms the evaluator for the session.
-        app.MapPost("/strategy/predicted-high/session", async (
-            PredictedHighSessionRequest req,
-            PredictedHighStrategyEvaluator evaluator) =>
+        app.MapPost("/strategy/trade-day-high/session", async (
+            TradeDayHighSessionRequest req,
+            TradeDayHighStrategyEvaluator evaluator) =>
         {
             if (string.IsNullOrWhiteSpace(req.SessionDate))
                 return Results.BadRequest("SessionDate is required.");
@@ -25,26 +25,26 @@ public static class PredictedHighEndpoints
                 req.TargetProfit,
                 req.Trail);
 
-            return Results.Ok(new PredictedHighSessionResponse(
+            return Results.Ok(new TradeDayHighSessionResponse(
                 evaluator.IsReady,
                 evaluator.PredictedHigh,
                 evaluator.DailyAtr));
         });
 
         // Called on every bar close. Returns the signal the strategy should act on.
-        app.MapPost("/strategy/predicted-high/bar", (
-            PredictedHighBarRequest req,
-            PredictedHighStrategyEvaluator evaluator) =>
+        app.MapPost("/strategy/trade-day-high/bar", (
+            TradeDayHighBarRequest req,
+            TradeDayHighStrategyEvaluator evaluator) =>
         {
             var position = req.Position switch
             {
-                "Long" => PositionSide.Long,
+                "Long"  => PositionSide.Long,
                 "Short" => PositionSide.Short,
-                _ => PositionSide.Flat,
+                _       => PositionSide.Flat,
             };
 
             var eval = evaluator.Evaluate(req.High, req.Close, position, req.EntryPrice);
-            return Results.Ok(new PredictedHighBarResponse(eval.Signal.ToString(), eval.StopPrice));
+            return Results.Ok(new TradeDayHighBarResponse(eval.Signal.ToString(), eval.StopPrice));
         });
     }
 }

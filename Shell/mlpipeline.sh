@@ -11,7 +11,7 @@ PYTHON="python3"
 DOT_NET="/mnt/c/Program Files/dotnet/dotnet.exe"
 dotnet() { "$DOT_NET" "$@"; }
 
-EXECUTION_TYPES=("mes.day-bar.high" "mes.day-bar.low")
+EXECUTION_TYPES=("mes.trade-day-bar.high" "mes.trade-day-bar.low")
 
 source /home/superuser/onnx-env/bin/activate
 

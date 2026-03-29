@@ -12,18 +12,18 @@ class Program
 {
     static readonly List<ModelConfig> ModelConfigs =
     [
-        new("mes.day-bar.high", "20260325", 38, isHigh: true),
-        new("mes.day-bar.low",  "20260325", 39, isHigh: false),
+        new("mes.day-bar.high", "20260326", 38, isHigh: true),
+        new("mes.day-bar.low",  "20260326", 39, isHigh: false),
     ];
 
     static async Task Main(string[] args)
     {
-        //var runDate = new DateTime(2026, 3, 18);
-        var runType = "backtest";
+        var runDate = new DateTime(2026, 3, 27);
+        var runType = "inference";
         
         var barRepo = new BarRepository(new SqliteConnectionFactory(AppConstants.SQLITE_CONNECTION));
-        var rangeStart = new DateTime(2026, 3, 9);
-        var rangeEnd = new DateTime(2026, 3, 13);//new DateTime(2025, 1, 2); //DateTime.Today < new DateTime(2026, 12, 31) ? DateTime.Today : new DateTime(2026, 12, 31);
+        var rangeStart = runDate;//new DateTime(2026, 3, 18);
+        var rangeEnd = runDate;//new DateTime(2025, 1, 2); //DateTime.Today < new DateTime(2026, 12, 31) ? DateTime.Today : new DateTime(2026, 12, 31);
         
         if (runType == "inference")
         {
@@ -35,15 +35,36 @@ class Program
             var highConfig = ModelConfigs.First(c => c.IsHigh);
             using var predictor = new ConsoleBarHighPredictor(barRepo, highConfig);
 
+            var e03 = new SessionHighStrategyEvaluator(proximity: 0.3, stopLossPoints: 5.0, targetProfit: 20.0, trail: 10.0);
+            var e05 = new SessionHighStrategyEvaluator(proximity: 0.5, stopLossPoints: 5.0, targetProfit: 20.0, trail: 10.0);
+
             var runs = new List<BacktestRun>
             {
-                //new("Prox0.3-SL5-TP20-T10",  new PredictedHighStrategyEvaluator(proximity: 0.3, stopLossPoints: 5.0, targetProfit: 20.0, trail: 10.0)),
-                new("Prox0.5-SL5-TP20-T10",  new PredictedHighStrategyEvaluator(proximity: 0.5, stopLossPoints: 5.0, targetProfit: 20.0, trail: 10.0)),
-                //new("Prox0.7-SL5-TP20-T10",  new PredictedHighStrategyEvaluator(proximity: 0.7, stopLossPoints: 5.0, targetProfit: 20.0, trail: 10.0)),
+                new("Prox0.3-SL5-TP20-T10", new HighBacktestEvaluator(e03.StartSession, e03.Evaluate)),
+                new("Prox0.5-SL5-TP20-T10", new HighBacktestEvaluator(e05.StartSession, e05.Evaluate)),
             };
 
+            // for (var prox = 0.0; prox < 1.25; prox += 0.25)
+            // {
+            //     var adjustedProximity = prox == 0.0 ? 0.01 : prox;
+            //     for (var stopLoss = 5.0; stopLoss < 50; stopLoss += 2.5)
+            //     {
+            //         for (var prof = 10.0; prof <= 50.0; prof += 2.50)
+            //         {
+            //             for (var trail = 5; trail < 25 && trail < prof - 5; trail += 5)
+            //             {
+            //                 var ev = new SessionHighStrategyEvaluator(adjustedProximity, stopLoss, prof, trail);
+            //                 runs.Add(new($"Prox{adjustedProximity:f2}-SL{stopLoss:f2}-TP{prof:f2}-T{trail}", new HighBacktestEvaluator(ev.StartSession, ev.Evaluate)));
+            //             }
+            //         }
+            //     }
+            // }
 
-            var runner = new BacktestRunner(barRepo, predictor);
+            var runner = new BacktestRunner(barRepo, async (date, bars) =>
+            {
+                var p = await predictor.PredictHighAsync(date, bars[0].Open);
+                return p?.PredictedHigh;
+            });
             await runner.RunAsync(
                 rangeStart.ToString("yyyyMMdd"),
                 rangeEnd.ToString("yyyyMMdd"),
