@@ -15,7 +15,7 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 builder.Services.AddSingleton<IDbConnectionFactory>(_ => new SqliteConnectionFactory(connectionString));
 builder.Services.AddSingleton<IBarRepository, BarRepository>();
 
-// ML inference (singleton — holds loaded ONNX InferenceSessions)
+// ML inference (singleton — holds loaded ONNX InferenceSessions, config from Models/Config/models.json)
 builder.Services.AddSingleton<BarInferenceService>();
 builder.Services.AddSingleton<IBarHighPredictor>(sp => sp.GetRequiredService<BarInferenceService>());
 builder.Services.AddSingleton<IBarLowPredictor>(sp => sp.GetRequiredService<BarInferenceService>());

@@ -32,7 +32,7 @@ public class ConsoleBarHighPredictor : IBarHighPredictor, IDisposable
             throw new InvalidOperationException($"Model '{highConfig.Name}' failed to load.");
     }
 
-    public async Task<BarHighPrediction?> PredictHighAsync(string sessionDate, double sessionOpen)
+    public async Task<BarHighPrediction?> PredictSessionHighAsync(string sessionDate, double sessionOpen)
     {
         var prevSessionDate = TradingCalendar.GetPreviousSessionDate(
             DateTime.ParseExact(sessionDate, "yyyyMMdd", null)).ToString("yyyyMMdd");

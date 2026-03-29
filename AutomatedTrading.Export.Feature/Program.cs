@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json;
 using AutomatedTrading.Core.Framework;
 using AutomatedTrading.Core.Framework.DataLayer.Repositories;
 using AutomatedTrading.Core.Framework.DataLayer.Sqlite;
@@ -16,57 +17,65 @@ class Program
     static async Task Main(string[] args)
     {
         Console.WriteLine("Feature Export starting...");
-        if (args.Length < 2)
+
+        var configPath = Operations.NormalizePath(AppConstants.MODELS_CONFIG_PATH);
+        if (!File.Exists(configPath))
         {
-            Console.WriteLine("Usage: Feature Export <output directory> <tick|bar>");
+            Console.WriteLine($"Config not found: {configPath}");
             return;
         }
 
-        string path = args[0];
-        string execution = args[1].Trim().ToLower();
+        var json = await File.ReadAllTextAsync(configPath);
+        var config = JsonSerializer.Deserialize<ModelsConfig>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+        if (config?.Models == null || config.Models.Count == 0)
+        {
+            Console.WriteLine("No models found in config.");
+            return;
+        }
 
         var factory = new SqliteConnectionFactory(AppConstants.SQLITE_CONNECTION);
         var barRepo = new BarRepository(factory);
         var tickRepo = new TickRepository(factory);
+        var today = DateTime.Today.ToString("yyyyMMdd");
 
-        var startDate = new DateTime(2020, 1, 1);
-        var endDate = new DateTime(2025, 12, 31);
-
-        switch (execution)
+        foreach (var model in config.Models.Where(m => m.Active && m.Export))
         {
-            case "tick":
-            string tickDir = Path.Combine(path, "tick");
-            Directory.CreateDirectory(tickDir);
-            await GenerateTickFeatureStreaming(Path.Combine(tickDir, "features.csv"), tickRepo);
-            break;
-            case "mes.day-bar.high":
-            string mesDayBarHighDir = Path.Combine(path, "mes.day-bar.high");
-            Directory.CreateDirectory(mesDayBarHighDir);
-            await new SessionOpenHighFeatureExporter(Path.Combine(mesDayBarHighDir, "features.csv"), barRepo).GenerateFeatures(startDate, endDate);
-            break;
-            case "mes.day-bar.low":
-            string mesDayBarLowDir = Path.Combine(path, "mes.day-bar.low");
-            Directory.CreateDirectory(mesDayBarLowDir);
-            await new SessionOpenLowFeatureExporter(Path.Combine(mesDayBarLowDir, "features.csv"), barRepo).GenerateFeatures(startDate, endDate);
-            break;
-            case "mes.trade-day-bar.high":
-            string mesTradeDayBarHighDir = Path.Combine(path, "mes.trade-day-bar.high");
-            Directory.CreateDirectory(mesTradeDayBarHighDir);
-            await new TradeDayOpenHighFeatureExporter(Path.Combine(mesTradeDayBarHighDir, "features.csv"), barRepo).GenerateFeatures(startDate, endDate);
-            break;
-            case "mes.trade-day-bar.low":
-            string mesTradeDayBarLowDir = Path.Combine(path, "mes.trade-day-bar.low");
-            Directory.CreateDirectory(mesTradeDayBarLowDir);
-            await new TradeDayOpenLowFeatureExporter(Path.Combine(mesTradeDayBarLowDir, "features.csv"), barRepo).GenerateFeatures(startDate, endDate);
-            break;
-            default:
-            Console.WriteLine("Unknown execution type. Expected: {instrument}.{data-type}.{prediction}");
-            break;
+            Console.WriteLine($"\nExporting: {model.ModelName}");
+            var path = Operations.NormalizePath(model.FeatureLocation);
+            if (!Directory.Exists(path))
+                Directory.CreateDirectory(path);
+
+            var outPath = Path.Combine(Operations.NormalizePath(model.FeatureLocation), "features.csv");
+
+            var start = DateTime.ParseExact(model.TrainingStart, "yyyyMMdd", null);
+            var end = DateTime.ParseExact(model.TrainingEnd,   "yyyyMMdd", null);
+
+            switch (model.ModelName)
+            {
+                case "tick":
+                    await GenerateTickFeatureStreaming(outPath, tickRepo);
+                    break;
+                case "mes.session-day-bar.high":
+                    await new SessionOpenHighFeatureExporter(outPath, barRepo).GenerateFeatures(start, end);
+                    break;
+                case "mes.session-day-bar.low":
+                    await new SessionOpenLowFeatureExporter(outPath, barRepo).GenerateFeatures(start, end);
+                    break;
+                case "mes.trade-day-bar.high":
+                    await new TradeDayOpenHighFeatureExporter(outPath, barRepo).GenerateFeatures(start, end);
+                    break;
+                case "mes.trade-day-bar.low":
+                    await new TradeDayOpenLowFeatureExporter(outPath, barRepo).GenerateFeatures(start, end);
+                    break;
+                default:
+                    Console.WriteLine($"Unknown model name '{model.ModelName}'. Skipping.");
+                    break;
+            }
         }
 
-        Console.WriteLine("Output complete.");
+        Console.WriteLine("\nOutput complete.");
     }
-
     static async Task GenerateTickFeatureStreaming(string outputPath, ITickRepository tickRepo)
     {
         using var writer = new StreamWriter(outputPath);
@@ -130,4 +139,22 @@ class Program
 
         Console.WriteLine($"Total samples written: {sampleCount}");
     }
+}
+
+class ModelsConfig
+{
+    public List<ModelEntry> Models { get; set; } = [];
+}
+
+class ModelEntry
+{
+    public string ModelName      { get; set; } = "";
+    public string Version        { get; set; } = "";
+    public string Instrument     { get; set; } = "";
+    public string TrainingStart  { get; set; } = "";
+    public string TrainingEnd    { get; set; } = "";
+    public string FeatureLocation { get; set; } = "";
+    public string OutputLocation { get; set; } = "";
+    public bool   Export         { get; set; }
+    public bool   Active         { get; set; }
 }

@@ -92,7 +92,7 @@ public class SessionHighStrategyEvaluator
 
         if (_predictor is null || _barRepo is null) return;
 
-        var prediction = await _predictor.PredictHighAsync(sessionDate, sessionOpen);
+        var prediction = await _predictor.PredictSessionHighAsync(sessionDate, sessionOpen);
         if (prediction is null) return;
 
         PredictedHigh = prediction.PredictedHigh;

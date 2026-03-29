@@ -49,7 +49,7 @@ public class SessionOpenLowFeatureExporter
 
         var sessionDates = minuteBarsBySession.Keys.OrderBy(x => x).ToList();
         var dailyBars = sessionDates
-            .Select(d => aggregateSession(minuteBarsBySession[d]))
+            .Select(d => BarData.Aggregate(minuteBarsBySession[d]))
             .ToList();
 
         var headerWritten = false;
@@ -239,21 +239,6 @@ public class SessionOpenLowFeatureExporter
             LowTimeRatio = lowTimeRatio,
             PrevOpenToLowRatio = Operations.SafeDiv(sessionOpen - sessionLow, atr20),
             LastHourClosePosition = lastHourClosePosition,
-        };
-    }
-
-    private static BarData aggregateSession(List<BarData> bars)
-    {
-        var ordered = bars.OrderBy(b => b.Timestamp).ToList();
-        return new BarData
-        {
-            Timestamp = ordered.First().Timestamp,
-            SessionDate = ordered.First().SessionDate,
-            Open = ordered.First().Open,
-            Close = ordered.Last().Close,
-            High = ordered.Max(b => b.High),
-            Low = ordered.Min(b => b.Low),
-            Volume = ordered.Sum(b => b.Volume),
         };
     }
 

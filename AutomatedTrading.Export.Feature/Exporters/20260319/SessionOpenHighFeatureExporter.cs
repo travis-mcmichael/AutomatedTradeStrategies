@@ -14,7 +14,7 @@ public class SessionOpenHighFeatureExporter
 
     public SessionOpenHighFeatureExporter(string outputPath, IBarRepository barRepository)
     {
-        this.outputPath    = outputPath;
+        this.outputPath = outputPath;
         this.barRepository = barRepository;
     }
 
@@ -42,7 +42,7 @@ public class SessionOpenHighFeatureExporter
 
         // Build the daily bar sequence once — each entry is one session aggregated
         var dailyBars = sessionDates
-            .Select(d => aggregateSession(minuteBarsBySession[d]))
+            .Select(d => BarData.Aggregate(minuteBarsBySession[d]))
             .ToList();
 
         var headerWritten = false;
@@ -189,13 +189,13 @@ public class SessionOpenHighFeatureExporter
             b.Timestamp.TimeOfDay <  AppConstants.RTH_START_TIME).ToList();
         var rth = ordered.Where(b => 
             b.Timestamp.TimeOfDay >= AppConstants.RTH_START_TIME && 
-            b.Timestamp.TimeOfDay <  AppConstants.RTH_END_TIME).ToList();
+            b.Timestamp.TimeOfDay < AppConstants.RTH_END_TIME).ToList();
         var firstHour = ordered.Where(b => 
             b.Timestamp.TimeOfDay >= AppConstants.RTH_START_TIME &&
             b.Timestamp.TimeOfDay < AppConstants.RTH_START_TIME + TimeSpan.FromHours(1)).ToList();
         var lastHour = ordered.Where(b =>
             b.Timestamp.TimeOfDay >= AppConstants.RTH_END_TIME - TimeSpan.FromHours(1) &&
-            b.Timestamp.TimeOfDay <  AppConstants.RTH_END_TIME).ToList();
+            b.Timestamp.TimeOfDay < AppConstants.RTH_END_TIME).ToList();
 
         var sessionHigh = ordered.Max(b => b.High);
         var sessionLow = ordered.Min(b => b.Low);
@@ -205,33 +205,18 @@ public class SessionOpenHighFeatureExporter
 
         return new IntradayFeatures
         {
-            OvernightRange       = overnight.Any()
+            OvernightRange = overnight.Any()
                 ? Operations.SafeDiv(overnight.Max(b => b.High) - overnight.Min(b => b.Low), atr20) : 0,
             OvernightVolumeRatio = Operations.SafeDiv(overnight.Sum(b => b.Volume), totalVolume),
-            RegularHoursRange    = rth.Any()
+            RegularHoursRange = rth.Any()
                 ? Operations.SafeDiv(rth.Max(b => b.High) - rth.Min(b => b.Low), atr20) : 0,
-            FirstHourRange       = firstHour.Any()
+            FirstHourRange = firstHour.Any()
                 ? Operations.SafeDiv(firstHour.Max(b => b.High) - firstHour.Min(b => b.Low), atr20) : 0,
-            LastHourRange        = lastHour.Any()
+            LastHourRange = lastHour.Any()
                 ? Operations.SafeDiv(lastHour.Max(b => b.High) - lastHour.Min(b => b.Low), atr20) : 0,
-            HighTimeRatio        = highTimeRatio,
-            PrevOpenToHighRatio  = Operations.SafeDiv(sessionHigh - sessionOpen, atr20),
-            PrevOpenToLowRatio   = Operations.SafeDiv(sessionOpen - sessionLow, atr20),
-        };
-    }
-
-    private static BarData aggregateSession(List<BarData> bars)
-    {
-        var ordered = bars.OrderBy(b => b.Timestamp).ToList();
-        return new BarData
-        {
-            Timestamp = ordered.First().Timestamp,
-            SessionDate = ordered.First().SessionDate,
-            Open = ordered.First().Open,
-            Close = ordered.Last().Close,
-            High = ordered.Max(b => b.High),
-            Low = ordered.Min(b => b.Low),
-            Volume = ordered.Sum(b => b.Volume),
+            HighTimeRatio = highTimeRatio,
+            PrevOpenToHighRatio = Operations.SafeDiv(sessionHigh - sessionOpen, atr20),
+            PrevOpenToLowRatio = Operations.SafeDiv(sessionOpen - sessionLow, atr20),
         };
     }
 

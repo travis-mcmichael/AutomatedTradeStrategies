@@ -218,13 +218,13 @@ public class TradeDayOpenLowFeatureExporter
         return new PreMarketFeatures
         {
             // Pre-market high-low range normalised by ATR
-            PreMarketRange        = Operations.SafeDiv(pmHigh - pmLow, atr20),
+            PreMarketRange = Operations.SafeDiv(pmHigh - pmLow, atr20),
             // How far above the RTH open did price trade pre-market (upside)
-            PreMarketHighVsOpen   = Operations.SafeDiv(pmHigh - tradeDayOpen, atr20),
+            PreMarketHighVsOpen = Operations.SafeDiv(pmHigh - tradeDayOpen, atr20),
             // How far below the RTH open did price trade pre-market (downside weakness)
-            PreMarketLowVsOpen    = Operations.SafeDiv(pmLow  - tradeDayOpen, atr20),
+            PreMarketLowVsOpen = Operations.SafeDiv(pmLow  - tradeDayOpen, atr20),
             // RTH open vs previous day's close (overnight gap)
-            GapToRthOpen          = Operations.SafeDiv(tradeDayOpen - prevClose, atr20),
+            GapToRthOpen = Operations.SafeDiv(tradeDayOpen - prevClose, atr20),
             // Pre-market share of total session volume
             PreMarketVolumeRatio  = Operations.SafeDiv(pmVolume, totalVolume),
         };
@@ -240,7 +240,7 @@ public class TradeDayOpenLowFeatureExporter
         var rth = bars.OrderBy(b => b.Timestamp)
             .Where(b =>
                 b.Timestamp.TimeOfDay >= AppConstants.RTH_START_TIME &&
-                b.Timestamp.TimeOfDay <  AppConstants.RTH_END_TIME).ToList();
+                b.Timestamp.TimeOfDay < AppConstants.RTH_END_TIME).ToList();
 
         if (!rth.Any()) return new RthIntradayFeatures();
 
@@ -264,8 +264,8 @@ public class TradeDayOpenLowFeatureExporter
         double lastHourClosePosition = 0.5;
         if (lastHour.Any())
         {
-            var lastHourHigh  = lastHour.Max(b => b.High);
-            var lastHourLow   = lastHour.Min(b => b.Low);
+            var lastHourHigh = lastHour.Max(b => b.High);
+            var lastHourLow = lastHour.Min(b => b.Low);
             var lastHourClose = lastHour.OrderBy(b => b.Timestamp).Last().Close;
             lastHourClosePosition = lastHourHigh == lastHourLow
                 ? 0.5
@@ -274,17 +274,17 @@ public class TradeDayOpenLowFeatureExporter
 
         return new RthIntradayFeatures
         {
-            RthRange                  = Operations.SafeDiv(rthHigh - rthLow, atr20),
-            RthFirstHalfHourRange     = firstHalfHour.Any()
+            RthRange = Operations.SafeDiv(rthHigh - rthLow, atr20),
+            RthFirstHalfHourRange = firstHalfHour.Any()
                 ? Operations.SafeDiv(firstHalfHour.Max(b => b.High) - firstHalfHour.Min(b => b.Low), atr20) : 0,
-            RthFirstHourRange         = firstHour.Any()
+            RthFirstHourRange = firstHour.Any()
                 ? Operations.SafeDiv(firstHour.Max(b => b.High) - firstHour.Min(b => b.Low), atr20) : 0,
-            RthLastHourRange          = lastHour.Any()
+            RthLastHourRange = lastHour.Any()
                 ? Operations.SafeDiv(lastHour.Max(b => b.High) - lastHour.Min(b => b.Low), atr20) : 0,
-            RthLowTimeRatio           = lowTimeRatio,
-            RthOpenToHighRatio        = Operations.SafeDiv(rthHigh - rthOpen, atr20),
-            RthOpenToLowRatio         = Operations.SafeDiv(rthOpen  - rthLow,  atr20),
-            RthLastHourClosePosition  = lastHourClosePosition,
+            RthLowTimeRatio = lowTimeRatio,
+            RthOpenToHighRatio = Operations.SafeDiv(rthHigh - rthOpen, atr20),
+            RthOpenToLowRatio = Operations.SafeDiv(rthOpen  - rthLow,  atr20),
+            RthLastHourClosePosition = lastHourClosePosition,
         };
     }
 
@@ -293,34 +293,34 @@ public class TradeDayOpenLowFeatureExporter
         var ordered = bars.OrderBy(b => b.Timestamp).ToList();
         return new BarData
         {
-            Timestamp   = ordered.First().Timestamp,
+            Timestamp = ordered.First().Timestamp,
             SessionDate = ordered.First().SessionDate,
-            Open        = ordered.First().Open,
-            Close       = ordered.Last().Close,
-            High        = ordered.Max(b => b.High),
-            Low         = ordered.Min(b => b.Low),
-            Volume      = ordered.Sum(b => b.Volume),
+            Open = ordered.First().Open,
+            Close = ordered.Last().Close,
+            High = ordered.Max(b => b.High),
+            Low = ordered.Min(b => b.Low),
+            Volume = ordered.Sum(b => b.Volume),
         };
     }
 
     private class PreMarketFeatures
     {
-        public double PreMarketRange       { get; set; }
-        public double PreMarketHighVsOpen  { get; set; }
-        public double PreMarketLowVsOpen   { get; set; }
-        public double GapToRthOpen         { get; set; }
+        public double PreMarketRange { get; set; }
+        public double PreMarketHighVsOpen { get; set; }
+        public double PreMarketLowVsOpen { get; set; }
+        public double GapToRthOpen { get; set; }
         public double PreMarketVolumeRatio { get; set; }
     }
 
     private class RthIntradayFeatures
     {
-        public double RthRange                 { get; set; }
-        public double RthFirstHalfHourRange    { get; set; }
-        public double RthFirstHourRange        { get; set; }
-        public double RthLastHourRange         { get; set; }
-        public double RthLowTimeRatio          { get; set; }
-        public double RthOpenToHighRatio       { get; set; }
-        public double RthOpenToLowRatio        { get; set; }
+        public double RthRange { get; set; }
+        public double RthFirstHalfHourRange { get; set; }
+        public double RthFirstHourRange { get; set; }
+        public double RthLastHourRange { get; set; }
+        public double RthLowTimeRatio { get; set; }
+        public double RthOpenToHighRatio { get; set; }
+        public double RthOpenToLowRatio { get; set; }
         public double RthLastHourClosePosition { get; set; }
     }
 }

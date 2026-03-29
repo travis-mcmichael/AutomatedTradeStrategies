@@ -174,7 +174,7 @@ public class InferenceEvaluationTest
 
         var output = new Dictionary<string, SessionResult>();
 
-        if (_evaluators.TryGetValue("mes.day-bar.high", out var highEval))
+        if (_evaluators.TryGetValue("mes.session-day-bar.high", out var highEval))
         {
             double[] tail =
             [
@@ -190,7 +190,7 @@ public class InferenceEvaluationTest
             var scaled = highEval.Scale([.. shared, .. tail]);
             var predicted = sessionOpen + highEval.RunInference(scaled) * atr20;
             var actual = todayMinuteBars.Max(b => b.High);
-            output["mes.day-bar.high"] = new SessionResult(
+            output["mes.session-day-bar.high"] = new SessionResult(
                 sessionDate, 
                 predicted,
                 actual,
@@ -199,7 +199,7 @@ public class InferenceEvaluationTest
                 atr20);
         }
 
-        if (_evaluators.TryGetValue("mes.day-bar.low", out var lowEval))
+        if (_evaluators.TryGetValue("mes.session-day-bar.low", out var lowEval))
         {
             double[] tail =
             [
@@ -216,7 +216,7 @@ public class InferenceEvaluationTest
             var scaled = lowEval.Scale([.. shared, .. tail]);
             var predicted = sessionOpen - lowEval.RunInference(scaled) * atr20;
             var actual = todayMinuteBars.Min(b => b.Low);
-            output["mes.day-bar.low"] = new SessionResult(
+            output["mes.session-day-bar.low"] = new SessionResult(
                 sessionDate, 
                 predicted, 
                 actual,
