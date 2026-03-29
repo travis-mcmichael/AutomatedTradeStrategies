@@ -42,6 +42,9 @@ class Program
         foreach (var model in config.Models.Where(m => m.Active && m.Export))
         {
             Console.WriteLine($"\nExporting: {model.ModelName}");
+            var path = NormalizePath(model.FeatureLocation);
+            if (!Directory.Exists(path))
+                Directory.CreateDirectory(path);
 
             var outPath = Path.Combine(NormalizePath(model.FeatureLocation), "features.csv");
 
@@ -53,10 +56,10 @@ class Program
                 case "tick":
                     await GenerateTickFeatureStreaming(outPath, tickRepo);
                     break;
-                case "mes.day-bar.high":
+                case "mes.session-day-bar.high":
                     await new SessionOpenHighFeatureExporter(outPath, barRepo).GenerateFeatures(start, end);
                     break;
-                case "mes.day-bar.low":
+                case "mes.session-day-bar.low":
                     await new SessionOpenLowFeatureExporter(outPath, barRepo).GenerateFeatures(start, end);
                     break;
                 case "mes.trade-day-bar.high":

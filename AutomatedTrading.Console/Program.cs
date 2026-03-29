@@ -12,8 +12,8 @@ class Program
 {
     static readonly List<ModelConfig> ModelConfigs =
     [
-        new("mes.day-bar.high", "20260329", 38, isHigh: true),
-        new("mes.day-bar.low",  "20260329", 39, isHigh: false),
+        new("mes.session-day-bar.high", "20260329", 38, isHigh: true),
+        new("mes.session-day-bar.low",  "20260329", 39, isHigh: false),
         new("mes.trade-day-bar.high", "20260329", 42, isHigh: true),
         new("mes.trade-day-bar.low", "20260329", 43, isHigh: false)
     ];
