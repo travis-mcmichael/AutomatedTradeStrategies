@@ -12,8 +12,10 @@ class Program
 {
     static readonly List<ModelConfig> ModelConfigs =
     [
-        new("mes.day-bar.high", "20260326", 38, isHigh: true),
-        new("mes.day-bar.low",  "20260326", 39, isHigh: false),
+        new("mes.day-bar.high", "20260329", 38, isHigh: true),
+        new("mes.day-bar.low",  "20260329", 39, isHigh: false),
+        new("mes.trade-day-bar.high", "20260329", 42, isHigh: true),
+        new("mes.trade-day-bar.low", "20260329", 43, isHigh: false)
     ];
 
     static async Task Main(string[] args)
@@ -22,8 +24,8 @@ class Program
         var runType = "inference";
         
         var barRepo = new BarRepository(new SqliteConnectionFactory(AppConstants.SQLITE_CONNECTION));
-        var rangeStart = runDate;//new DateTime(2026, 3, 18);
-        var rangeEnd = runDate;//new DateTime(2025, 1, 2); //DateTime.Today < new DateTime(2026, 12, 31) ? DateTime.Today : new DateTime(2026, 12, 31);
+        var rangeStart = new DateTime(2026, 1, 1);
+        var rangeEnd = new DateTime(2026, 3, 27); //DateTime.Today < new DateTime(2026, 12, 31) ? DateTime.Today : new DateTime(2026, 12, 31);
         
         if (runType == "inference")
         {
