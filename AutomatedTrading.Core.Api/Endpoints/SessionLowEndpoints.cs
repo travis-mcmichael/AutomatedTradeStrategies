@@ -5,11 +5,11 @@ using AutomatedTrading.Core.Strategies;
 
 namespace AutomatedTrading.Core.Api.Endpoints;
 
-public static class PredictedLowEndpoints
+public static class SessionLowEndpoints
 {
     public static void Map(WebApplication app)
     {
-        app.MapPost("/strategy/predicted-low/session", async (
+        app.MapPost("/strategy/session-low/session", async (
             SessionLowSessionRequest req,
             SessionLowStrategyEvaluator evaluator) => 
         {
@@ -27,7 +27,7 @@ public static class PredictedLowEndpoints
                 evaluator.PredictedLow,
                 evaluator.DailyAtr));
         });
-        app.MapPost("/strategy/predicted-low/bar", (
+        app.MapPost("/strategy/session-low/bar", (
             SessionLowBarRequest req,
             SessionLowStrategyEvaluator evaluator) =>
         {

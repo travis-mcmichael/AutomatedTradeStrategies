@@ -27,34 +27,35 @@ namespace AutomatedTrading.Core.Strategies;
 public class TradeDayHighStrategyEvaluator
 {
     // ─── Configuration ────────────────────────────────────────────────────────
-    public double Proximity      { get; private set; }
+    public double Proximity { get; private set; }
     public double StopLossPoints { get; private set; }
-    public double TargetProfit   { get; private set; }
-    public double Trail          { get; private set; }
+    public double TargetProfit { get; private set; }
+    public double Trail { get; private set; }
 
     // ─── Observable session state ─────────────────────────────────────────────
-    public bool   IsReady       { get; private set; }
+    public bool IsReady { get; private set; }
     public double PredictedHigh { get; private set; }
-    public double DailyAtr      { get; private set; }
+    public double DailyAtr { get; private set; }
 
     // ─── Internal state ───────────────────────────────────────────────────────
-    private bool   _hasHighHit;
-    private bool   _trailingStopActive;
+    private bool _hasHighHit;
+    private bool _trailingStopActive;
     private double _trailingStopPrice;
     private readonly ITradeDayHighPredictor? _predictor;
-    private readonly IBarRepository?         _barRepo;
+    private readonly IBarRepository? _barRepo;
+    private int _barCount;
 
     // ─── Constructors ─────────────────────────────────────────────────────────
 
     /// <summary>Production constructor — injected with the ML predictor and bar repository.</summary>
     public TradeDayHighStrategyEvaluator(ITradeDayHighPredictor predictor, IBarRepository barRepo)
     {
-        _predictor    = predictor;
-        _barRepo      = barRepo;
-        Proximity      = 0.5;
+        _predictor = predictor;
+        _barRepo = barRepo;
+        Proximity = 0.5;
         StopLossPoints = 5.0;
-        TargetProfit   = 20.0;
-        Trail          = 10.0;
+        TargetProfit = 20.0;
+        Trail = 10.0;
         resetState();
     }
 
@@ -62,10 +63,10 @@ public class TradeDayHighStrategyEvaluator
     public TradeDayHighStrategyEvaluator(
         double proximity, double stopLossPoints, double targetProfit, double trail)
     {
-        Proximity      = proximity;
+        Proximity = proximity;
         StopLossPoints = stopLossPoints;
-        TargetProfit   = targetProfit;
-        Trail          = trail;
+        TargetProfit = targetProfit;
+        Trail = trail;
         resetState();
     }
 
@@ -83,10 +84,10 @@ public class TradeDayHighStrategyEvaluator
         double targetProfit,
         double trail)
     {
-        Proximity      = proximity;
+        Proximity = proximity;
         StopLossPoints = stopLossPoints;
-        TargetProfit   = targetProfit;
-        Trail          = trail;
+        TargetProfit = targetProfit;
+        Trail = trail;
         resetState();
 
         if (_predictor is null || _barRepo is null) return;
@@ -95,8 +96,8 @@ public class TradeDayHighStrategyEvaluator
         if (prediction is null) return;
 
         PredictedHigh = prediction.PredictedHigh;
-        DailyAtr      = await loadDailyAtrAsync(sessionDate);
-        IsReady       = true;
+        DailyAtr = await loadDailyAtrAsync(sessionDate);
+        IsReady = true;
     }
 
     /// <summary>Test path: inject a known prediction and ATR directly.</summary>
@@ -104,8 +105,8 @@ public class TradeDayHighStrategyEvaluator
     {
         resetState();
         PredictedHigh = predictedHigh;
-        DailyAtr      = dailyAtr;
-        IsReady       = true;
+        DailyAtr = dailyAtr;
+        IsReady = true;
     }
 
     // ─── Per-bar evaluation ───────────────────────────────────────────────────
@@ -116,30 +117,35 @@ public class TradeDayHighStrategyEvaluator
         PositionSide position,
         double entryPrice = 0)
     {
-        if (!IsReady) return new(StrategySignal.None, 0);
+        _barCount++;
+        if (!IsReady || _barCount < 15) return new(StrategySignal.None, 0);
 
         // ── Near predicted HIGH: enter short or flatten long ─────────────────
         if (barHigh >= PredictedHigh - Proximity * DailyAtr)
         {
             if (position == PositionSide.Long)
             {
-                _hasHighHit = true;
                 return new(StrategySignal.ExitLong, 0);
             }
 
-            if (position == PositionSide.Flat && !_hasHighHit)
+            if (position == PositionSide.Flat)
             {
-                _hasHighHit = true;
-                return new(StrategySignal.EnterShort, PredictedHigh + StopLossPoints);
-            }
+                PredictedHigh += Proximity * DailyAtr / 2;
+                return new(StrategySignal.EnterShort, barHigh + StopLossPoints * DailyAtr);
 
-            _hasHighHit = true;
+                // if (!_hasHighHit)
+                // {
+                //     _hasHighHit = true;
+                //     PredictedHigh += Proximity * DailyAtr / 2;
+                //     return new(StrategySignal.EnterShort, barHigh + StopLossPoints * DailyAtr);
+                // }
+            }
         }
 
         // ── Trailing stop management (short position only) ───────────────────
         if (position == PositionSide.Short)
         {
-            var ep     = entryPrice > 0 ? entryPrice : barClose;
+            var ep = entryPrice > 0 ? entryPrice : barClose;
             var profit = ep - barClose;
 
             if (!_trailingStopActive && profit >= TargetProfit)
@@ -151,10 +157,10 @@ public class TradeDayHighStrategyEvaluator
 
             if (_trailingStopActive)
             {
-                var candidate = barClose + Trail;
-                if (candidate < _trailingStopPrice)
+                var candidate = barClose;
+                if (candidate < _trailingStopPrice - TargetProfit)
                 {
-                    _trailingStopPrice = candidate;
+                    _trailingStopPrice = candidate + Trail;
                     return new(StrategySignal.UpdateStop, _trailingStopPrice);
                 }
             }
@@ -162,7 +168,7 @@ public class TradeDayHighStrategyEvaluator
         else if (_trailingStopActive)
         {
             _trailingStopActive = false;
-            _trailingStopPrice  = double.MaxValue;
+            _trailingStopPrice = double.MaxValue;
         }
 
         return new(StrategySignal.None, 0);
@@ -172,12 +178,13 @@ public class TradeDayHighStrategyEvaluator
 
     private void resetState()
     {
-        IsReady             = false;
-        PredictedHigh       = double.MaxValue;
-        DailyAtr            = 0;
-        _hasHighHit         = false;
+        IsReady = false;
+        PredictedHigh = double.MaxValue;
+        DailyAtr = 0;
+        _hasHighHit = false;
         _trailingStopActive = false;
-        _trailingStopPrice  = double.MaxValue;
+        _trailingStopPrice = double.MaxValue;
+        _barCount = 0;
     }
 
     private async Task<double> loadDailyAtrAsync(string sessionDate)
@@ -187,17 +194,17 @@ public class TradeDayHighStrategyEvaluator
 
         for (var i = 1; dailyBars.Count < 20 && i <= 60; i++)
         {
-            var d    = date.AddDays(-i).ToString("yyyyMMdd");
+            var d = date.AddDays(-i).ToString("yyyyMMdd");
             var bars = await _barRepo!.GetBarsBySessionDateAsync(d);
             if (bars.Count == 0) continue;
 
             var ordered = bars.OrderBy(b => b.Timestamp).ToList();
             dailyBars.Insert(0, new BarData
             {
-                Open   = ordered[0].Open,
-                High   = ordered.Max(b => b.High),
-                Low    = ordered.Min(b => b.Low),
-                Close  = ordered.Last().Close,
+                Open = ordered[0].Open,
+                High = ordered.Max(b => b.High),
+                Low = ordered.Min(b => b.Low),
+                Close = ordered.Last().Close,
             });
         }
 

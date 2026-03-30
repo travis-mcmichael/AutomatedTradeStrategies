@@ -10,7 +10,7 @@ public static class SessionHighEndpoints
     {
         // Called once at RTH session open. Runs ML inference, loads daily ATR,
         // and arms the evaluator for the session.
-        app.MapPost("/strategy/predicted-high/session", async (
+        app.MapPost("/strategy/session-high/session", async (
             SessionHighSessionRequest req,
             SessionHighStrategyEvaluator evaluator) =>
         {
@@ -32,7 +32,7 @@ public static class SessionHighEndpoints
         });
 
         // Called on every bar close. Returns the signal the strategy should act on.
-        app.MapPost("/strategy/predicted-high/bar", (
+        app.MapPost("/strategy/session-high/bar", (
             SessionHighBarRequest req,
             SessionHighStrategyEvaluator evaluator) =>
         {

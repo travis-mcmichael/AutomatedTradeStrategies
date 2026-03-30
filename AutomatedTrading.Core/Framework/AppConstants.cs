@@ -1,4 +1,6 @@
 using System;
+using Microsoft.Extensions.Configuration;
+
 namespace AutomatedTrading.Core.Framework;
 
 public static class AppConstants

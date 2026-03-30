@@ -230,10 +230,12 @@ public class InferenceEvaluationTest
             .Where(b => b.Timestamp.TimeOfDay >= AppConstants.RTH_START_TIME &&
                         b.Timestamp.TimeOfDay <  AppConstants.RTH_END_TIME)
             .ToList();
+        System.Console.WriteLine($"RTH Open: {rthBars.FirstOrDefault()?.Open.ToString("F2") ?? "N/A"}");
 
         if (_evaluators.TryGetValue("mes.trade-day-bar.high", out var tradeDayHighEval) && rthBars.Count > 0)
         {
             var tradeDayOpen = rthBars.First().Open;
+
             double[] tradeDayShared =
             [
                 Operations.SafeDiv(current.High, tradeDayOpen),              // PrevHighRatio
@@ -297,6 +299,7 @@ public class InferenceEvaluationTest
         if (_evaluators.TryGetValue("mes.trade-day-bar.low", out var tradeDayLowEval) && rthBars.Count > 0)
         {
             var tradeDayOpen = rthBars.First().Open;
+
             double[] tradeDayShared =
             [
                 Operations.SafeDiv(current.High, tradeDayOpen),              // PrevHighRatio
@@ -380,8 +383,8 @@ public class InferenceEvaluationTest
     private void logHeader()
     {
         System.Console.WriteLine(
-            $"\n{"Session",-10} {"Model",-22}  {"PredMove",9}  {"ActMove",9}  {"Predicted",10}  {"Actual",10}  {"Error",8}  {"ATR",8}  {"Err/ATR",8}");
-        System.Console.WriteLine(new string('-', 109));
+            $"\n{"Session",-10} {"Model",-30}  {"PredMove",9}  {"ActMove",9}  {"Predicted",10}  {"Actual",10}  {"Error",8}  {"ATR",8}  {"Err/ATR",8}");
+        System.Console.WriteLine(new string('-', 117));
     }
 
     private void logMonthHeader(string month)
@@ -401,7 +404,7 @@ public class InferenceEvaluationTest
         var errAtr = Operations.SafeDiv(error, r.Atr20);
         var dateCol = first ? sessionDate : new string(' ', 8);
         System.Console.WriteLine(
-            $"{dateCol,-10} {config.Name,-22}  {r.PredictedMove,9:F2}  {r.ActualMove,9:F2}  {r.Predicted,10:F2}  {r.Actual,10:F2}  {error,8:F2}  {r.Atr20,8:F2}  {errAtr,8:F3}");
+            $"{dateCol,-10} {config.Name,-30}  {r.PredictedMove,9:F2}  {r.ActualMove,9:F2}  {r.Predicted,10:F2}  {r.Actual,10:F2}  {error,8:F2}  {r.Atr20,8:F2}  {errAtr,8:F3}");
     }
 
     private void logStats(string label, List<SessionResult> results)
@@ -415,8 +418,8 @@ public class InferenceEvaluationTest
         var w10 = errors.Count(e => e < avgAtr);
         var n = results.Count;
         System.Console.WriteLine(
-            $"{label}  n={n,3} | AvgPredMove={avgPredMove,7:F2}  AvgActMove={avgActMove,7:F2} | " +
+            $"{label.Trim(),-30}  n={n,3} | AvgPredMove={avgPredMove,7:F2}  AvgActMove={avgActMove,7:F2} | " +
             $"MAE={mae,7:F2} pts | MAE/ATR={Operations.SafeDiv(mae, avgAtr):F3} | " +
-            $"W0.5={w05,3}/{n} ({(double)w05/n:P0}) | W1.0={w10,3}/{n} ({(double)w10/n:P0})");
+            $"W0.5={w05,3}/{n} ({(double)w05/n,4:P0}) | W1.0={w10,3}/{n} ({(double)w10/n,4:P0})");
     }
 }
