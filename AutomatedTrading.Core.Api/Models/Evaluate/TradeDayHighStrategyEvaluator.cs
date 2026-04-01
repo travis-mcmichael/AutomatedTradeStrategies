@@ -2,30 +2,31 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using AutomatedTrading.Core.Framework.Utility;
+using AutomatedTrading.Core.Api.Models.API.Predict;
 using AutomatedTrading.Core.Framework.DataLayer.Repositories;
-using AutomatedTrading.Core.Models;
 using AutomatedTrading.Core.Framework.Enums;
-using AutomatedTrading.Core.Framework.Predictors;
 using AutomatedTrading.Core.Framework.Logging;
+using AutomatedTrading.Core.Framework.Predictors;
+using AutomatedTrading.Core.Framework.Utility;
+using AutomatedTrading.Core.Models;
 
-namespace AutomatedTrading.Core.Strategies;
+namespace AutomatedTrading.Core.Api.Models.Evaluate;
 
 /// <summary>
-/// Encapsulates all trading logic for the PredictedHigh strategy so it can be exercised
-/// independently of NinjaTrader in automated tests or a backtesting runner.
+/// Trading logic for the TradeDayHigh strategy.
+/// Predicts the high within RTH (08:30–15:15) from the RTH open.
 ///
 /// Production use (via the REST API):
-///   var evaluator = new PredictedHighStrategyEvaluator(predictor, barRepo);
-///   await evaluator.StartSessionAsync(sessionDate, sessionOpen, proximity, ...);
+///   var evaluator = new TradeDayHighStrategyEvaluator(predictor, barRepo);
+///   await evaluator.StartSessionAsync(sessionDate, rthOpen, proximity, ...);
 ///   var eval = evaluator.Evaluate(barHigh, barClose, position, entryPrice);
 ///
 /// Test use (inject values directly, no DB or ML required):
-///   var evaluator = new PredictedHighStrategyEvaluator(proximity: 0.5, stopLossPoints: 5.0, ...);
+///   var evaluator = new TradeDayHighStrategyEvaluator(proximity: 0.5, stopLossPoints: 5.0, ...);
 ///   evaluator.StartSession(predictedHigh: 4500.0, dailyAtr: 20.0);
 ///   var eval = evaluator.Evaluate(4499.0, 4497.0, PositionSide.Flat);
 /// </summary>
-public class SessionHighStrategyEvaluator
+public class TradeDayHighStrategyEvaluator
 {
     // ─── Configuration ────────────────────────────────────────────────────────
     public double Proximity { get; private set; }
@@ -39,15 +40,17 @@ public class SessionHighStrategyEvaluator
     public double DailyAtr { get; private set; }
 
     // ─── Internal state ───────────────────────────────────────────────────────
+    private bool _hasHighHit;
     private bool _trailingStopActive;
     private double _trailingStopPrice;
-    private readonly IBarHighPredictor? _predictor;
+    private readonly ITradeDayHighPredictor? _predictor;
     private readonly IBarRepository? _barRepo;
+    private int _barCount;
 
     // ─── Constructors ─────────────────────────────────────────────────────────
 
     /// <summary>Production constructor — injected with the ML predictor and bar repository.</summary>
-    public SessionHighStrategyEvaluator(IBarHighPredictor predictor, IBarRepository barRepo)
+    public TradeDayHighStrategyEvaluator(ITradeDayHighPredictor predictor, IBarRepository barRepo)
     {
         _predictor = predictor;
         _barRepo = barRepo;
@@ -59,7 +62,7 @@ public class SessionHighStrategyEvaluator
     }
 
     /// <summary>Test constructor — no external dependencies needed.</summary>
-    public SessionHighStrategyEvaluator(
+    public TradeDayHighStrategyEvaluator(
         double proximity, double stopLossPoints, double targetProfit, double trail)
     {
         Proximity = proximity;
@@ -72,9 +75,8 @@ public class SessionHighStrategyEvaluator
     // ─── Session initialisation ───────────────────────────────────────────────
 
     /// <summary>
-    /// Production path: fetches the prediction from the ML model and computes daily ATR
-    /// from historical bar data. Parameters are forwarded from the NinjaTrader UI so the
-    /// evaluator stays in sync with the strategy properties panel.
+    /// Production path: fetches the RTH-high prediction from the ML model and computes
+    /// daily ATR from historical bar data. Call once at the RTH open each session.
     /// </summary>
     public async Task StartSessionAsync(
         string sessionDate,
@@ -85,11 +87,11 @@ public class SessionHighStrategyEvaluator
         double trail)
     {
         Logger.Info($"{GetType().Name}.StartSessionAsync:" +
-            $"\r\n\t{"SessionDate",20}:{sessionDate,20}" + 
-            $"\r\n\t{"SessionOpen",20}:{sessionOpen,20:f2}" + 
-            $"\r\n\t{"Proximity",20}:{proximity,20:f2}" + 
-            $"\r\n\t{"StopLoss",20}:{stopLossPoints,20:f2}" + 
-            $"\r\n\t{"TargetProfit",20}:{targetProfit,20:f2}" + 
+            $"\r\n\t{"SessionDate",20}:{sessionDate,20}" +
+            $"\r\n\t{"SessionOpen",20}:{sessionOpen,20:f2}" +
+            $"\r\n\t{"Proximity",20}:{proximity,20:f2}" +
+            $"\r\n\t{"StopLoss",20}:{stopLossPoints,20:f2}" +
+            $"\r\n\t{"TargetProfit",20}:{targetProfit,20:f2}" +
             $"\r\n\t{"Trail",20}:{trail,20:f2}");
 
         Proximity = proximity;
@@ -100,7 +102,7 @@ public class SessionHighStrategyEvaluator
 
         if (_predictor is null || _barRepo is null) return;
 
-        var prediction = await _predictor.PredictSessionHighAsync(sessionDate, sessionOpen);
+        var prediction = await _predictor.PredictTradeDayHighAsync(sessionDate, sessionOpen);
         if (prediction is null) return;
 
         PredictedHigh = prediction.PredictedHigh;
@@ -108,9 +110,7 @@ public class SessionHighStrategyEvaluator
         IsReady = true;
     }
 
-    /// <summary>
-    /// Test path: inject a known prediction and ATR directly, bypassing the ML model and DB.
-    /// </summary>
+    /// <summary>Test path: inject a known prediction and ATR directly.</summary>
     public void StartSession(double predictedHigh, double dailyAtr)
     {
         resetState();
@@ -121,11 +121,6 @@ public class SessionHighStrategyEvaluator
 
     // ─── Per-bar evaluation ───────────────────────────────────────────────────
 
-    /// <summary>
-    /// Evaluates a single completed bar and returns the signal to act on.
-    /// <para><paramref name="entryPrice"/> should be the actual fill price when <paramref name="position"/>
-    /// is <see cref="PositionSide.Short"/>; if omitted the bar close is used as a proxy.</para>
-    /// </summary>
     public BarEvaluation Evaluate(
         double barHigh,
         double barClose,
@@ -135,15 +130,17 @@ public class SessionHighStrategyEvaluator
         Logger.Info($"{GetType().Name}.Evaluate:" +
             $"\r\n\t{"BarHigh",20}:{barHigh,20:f2}" +
             $"\r\n\t{"BarClose",20}:{barClose,20:f2}" +
-            $"\r\n\t{"Position",20}:{position,20}" + 
+            $"\r\n\t{"Position",20}:{position,20}" +
             $"\r\n\t{"EntryPrice",20}:{entryPrice,20}");
 
-        if (!IsReady) return new(StrategySignal.None, 0);
+        _barCount++;
+        if (!IsReady || _barCount < 15) return new(StrategySignal.None, 0);
 
         // ── Near predicted HIGH: enter short or flatten long ─────────────────
         if (barHigh >= PredictedHigh - Proximity * DailyAtr)
         {
-            Logger.Info($"Bar.High near predicted high: barHigh @ {barHigh:f2}, predicted @ {PredictedHigh:f2}, prox * atr @ {Proximity * DailyAtr:f2}");
+            Logger.Info($"Bar.High near predicted high: barHigh({barHigh:f2}), predicted({PredictedHigh:f2}) - prox * atr({Proximity * DailyAtr:f2})");
+
             if (position == PositionSide.Long)
             {
                 return new(StrategySignal.ExitLong, 0);
@@ -151,8 +148,15 @@ public class SessionHighStrategyEvaluator
 
             if (position == PositionSide.Flat)
             {
-                PredictedHigh += Proximity * DailyAtr;
-                return new(StrategySignal.EnterShort, PredictedHigh + StopLossPoints);
+                PredictedHigh += Proximity * DailyAtr / 2;
+                return new(StrategySignal.EnterShort, barHigh + StopLossPoints * DailyAtr);
+
+                // if (!_hasHighHit)
+                // {
+                //     _hasHighHit = true;
+                //     PredictedHigh += Proximity * DailyAtr / 2;
+                //     return new(StrategySignal.EnterShort, barHigh + StopLossPoints * DailyAtr);
+                // }
             }
         }
 
@@ -172,10 +176,10 @@ public class SessionHighStrategyEvaluator
 
             if (_trailingStopActive)
             {
-                var candidate = barClose + Trail;
-                if (candidate < _trailingStopPrice)
+                var candidate = barClose;
+                if (candidate < _trailingStopPrice - TargetProfit)
                 {
-                    _trailingStopPrice = candidate;
+                    _trailingStopPrice = candidate + Trail;
                     Logger.Info($"Trailing stop update triggered: close @ {barClose:f2}, trail @ {Trail:f2}, new stop @ {_trailingStopPrice:f2}");
                     return new(StrategySignal.UpdateStop, _trailingStopPrice);
                 }
@@ -183,7 +187,6 @@ public class SessionHighStrategyEvaluator
         }
         else if (_trailingStopActive)
         {
-            // Position was closed (stop hit or manual exit) — reset trailing state.
             _trailingStopActive = false;
             _trailingStopPrice = double.MaxValue;
         }
@@ -198,14 +201,12 @@ public class SessionHighStrategyEvaluator
         IsReady = false;
         PredictedHigh = double.MaxValue;
         DailyAtr = 0;
+        _hasHighHit = false;
         _trailingStopActive = false;
         _trailingStopPrice = double.MaxValue;
+        _barCount = 0;
     }
 
-    /// <summary>
-    /// Walks back through calendar days, collecting up to 20 trading sessions and
-    /// computing ATR(20) from the aggregated daily bars.
-    /// </summary>
     private async Task<double> loadDailyAtrAsync(string sessionDate)
     {
         var dailyBars = new List<BarData>();

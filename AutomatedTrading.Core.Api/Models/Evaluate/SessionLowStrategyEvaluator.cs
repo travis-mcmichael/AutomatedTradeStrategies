@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using AutomatedTrading.Core.Api.Models.API.Predict;
 using AutomatedTrading.Core.Framework.DataLayer.Repositories;
 using AutomatedTrading.Core.Framework.Enums;
 using AutomatedTrading.Core.Framework.Logging;
@@ -9,7 +10,7 @@ using AutomatedTrading.Core.Framework.Predictors;
 using AutomatedTrading.Core.Framework.Utility;
 using AutomatedTrading.Core.Models;
 
-namespace AutomatedTrading.Core.Strategies;
+namespace AutomatedTrading.Core.Api.Models.Evaluate;
 
 public class SessionLowStrategyEvaluator
 {
