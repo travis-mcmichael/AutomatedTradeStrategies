@@ -1,22 +1,25 @@
 using AutomatedTrading.Core.Api.Models;
 using AutomatedTrading.Core.Strategies;
 using AutomatedTrading.Core.Framework.Enums;
+using AutomatedTrading.Core.Framework.Logging;
 
 namespace AutomatedTrading.Core.Api.Endpoints;
 
 public static class SessionHighEndpoints
 {
+    private static readonly string SESSION_START = "/strategy/session-high/session";
+    private static readonly string EVAL_BAR = "/strategy/session-high/bar";
     public static void Map(WebApplication app)
     {
         // Called once at RTH session open. Runs ML inference, loads daily ATR,
         // and arms the evaluator for the session.
-        app.MapPost("/strategy/session-high/session", async (
+        app.MapPost(SESSION_START, async (
             SessionHighSessionRequest req,
             SessionHighStrategyEvaluator evaluator) =>
         {
+            Logger.Info($"Endpoint {SESSION_START} called.");
             if (string.IsNullOrWhiteSpace(req.SessionDate))
                 return Results.BadRequest("SessionDate is required.");
-
             await evaluator.StartSessionAsync(
                 req.SessionDate,
                 req.SessionOpen,
@@ -32,10 +35,11 @@ public static class SessionHighEndpoints
         });
 
         // Called on every bar close. Returns the signal the strategy should act on.
-        app.MapPost("/strategy/session-high/bar", (
+        app.MapPost(EVAL_BAR, (
             SessionHighBarRequest req,
             SessionHighStrategyEvaluator evaluator) =>
         {
+            Logger.Info($"Endpoint {EVAL_BAR} called.");
             var position = req.Position switch
             {
                 "Long" => PositionSide.Long,
