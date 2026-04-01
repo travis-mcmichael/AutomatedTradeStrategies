@@ -1,9 +1,9 @@
 using System.Text.Json;
 using AutomatedTrading.Core.Api.Models;
+using AutomatedTrading.Core.Api.Models.API.Predict;
 using AutomatedTrading.Core.Framework;
 using AutomatedTrading.Core.Framework.DataLayer.Repositories;
 using AutomatedTrading.Core.Framework.ML;
-using AutomatedTrading.Core.Framework.Predictors;
 using AutomatedTrading.Core.Framework.Utility;
 using AutomatedTrading.Core.Models;
 

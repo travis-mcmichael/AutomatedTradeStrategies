@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using AutomatedTrading.Core.Framework.Logging;
 using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
 
@@ -20,8 +21,8 @@ public class BaseMLEvaluator : IDisposable
 
     public BaseMLEvaluator(string modelPath, string scalerPath, int featureCount)
     {
-        this.modelPath    = modelPath;
-        this.scalerPath   = scalerPath;
+        this.modelPath = modelPath;
+        this.scalerPath = scalerPath;
         this.featureCount = featureCount;
     }
 
@@ -52,13 +53,13 @@ public class BaseMLEvaluator : IDisposable
     {
         if (session == null)
         {
-            Console.WriteLine("Session not loaded");
+            Logger.Warn("Session not loaded");
             return 0.0;
         }
 
         if (features.Length != featureCount)
         {
-            Console.WriteLine($"Feature count mismatch: expected {featureCount}, got {features.Length}");
+            Logger.Warn($"Feature count mismatch: expected {featureCount}, got {features.Length}");
             return 0.0;
         }
 
@@ -87,7 +88,7 @@ public class BaseMLEvaluator : IDisposable
     {
         if (SessionLoaded())
         {
-            Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} - XGB model load skipped (already loaded)");
+            Logger.Debug("XGB model load skipped (already loaded)");
             return;
         }
         try
@@ -97,7 +98,7 @@ public class BaseMLEvaluator : IDisposable
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} - Exception loading model: {ex.Message}");
+            Logger.Error("Exception loading model", ex);
             session = null;
         }
     }
@@ -106,13 +107,13 @@ public class BaseMLEvaluator : IDisposable
     {
         if (!File.Exists(scalerPath))
         {
-            Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} - Scaler file missing: {scalerPath}");
+            Logger.Warn($"Scaler file missing: {scalerPath}");
             return;
         }
 
         if (ScalerLoaded)
         {
-            Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} - Scaler loading skipped (already loaded)");
+            Logger.Debug("Scaler loading skipped (already loaded)");
             return;
         }
 
@@ -125,7 +126,7 @@ public class BaseMLEvaluator : IDisposable
 
             if (scalerMean.Length != featureCount || scalerScale.Length != featureCount)
             {
-                Console.WriteLine($"Scaler length mismatch: expected {featureCount}, got mean={scalerMean.Length} scale={scalerScale.Length}");
+                Logger.Warn($"Scaler length mismatch: expected {featureCount}, got mean={scalerMean.Length} scale={scalerScale.Length}");
                 return;
             }
 
@@ -133,7 +134,7 @@ public class BaseMLEvaluator : IDisposable
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} - Exception loading scaler: {ex.Message}");
+            Logger.Error("Exception loading scaler", ex);
         }
     }
 

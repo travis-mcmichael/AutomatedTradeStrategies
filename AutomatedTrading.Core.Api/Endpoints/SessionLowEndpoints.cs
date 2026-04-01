@@ -1,18 +1,21 @@
-
 using AutomatedTrading.Core.Api.Models;
+using AutomatedTrading.Core.Api.Models.Evaluate;
 using AutomatedTrading.Core.Framework.Enums;
-using AutomatedTrading.Core.Strategies;
+using AutomatedTrading.Core.Framework.Logging;
 
 namespace AutomatedTrading.Core.Api.Endpoints;
 
 public static class SessionLowEndpoints
 {
+    private static readonly string SESSION_START = "/strategy/session-low/session";
+    private static readonly string EVAL_BAR = "/strategy/session-low/bar";
     public static void Map(WebApplication app)
     {
-        app.MapPost("/strategy/session-low/session", async (
+        app.MapPost(SESSION_START, async (
             SessionLowSessionRequest req,
             SessionLowStrategyEvaluator evaluator) => 
         {
+            Logger.Info($"Endpoint {SESSION_START} called.");
             if (string.IsNullOrWhiteSpace(req.SessionDate))
                 return Results.BadRequest("SessionDate is required"); 
             await evaluator.StartSessionAsync(
@@ -27,10 +30,11 @@ public static class SessionLowEndpoints
                 evaluator.PredictedLow,
                 evaluator.DailyAtr));
         });
-        app.MapPost("/strategy/session-low/bar", (
+        app.MapPost(EVAL_BAR, (
             SessionLowBarRequest req,
             SessionLowStrategyEvaluator evaluator) =>
         {
+            Logger.Info($"Endpoint {EVAL_BAR} called.");
             var position = req.Position switch
             {
                 "Long" => PositionSide.Long,

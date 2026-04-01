@@ -1,11 +1,4 @@
-using System.Threading.Tasks;
-
-namespace AutomatedTrading.Core.Framework.Predictors;
-public interface IBarLowPredictor
-{
-    Task<BarLowPrediction?> PredictSessionLowAsync(string sessionDate, double sessionOpen);
-}
-
+namespace AutomatedTrading.Core.Api.Models.API.Predict;
 public record BarLowPrediction
 {
     public double PredictedLow { get; set; }
