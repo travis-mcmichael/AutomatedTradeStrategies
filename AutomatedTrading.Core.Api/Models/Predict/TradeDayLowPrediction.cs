@@ -1,12 +1,4 @@
-using System.Threading.Tasks;
-
-namespace AutomatedTrading.Core.Framework.Predictors;
-
-public interface ITradeDayLowPredictor
-{
-    Task<TradeDayLowPrediction?> PredictTradeDayLowAsync(string sessionDate, double rthOpen);
-}
-
+namespace AutomatedTrading.Core.Api.Models.API.Predict;
 public record TradeDayLowPrediction
 {
     public double PredictedLow  { get; set; }

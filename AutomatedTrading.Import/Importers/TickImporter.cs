@@ -2,7 +2,7 @@ using System.Globalization;
 using AutomatedTrading.Core.Framework.DataLayer.Repositories;
 using AutomatedTrading.Core.Models;
 
-namespace AutomatedTrading.Import;
+namespace AutomatedTrading.Import.Importers;
 
 public class TickImporter
 {

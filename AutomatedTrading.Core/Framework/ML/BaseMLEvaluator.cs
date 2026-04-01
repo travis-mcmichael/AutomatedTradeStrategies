@@ -21,8 +21,8 @@ public class BaseMLEvaluator : IDisposable
 
     public BaseMLEvaluator(string modelPath, string scalerPath, int featureCount)
     {
-        this.modelPath    = modelPath;
-        this.scalerPath   = scalerPath;
+        this.modelPath = modelPath;
+        this.scalerPath = scalerPath;
         this.featureCount = featureCount;
     }
 

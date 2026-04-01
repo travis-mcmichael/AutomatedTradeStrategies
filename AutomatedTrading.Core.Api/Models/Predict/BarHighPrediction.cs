@@ -1,10 +1,4 @@
-using System.Threading.Tasks;
-
-namespace AutomatedTrading.Core.Framework.Predictors;
-public interface IBarHighPredictor
-{
-    Task<BarHighPrediction?> PredictSessionHighAsync(string sessionDate, double sessionOpen);
-}
+namespace AutomatedTrading.Core.Api.Models.API.Predict;
 
 public record BarHighPrediction
 {
