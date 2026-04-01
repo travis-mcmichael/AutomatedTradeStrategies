@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using AutomatedTrading.Core.Framework.DataLayer.Repositories;
 using AutomatedTrading.Core.Framework.Enums;
+using AutomatedTrading.Core.Framework.Logging;
 using AutomatedTrading.Core.Framework.Predictors;
 using AutomatedTrading.Core.Framework.Utility;
 using AutomatedTrading.Core.Models;
@@ -70,6 +71,14 @@ public class SessionLowStrategyEvaluator
         double targetProfit,
         double trail)
     {
+        Logger.Info($"{GetType().Name}.StartSessionAsync:" +
+            $"\r\n\t{"SessionDate",20}:{sessionDate,20}" +
+            $"\r\n\t{"SessionOpen",20}:{sessionOpen,20:f2}" +
+            $"\r\n\t{"Proximity",20}:{proximity,20:f2}" +
+            $"\r\n\t{"StopLoss",20}:{stopLossPoints,20:f2}" +
+            $"\r\n\t{"TargetProfit",20}:{targetProfit,20:f2}" +
+            $"\r\n\t{"Trail",20}:{trail,20:f2}");
+
         Proximity = proximity;
         StopLossPoints = stopLossPoints;
         TargetProfit = targetProfit;
@@ -105,9 +114,18 @@ public class SessionLowStrategyEvaluator
         PositionSide position,
         double entryPrice = 0)
     {
+        Logger.Info($"{GetType().Name}.Evaluate:" +
+            $"\r\n\t{"BarLow",20}:{barLow,20:f2}" +
+            $"\r\n\t{"BarClose",20}:{barClose,20:f2}" +
+            $"\r\n\t{"Position",20}:{position,20}" +
+            $"\r\n\t{"EntryPrice",20}:{entryPrice,20}");
+
         if (!IsReady) return new (StrategySignal.None, 0);
+
         if (barLow <= PredictedLow + Proximity * DailyAtr)
         {
+            Logger.Info($"Bar.Low near predicted low: barLow @ {barLow:f2}, predicted @ {PredictedLow:f2}, prox * atr @ {Proximity * DailyAtr:f2}");
+
             if (position == PositionSide.Short)
             {
                 _hasLowHit = true;
@@ -120,6 +138,7 @@ public class SessionLowStrategyEvaluator
             }
             _hasLowHit = true;
         }
+
         if (position == PositionSide.Long)
         {
             var ep = entryPrice > 0 ? entryPrice : barClose;
@@ -128,6 +147,7 @@ public class SessionLowStrategyEvaluator
             {
                 _trailingStopActive = true;
                 _trailingStopPrice = barClose - Trail;
+                Logger.Info($"Trailing Stop activated: profit @ {profit:f2}, target @ {TargetProfit:f2}, initial trailing stop @ {_trailingStopPrice:f2}");
                 return new (StrategySignal.UpdateStop, _trailingStopPrice);
             }
             if (_trailingStopActive)
@@ -136,6 +156,7 @@ public class SessionLowStrategyEvaluator
                 if (candidate > _trailingStopPrice)
                 {
                     _trailingStopPrice = candidate;
+                    Logger.Info($"Trailing stop update triggered: close @ {barClose:f2}, trail @ {Trail:f2}, new stop @ {_trailingStopPrice:f2}");
                     return new (StrategySignal.UpdateStop, _trailingStopPrice);
                 }
             }
@@ -145,6 +166,7 @@ public class SessionLowStrategyEvaluator
             _trailingStopActive = false;
             _trailingStopPrice = double.MinValue;
         }
+
         return new (StrategySignal.None, 0);
     }
 
