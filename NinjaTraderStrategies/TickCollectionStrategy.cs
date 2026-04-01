@@ -39,6 +39,8 @@ namespace NinjaTrader.NinjaScript.Strategies
 			if (State == State.SetDefaults)
 			{
 				Name = "TickCollectorStrategy";
+				IsUnmanaged = true;
+				Calculate = Calculate.OnEachTick;
 			}
 			else if (State == State.Configure)
 			{
@@ -57,18 +59,24 @@ namespace NinjaTrader.NinjaScript.Strategies
 
 		protected override void OnMarketData(MarketDataEventArgs e)
 		{
+			Print($"OnMarketData: " + e.ToString());
 			if (e.MarketDataType != MarketDataType.Last) return;
 
 			long tickTime = new DateTimeOffset(e.Time).ToUnixTimeMilliseconds();
+			var  sessionDate = e.Time.Date;
+			if (e.Time.Hour >= 16)
+				sessionDate = sessionDate.AddDays(1);
 
 			var tick = new TickData
 			{
 				Instrument = Instrument.FullName,
-				TickTime   = tickTime,
-				LastPrice  = e.Price,
-				Volume     = e.Volume,
-				Bid        = e.Bid,
-				Ask        = e.Ask
+				TickTime = tickTime,
+				LastPrice = e.Price,
+				Volume = e.Volume,
+				Bid = e.Bid,
+				Ask = e.Ask,
+				SessionDate = $"{sessionDate:yyyyMMdd}",
+				SessionTime = $"{e.Time:HHmmss}"
 			};
 
 			tickBatch.Add(tick);

@@ -8,4 +8,6 @@ public class TickData
     public long Volume { get; set; }
     public double? Bid { get; set; }
     public double? Ask { get; set; }
+    public string? SessionDate { get; set; }
+    public string? SessionTime { get; set; }
 }

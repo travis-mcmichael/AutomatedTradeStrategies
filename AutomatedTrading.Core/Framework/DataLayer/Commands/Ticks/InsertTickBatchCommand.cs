@@ -11,14 +11,16 @@ public class InsertTickBatchCommand : IDbCommand<int>
 {
     private const string Sql = @"
         INSERT INTO TickData
-            (Instrument, TickTime, LastPrice, Volume, Bid, Ask)
+            (Instrument, TickTime, LastPrice, Volume, Bid, Ask, SessionDate, SessionTime)
         VALUES
-            (@Instrument, @TickTime, @LastPrice, @Volume, @Bid, @Ask)
+            (@Instrument, @TickTime, @LastPrice, @Volume, @Bid, @Ask, @SessionDate, @SessionTime)
         ON CONFLICT (Instrument, TickTime) DO UPDATE SET
             LastPrice = excluded.LastPrice,
-            Volume    = excluded.Volume,
-            Bid       = excluded.Bid,
-            Ask       = excluded.Ask";
+            Volume = excluded.Volume,
+            Bid = excluded.Bid,
+            Ask = excluded.Ask,
+            SessionDate = excluded.SessionDate,
+            SessionTime = excluded.SessionTime";
 
     private readonly List<TickData> ticks;
     private readonly int batchSize;
@@ -59,7 +61,7 @@ public class InsertTickBatchCommand : IDbCommand<int>
 
     private static void addParameters(DbCommand cmd)
     {
-        foreach (var name in new[] { "@Instrument", "@TickTime", "@LastPrice", "@Volume", "@Bid", "@Ask" })
+        foreach (var name in new[] { "@Instrument", "@TickTime", "@LastPrice", "@Volume", "@Bid", "@Ask", "@SessionDate", "@SessionTime" })
         {
             var p = cmd.CreateParameter();
             p.ParameterName = name;
@@ -75,5 +77,7 @@ public class InsertTickBatchCommand : IDbCommand<int>
         cmd.Parameters["@Volume"].Value = tick.Volume;
         cmd.Parameters["@Bid"].Value = tick.Bid.HasValue ? (object)tick.Bid.Value : DBNull.Value;
         cmd.Parameters["@Ask"].Value = tick.Ask.HasValue ? (object)tick.Ask.Value : DBNull.Value;
+        cmd.Parameters["@SessionDate"].Value = tick.SessionDate ?? (object)DBNull.Value;
+        cmd.Parameters["@SessionTime"].Value = tick.SessionTime ?? (object)DBNull.Value;
     }
 }
