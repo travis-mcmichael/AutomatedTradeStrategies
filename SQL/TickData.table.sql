@@ -6,6 +6,8 @@ CREATE TABLE TickData (
     Volume INTEGER NOT NULL,
     Bid REAL,
     Ask REAL,
+    SessionDate TEXT,
+    SessionTime TEXT,
 
     UNIQUE (Instrument, TickTime)
 );

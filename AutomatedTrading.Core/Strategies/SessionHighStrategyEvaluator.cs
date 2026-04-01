@@ -138,10 +138,14 @@ public class SessionHighStrategyEvaluator
             if (position == PositionSide.Flat && !_hasHighHit)
             {
                 _hasHighHit = true;
+                PredictedHigh += Proximity * DailyAtr;
                 return new(StrategySignal.EnterShort, PredictedHigh + StopLossPoints);
             }
 
-            _hasHighHit = true;
+            if (barHigh >= PredictedHigh)
+            {
+                _hasHighHit = false;
+            }
         }
 
         // ── Trailing stop management (short position only) ───────────────────

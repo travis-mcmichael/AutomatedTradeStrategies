@@ -48,7 +48,7 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 
 SessionHighEndpoints.Map(app);
-PredictedLowEndpoints.Map(app);
+SessionLowEndpoints.Map(app);
 TradeDayHighEndpoints.Map(app);
 TradeDayLowEndpoints.Map(app);
 

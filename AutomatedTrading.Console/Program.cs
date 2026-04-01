@@ -20,12 +20,12 @@ class Program
 
     static async Task Main(string[] args)
     {
-        var runDate = new DateTime(2026, 3, 27);
+        var runDate = new DateTime(2026, 3, 30);
         var runType = "inference";
         
         var barRepo = new BarRepository(new SqliteConnectionFactory(AppConstants.SQLITE_CONNECTION));
-        var rangeStart = new DateTime(2026, 1, 1);
-        var rangeEnd = new DateTime(2026, 3, 27); //DateTime.Today < new DateTime(2026, 12, 31) ? DateTime.Today : new DateTime(2026, 12, 31);
+        var rangeStart = runDate;//new DateTime(2026, 1, 1);
+        var rangeEnd = runDate;//new DateTime(2026, 3, 27); //DateTime.Today < new DateTime(2026, 12, 31) ? DateTime.Today : new DateTime(2026, 12, 31);
         
         if (runType == "inference")
         {
