@@ -40,7 +40,6 @@ public class TradeDayHighStrategyEvaluator
     public double DailyAtr { get; private set; }
 
     // ─── Internal state ───────────────────────────────────────────────────────
-    private bool _hasHighHit;
     private bool _trailingStopActive;
     private double _trailingStopPrice;
     private readonly ITradeDayHighPredictor? _predictor;
@@ -128,10 +127,10 @@ public class TradeDayHighStrategyEvaluator
         double entryPrice = 0)
     {
         Logger.Info($"{GetType().Name}.Evaluate:" +
-            $"\r\n\t{"BarHigh",20}:{barHigh,20:f2}" +
-            $"\r\n\t{"BarClose",20}:{barClose,20:f2}" +
-            $"\r\n\t{"Position",20}:{position,20}" +
-            $"\r\n\t{"EntryPrice",20}:{entryPrice,20}");
+            $"\r\n\t{"BarHigh", 20}:{barHigh, 20:f2}" +
+            $"\r\n\t{"BarClose", 20}:{barClose, 20:f2}" +
+            $"\r\n\t{"Position", 20}:{position, 20}" +
+            $"\r\n\t{"EntryPrice", 20}:{entryPrice, 20}");
 
         _barCount++;
         if (!IsReady || _barCount < 15) return new(StrategySignal.None, 0);
@@ -139,7 +138,7 @@ public class TradeDayHighStrategyEvaluator
         // ── Near predicted HIGH: enter short or flatten long ─────────────────
         if (barHigh >= PredictedHigh - Proximity * DailyAtr)
         {
-            Logger.Info($"Bar.High near predicted high: barHigh({barHigh:f2}), predicted({PredictedHigh:f2}) - prox * atr({Proximity * DailyAtr:f2})");
+            Logger.Info($"Bar.High near predicted high: barHigh @ {barHigh:f2}, predicted @ {PredictedHigh:f2}, prox * atr @ {Proximity * DailyAtr:f2}");
 
             if (position == PositionSide.Long)
             {
@@ -150,13 +149,6 @@ public class TradeDayHighStrategyEvaluator
             {
                 PredictedHigh += Proximity * DailyAtr / 2;
                 return new(StrategySignal.EnterShort, barHigh + StopLossPoints * DailyAtr);
-
-                // if (!_hasHighHit)
-                // {
-                //     _hasHighHit = true;
-                //     PredictedHigh += Proximity * DailyAtr / 2;
-                //     return new(StrategySignal.EnterShort, barHigh + StopLossPoints * DailyAtr);
-                // }
             }
         }
 
@@ -201,7 +193,6 @@ public class TradeDayHighStrategyEvaluator
         IsReady = false;
         PredictedHigh = double.MaxValue;
         DailyAtr = 0;
-        _hasHighHit = false;
         _trailingStopActive = false;
         _trailingStopPrice = double.MaxValue;
         _barCount = 0;

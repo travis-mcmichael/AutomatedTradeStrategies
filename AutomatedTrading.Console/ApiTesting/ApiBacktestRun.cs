@@ -1,50 +1,38 @@
 using AutomatedTrading.Core.Framework.Enums;
 
-namespace AutomatedTrading.Console.Backtesting;
+namespace AutomatedTrading.Console.ApiTesting;
 
 /// <summary>
-/// One configured strategy instance to include in a backtest.
-/// Create with a named <see cref="IBacktestEvaluator"/> and pass to
-/// <see cref="BacktestRunner.RunAsync"/>.
-///
-/// The runner writes to the internal position fields on each bar. Callers read
-/// the computed metrics after the run completes.
+/// Tracks position state and accumulated trade metrics for one API backtest run.
 /// </summary>
-public class BacktestRun
+public class ApiBacktestRun
 {
     // ─── Identity ─────────────────────────────────────────────────────────────
     public string Name { get; }
-    public IBacktestEvaluator Evaluator { get; }
 
-    // ─── Position state (managed exclusively by BacktestRunner) ───────────────
+    // ─── Position state (managed by ApiBacktestRunner) ────────────────────────
     internal PositionSide Position { get; set; } = PositionSide.Flat;
     internal double EntryPrice { get; set; }
     internal double StopPrice { get; set; } = double.MaxValue;
     internal DateTime EntryTime { get; set; }
 
     // ─── Results ──────────────────────────────────────────────────────────────
-    private readonly List<TradeResult> _trades = new();
+    private readonly List<TradeResult> _trades = [];
     public IReadOnlyList<TradeResult> Trades => _trades;
-    public double GrossProfit  { get; private set; }
+    public double GrossProfit { get; private set; }
     public double GrossLoss { get; private set; }
     public double NetProfit => GrossProfit - GrossLoss;
     public int TotalTrades => _trades.Count;
     public int WinningTrades { get; private set; }
     public int LosingTrades { get; private set; }
-
-    public BacktestRun(string name, IBacktestEvaluator evaluator)
-    {
-        Name = name;
-        Evaluator = evaluator;
-    }
-
+    public ApiBacktestRun(string name) => Name = name;
     internal void RecordTrade(TradeResult trade)
     {
         _trades.Add(trade);
-        if (trade.PnL > 0) 
+        if (trade.PnL > 0)
         {
-             GrossProfit += trade.PnL;
-              WinningTrades++;
+            GrossProfit += trade.PnL;
+            WinningTrades++; 
         }
         else 
         {
