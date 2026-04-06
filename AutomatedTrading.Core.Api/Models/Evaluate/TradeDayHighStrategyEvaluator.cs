@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using AutomatedTrading.Core.Api.Models.API.Predict;
 using AutomatedTrading.Core.Framework.DataLayer.Repositories;
 using AutomatedTrading.Core.Framework.Enums;
@@ -86,12 +82,12 @@ public class TradeDayHighStrategyEvaluator
         double trail)
     {
         Logger.Info($"{GetType().Name}.StartSessionAsync:" +
-            $"\r\n\t{"SessionDate",20}:{sessionDate,20}" +
-            $"\r\n\t{"SessionOpen",20}:{sessionOpen,20:f2}" +
-            $"\r\n\t{"Proximity",20}:{proximity,20:f2}" +
-            $"\r\n\t{"StopLoss",20}:{stopLossPoints,20:f2}" +
-            $"\r\n\t{"TargetProfit",20}:{targetProfit,20:f2}" +
-            $"\r\n\t{"Trail",20}:{trail,20:f2}");
+            $"\r\n\t{"SessionDate", 20}:{sessionDate, 20}" +
+            $"\r\n\t{"SessionOpen", 20}:{sessionOpen, 20:f2}" +
+            $"\r\n\t{"Proximity", 20}:{proximity, 20:f2}" +
+            $"\r\n\t{"StopLoss", 20}:{stopLossPoints, 20:f2}" +
+            $"\r\n\t{"TargetProfit", 20}:{targetProfit, 20:f2}" +
+            $"\r\n\t{"Trail", 20}:{trail, 20:f2}");
 
         Proximity = proximity;
         StopLossPoints = stopLossPoints;

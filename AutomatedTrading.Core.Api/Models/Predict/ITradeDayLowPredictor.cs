@@ -1,4 +1,3 @@
-using System.Threading.Tasks;
 namespace AutomatedTrading.Core.Api.Models.API.Predict;
 public interface ITradeDayLowPredictor
 {

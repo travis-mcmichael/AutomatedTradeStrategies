@@ -13,4 +13,4 @@ public record SessionHighSessionResponse(bool IsReady, double PredictedHigh, dou
 
 public record SessionHighBarRequest(double High, double Close, string Position, double EntryPrice);
 
-public record SessionHighBarResponse(string Signal, double StopPrice);
+public record SessionHighBarResponse(string Signal, double StopPrice, double PredictedHigh);

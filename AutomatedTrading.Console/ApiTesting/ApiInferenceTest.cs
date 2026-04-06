@@ -4,7 +4,6 @@ using AutomatedTrading.Core.Framework;
 using AutomatedTrading.Core.Framework.DataLayer.Repositories;
 using AutomatedTrading.Core.Framework.ML;
 using AutomatedTrading.Core.Framework.Utility;
-using AutomatedTrading.Core.Models;
 
 namespace AutomatedTrading.Console.ApiTesting;
 
