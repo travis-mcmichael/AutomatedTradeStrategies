@@ -1,7 +1,6 @@
-using AutomatedTrading.Core.Strategies;
 using AutomatedTrading.Core.Framework.Enums;
 
-namespace AutomatedTrading.Console.Backtesting;
+namespace AutomatedTrading.Console.ApiTesting;
 
 /// <summary>Immutable record of a single completed trade.</summary>
 public record TradeResult(

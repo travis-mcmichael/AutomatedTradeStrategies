@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using AutomatedTrading.Core.Api.Models.API.Predict;
 using AutomatedTrading.Core.Framework.DataLayer.Repositories;
 using AutomatedTrading.Core.Framework.Enums;
@@ -73,12 +69,12 @@ public class SessionLowStrategyEvaluator
         double trail)
     {
         Logger.Info($"{GetType().Name}.StartSessionAsync:" +
-            $"\r\n\t{"SessionDate",20}:{sessionDate,20}" +
-            $"\r\n\t{"SessionOpen",20}:{sessionOpen,20:f2}" +
-            $"\r\n\t{"Proximity",20}:{proximity,20:f2}" +
-            $"\r\n\t{"StopLoss",20}:{stopLossPoints,20:f2}" +
-            $"\r\n\t{"TargetProfit",20}:{targetProfit,20:f2}" +
-            $"\r\n\t{"Trail",20}:{trail,20:f2}");
+            $"\r\n\t{"SessionDate", 20}:{sessionDate, 20}" +
+            $"\r\n\t{"SessionOpen", 20}:{sessionOpen, 20:f2}" +
+            $"\r\n\t{"Proximity", 20}:{proximity, 20:f2}" +
+            $"\r\n\t{"StopLoss", 20}:{stopLossPoints,20:f2}" +
+            $"\r\n\t{"TargetProfit", 20}:{targetProfit, 20:f2}" +
+            $"\r\n\t{"Trail", 20}:{trail, 20:f2}");
 
         Proximity = proximity;
         StopLossPoints = stopLossPoints;
@@ -116,10 +112,10 @@ public class SessionLowStrategyEvaluator
         double entryPrice = 0)
     {
         Logger.Info($"{GetType().Name}.Evaluate:" +
-            $"\r\n\t{"BarLow",20}:{barLow,20:f2}" +
-            $"\r\n\t{"BarClose",20}:{barClose,20:f2}" +
-            $"\r\n\t{"Position",20}:{position,20}" +
-            $"\r\n\t{"EntryPrice",20}:{entryPrice,20}");
+            $"\r\n\t{"BarLow", 20}:{barLow, 20:f2}" +
+            $"\r\n\t{"BarClose", 20}:{barClose, 20:f2}" +
+            $"\r\n\t{"Position", 20}:{position, 20}" +
+            $"\r\n\t{"EntryPrice", 20}:{entryPrice, 20}");
 
         if (!IsReady) return new (StrategySignal.None, 0);
 

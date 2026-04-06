@@ -48,7 +48,7 @@ public static class SessionHighEndpoints
             };
 
             var eval = evaluator.Evaluate(req.High, req.Close, position, req.EntryPrice);
-            return Results.Ok(new SessionHighBarResponse(eval.Signal.ToString(), eval.StopPrice));
+            return Results.Ok(new SessionHighBarResponse(eval.Signal.ToString(), eval.StopPrice, evaluator.PredictedHigh));
         });
     }
 }

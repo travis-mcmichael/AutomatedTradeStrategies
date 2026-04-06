@@ -38,10 +38,10 @@ using AutomatedTrading.Core.Framework.Utility;
     running before the strategy is enabled.
 
     All trading logic (proximity check, trailing stop management) lives in
-    PredictedHighStrategyEvaluator (AutomatedTrading.Core). This file is a thin
+    SessionHighStrategyEvaluator (AutomatedTrading.Core.Api). This file is a thin
     HTTP adapter that:
-      1. Calls /strategy/predicted-high/session at RTH open.
-      2. Calls /strategy/predicted-high/bar on every bar close and executes
+      1. Calls /strategy/session-high/session at RTH open.
+      2. Calls /strategy/session-high/bar on every bar close and executes
          the returned signal.
 
     Parameters (Proximity, StopLossPoints, TargetProfit, Trail) are forwarded
@@ -68,8 +68,6 @@ namespace NinjaTrader.NinjaScript.Strategies
         // Fields
         // =====================================================================
         private HttpClient _http;
-        private bool       _inferenceReady;
-        private double     _predictedHigh;
 
         // ── Trade tracking ────────────────────────────────────────────────────
         private string   _currentSessionDate;
@@ -144,9 +142,6 @@ namespace NinjaTrader.NinjaScript.Strategies
                     StopLossPoints = 5.0;
                     TargetProfit = 20.0;
                     Trail = 10.0;
-
-                    _inferenceReady = false;
-                    _predictedHigh = double.MaxValue;
                     break;
 
                 case State.Configure:
@@ -166,14 +161,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         protected override void OnBarUpdate()
         {
             if (Bars.IsFirstBarOfSession)
-            {
-                _inferenceReady = false;
-                _predictedHigh  = double.MaxValue;
                 startSession(Time[0], Open[0]);
-            }
-
-            if (!_inferenceReady)
-                return;
 
             var eval = evaluateBar(High[0], Close[0]);
             if (eval is null) return;
@@ -183,17 +171,17 @@ namespace NinjaTrader.NinjaScript.Strategies
                 case "EnterShort":
                     SetStopLoss(ENTRY_SHORT, CalculationMode.Price, eval.StopPrice, false);
                     EnterShort(ENTRY_SHORT);
-                    Print($"{Time[0]:yyyyMMDd HHmmss} - EnterShort @{Close[0]} near predicted high ({_predictedHigh:F2}), stop={eval.StopPrice:F2}");
+                    Print($"{Time[0]:yyyyMMdd HHmmss} - EnterShort @{Close[0]} near predicted high ({eval.PredictedHigh:F2}), stop={eval.StopPrice:F2}");
                     break;
 
                 case "ExitLong":
                     ExitLong(ENTRY_LONG);
-                    Print($"{Time[0]:yyyyMMDd HHmmss} - ExitLong @{Close[0]} price reached predicted high ({_predictedHigh:F2})");
+                    Print($"{Time[0]:yyyyMMdd HHmmss} - ExitLong @{Close[0]} price reached predicted high ({eval.PredictedHigh:F2})");
                     break;
 
                 case "UpdateStop":
                     SetStopLoss(ENTRY_SHORT, CalculationMode.Price, eval.StopPrice, false);
-                    Print($"{Time[0]:yyyyMMDd HHmmss} - Price @{Close[0]}, trailing stop updated to {eval.StopPrice:F2}");
+                    Print($"{Time[0]:yyyyMMdd HHmmss} - Price @{Close[0]}, trailing stop updated to {eval.StopPrice:F2}");
                     break;
             }
         }
@@ -225,7 +213,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             try
             {
                 var content  = new StringContent(body, Encoding.UTF8, "application/json");
-                var response = _http.PostAsync($"{API_URL}/strategy/predicted-high/session", content)
+                var response = _http.PostAsync($"{API_URL}/strategy/session-high/session", content)
                     .GetAwaiter().GetResult();
 
                 if (!response.IsSuccessStatusCode)
@@ -238,11 +226,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 var result = JsonConvert.DeserializeObject<SessionApiResponse>(json);
 
                 if (result?.IsReady == true)
-                {
-                    _inferenceReady = true;
-                    _predictedHigh  = result.PredictedHigh;
-                    Print($"PH {sessionDate}: predictedHigh={_predictedHigh:F2}  dailyATR={result.DailyAtr:F2}  open={sessionOpen:F2}");
-                }
+                    Print($"PH {sessionDate}: predictedHigh={result.PredictedHigh:F2}  dailyATR={result.DailyAtr:F2}  open={sessionOpen:F2}");
             }
             catch (Exception ex)
             {
@@ -267,7 +251,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             try
             {
                 var content  = new StringContent(body, Encoding.UTF8, "application/json");
-                var response = _http.PostAsync($"{API_URL}/strategy/predicted-high/bar", content)
+                var response = _http.PostAsync($"{API_URL}/strategy/session-high/bar", content)
                                     .GetAwaiter().GetResult();
 
                 if (!response.IsSuccessStatusCode) return null;
@@ -379,6 +363,9 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             [JsonProperty("stopPrice")]
             public double StopPrice { get; set; }
+
+            [JsonProperty("predictedHigh")]
+            public double PredictedHigh { get; set; }
         }
     }
 }

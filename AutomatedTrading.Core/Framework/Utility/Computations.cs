@@ -39,7 +39,7 @@ public class Computations
             if (bars[j].SessionDate != sessionDate)
                 break;
             
-            pv += ((bars[j].High + bars[j].Low + bars[j].Close) / 3.0) * bars[j].Volume;
+            pv += (bars[j].High + bars[j].Low + bars[j].Close) / 3.0 * bars[j].Volume;
             volume += bars[j].Volume;
         }
         return volume == 0 ? bars[i].Close : pv / volume;
@@ -228,7 +228,7 @@ public class Computations
 
     public static double VWAP(BarData bar, ref double cumulativePv, ref double cumulativeVol)
     {
-        cumulativePv += ((bar.High + bar.Low + bar.Close) / 3.0) * bar.Volume;
+        cumulativePv += (bar.High + bar.Low + bar.Close) / 3.0 * bar.Volume;
         cumulativeVol += bar.Volume;
 
         return cumulativePv / cumulativeVol;
