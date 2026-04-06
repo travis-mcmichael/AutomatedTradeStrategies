@@ -12,10 +12,10 @@ class Program
 
     static async Task Main(string[] args)
     {
-        var runType = "inference"; // inference | backtest
+        var runType = "backtest"; // inference | backtest
         var runDate = DateTime.Today;
-        var rangeStart = runDate; //new DateTime(2026, 1, 1);
-        var rangeEnd = runDate;// new DateTime(2026, 3, 30);
+        var rangeStart = new DateTime(2026, 3, 23);
+        var rangeEnd = new DateTime(2026, 4, 5);
         var strategy = ApiStrategy.SessionHigh;
 
         var barRepo = new BarRepository(new SqliteConnectionFactory(AppConstants.SQLITE_CONNECTION));
@@ -32,10 +32,7 @@ class Program
         // ── Backtest: define parameter sets to sweep ──────────────────────────
         var paramSets = new[]
         {
-            new ApiBacktestParams("Prox0.3-SL5-TP20-T10",  Proximity: 0.3, StopLoss: 5.0, TargetProfit: 20.0, Trail: 10.0),
-            new ApiBacktestParams("Prox0.5-SL5-TP20-T10",  Proximity: 0.5, StopLoss: 5.0, TargetProfit: 20.0, Trail: 10.0),
-            new ApiBacktestParams("Prox0.5-SL5-TP30-T15",  Proximity: 0.5, StopLoss: 5.0, TargetProfit: 30.0, Trail: 15.0),
-            new ApiBacktestParams("Prox0.75-SL5-TP20-T10", Proximity: 0.75, StopLoss: 5.0, TargetProfit: 20.0, Trail: 10.0),
+            new ApiBacktestParams("Prox0.75-SL5-TP20-T10", Proximity: 0.25, StopLoss: 0.25, TargetProfit: 40.0, Trail: 20.0),
         };
 
         var runner  = new ApiBacktestRunner(barRepo, client, strategy);
