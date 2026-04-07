@@ -25,13 +25,13 @@ public class SessionLowStrategyEvaluator
     private bool _hasLowHit;
     private bool _trailingStopActive;
     private double _trailingStopPrice;
-    private readonly IBarLowPredictor? _predictor;
+    private readonly IMovementPredictor? _predictor;
     private readonly IBarRepository? _barRepo;
     
     // ─── Constructors ─────────────────────────────────────────────────────────
 
     /// <summary>Production constructor — injected with the ML predictor and bar repository.</summary>
-    public SessionLowStrategyEvaluator(IBarLowPredictor predictor, IBarRepository barRepo)
+    public SessionLowStrategyEvaluator(IMovementPredictor predictor, IBarRepository barRepo)
     {
         _predictor = predictor;
         _barRepo = barRepo;
@@ -84,7 +84,7 @@ public class SessionLowStrategyEvaluator
 
         if (_predictor is null || _barRepo is null) return;
 
-        var prediction = await _predictor.PredictSessionLowAsync(sessionDate, sessionOpen);
+        var prediction = await _predictor.PredictMovement(sessionDate, sessionOpen);
         if (prediction is null) return;
 
         PredictedLow = sessionOpen + prediction.PredictedMove;

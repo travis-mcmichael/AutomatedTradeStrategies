@@ -17,7 +17,7 @@ builder.Services.AddSingleton<IBarRepository, BarRepository>();
 
 // ML inference (singleton — holds loaded ONNX InferenceSessions, config from Models/Config/models.json)
 builder.Services.AddSingleton<BarInferenceService>();
-builder.Services.AddSingleton<IBarHighPredictor>(sp => sp.GetRequiredService<BarInferenceService>());
+builder.Services.AddSingleton<IMovementPredictor>(sp => sp.GetRequiredService<BarInferenceService>());
 builder.Services.AddSingleton<IBarLowPredictor>(sp => sp.GetRequiredService<BarInferenceService>());
 builder.Services.AddSingleton<ITradeDayHighPredictor>(sp => sp.GetRequiredService<BarInferenceService>());
 builder.Services.AddSingleton<ITradeDayLowPredictor>(sp => sp.GetRequiredService<BarInferenceService>());
@@ -25,7 +25,7 @@ builder.Services.AddSingleton<ITradeDayLowPredictor>(sp => sp.GetRequiredService
 // Strategy evaluators (singleton — holds per-session trading state)
 builder.Services.AddSingleton(sp =>
     new SessionHighStrategyEvaluator(
-        sp.GetRequiredService<IBarHighPredictor>(),
+        sp.GetRequiredService<IMovementPredictor>(),
         sp.GetRequiredService<IBarRepository>()));
 builder.Services.AddSingleton(sp =>
     new SessionLowStrategyEvaluator(

@@ -9,7 +9,7 @@ using AutomatedTrading.Core.Models;
 
 namespace AutomatedTrading.Core.Api.Services;
 
-public class BarInferenceService : IBarHighPredictor, IBarLowPredictor, ITradeDayHighPredictor, ITradeDayLowPredictor
+public class BarInferenceService : IMovementPredictor, IBarLowPredictor, ITradeDayHighPredictor, ITradeDayLowPredictor
 {
     private readonly IBarRepository barRepo;
     private readonly Dictionary<string, BaseMLEvaluator> evaluators;
@@ -24,7 +24,7 @@ public class BarInferenceService : IBarHighPredictor, IBarLowPredictor, ITradeDa
     // Session-day-bar inference (session open → session high/low)
     // ──────────────────────────────────────────────────────────────────────────
 
-    public async Task<BarHighResponse?> RunSessionHighInference(string sessionDate, double sessionOpen)
+    public async Task<MovementResponse?> RunSessionHighInference(string sessionDate, double sessionOpen)
     {
         if (!isLoaded("mes.session-day-bar.high")) return null;
         var eval = evaluators["mes.session-day-bar.high"];
@@ -48,7 +48,7 @@ public class BarInferenceService : IBarHighPredictor, IBarLowPredictor, ITradeDa
         ];
         var scaled = eval.Scale([.. shared, .. tail]);
         var predictedMove = eval.RunInference(scaled) * atr20;
-        return new BarHighResponse(sessionOpen + predictedMove, predictedMove);
+        return new MovementResponse(sessionOpen + predictedMove, predictedMove);
     }
 
     public async Task<BarLowResponse?> RunSessionLowInference(string sessionDate, double sessionOpen)
@@ -156,32 +156,32 @@ public class BarInferenceService : IBarHighPredictor, IBarLowPredictor, ITradeDa
     // IBarHighPredictor / IBarLowPredictor
     // ──────────────────────────────────────────────────────────────────────────
 
-    public async Task<BarHighPrediction?> PredictSessionHighAsync(string sessionDate, double sessionOpen)
+    public async Task<MovementPrediction?> PredictMovement(string sessionDate, double sessionOpen)
     {
         var result = await RunSessionHighInference(sessionDate, sessionOpen);
-        return result is null ? null : new BarHighPrediction(result.PredictedMove);
+        return result is null ? null : new MovementPrediction(result.PredictedMove);
     }
 
-    public async Task<BarLowPrediction?> PredictSessionLowAsync(string sessionDate, double sessionOpen)
+    public async Task<MovementPrediction?> PredictMovement(string sessionDate, double sessionOpen)
     {
         var result = await RunSessionLowInference(sessionDate, sessionOpen);
-        return result is null ? null : new BarLowPrediction(-result.PredictedMove);
+        return result is null ? null : new MovementPrediction(-result.PredictedMove);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
     // ITradeDayHighPredictor / ITradeDayLowPredictor
     // ──────────────────────────────────────────────────────────────────────────
 
-    public async Task<TradeDayHighPrediction?> PredictTradeDayHighAsync(string sessionDate, double rthOpen)
+    public async Task<MovementPrediction?> PredictMovement(string sessionDate, double rthOpen)
     {
         var result = await RunTradeDayHighInference(sessionDate, rthOpen);
-        return result is null ? null : new TradeDayHighPrediction(result.PredictedMove);
+        return result is null ? null : new MovementPrediction(result.PredictedMove);
     }
 
-    public async Task<TradeDayLowPrediction?> PredictTradeDayLowAsync(string sessionDate, double rthOpen)
+    public async Task<MovementPrediction?> PredictMovement(string sessionDate, double rthOpen)
     {
         var result = await RunTradeDayLowInference(sessionDate, rthOpen);
-        return result is null ? null : new TradeDayLowPrediction(-result.PredictedMove);
+        return result is null ? null : new MovementPrediction(-result.PredictedMove);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -245,10 +245,8 @@ public class BarInferenceService : IBarHighPredictor, IBarLowPredictor, ITradeDa
         var prevSessionDate = TradingCalendar.GetPreviousSessionDate(date).ToString("yyyyMMdd");
         var prevMinuteBars = await barRepo.GetBarsBySessionDateAsync(prevSessionDate);
         if (!prevMinuteBars.Any()) return (null, null);
-
         var sequence = await loadRecentDailyBars(prevSessionDate, 40);
         if (sequence.Count < 21) return (null, null);
-
         return (sequence, prevMinuteBars);
     }
 

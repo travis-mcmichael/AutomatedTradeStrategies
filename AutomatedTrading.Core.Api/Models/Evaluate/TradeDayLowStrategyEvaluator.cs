@@ -97,7 +97,7 @@ public class TradeDayLowStrategyEvaluator
 
         if (_predictor is null || _barRepo is null) return;
 
-        var prediction = await _predictor.PredictTradeDayLowAsync(sessionDate, sessionOpen);
+        var prediction = await _predictor.PredictMovement(sessionDate, sessionOpen);
         if (prediction is null) return;
 
         PredictedLow = sessionOpen + prediction.PredictedMove;

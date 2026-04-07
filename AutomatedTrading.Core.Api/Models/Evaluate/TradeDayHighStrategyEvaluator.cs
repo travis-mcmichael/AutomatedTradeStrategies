@@ -38,14 +38,14 @@ public class TradeDayHighStrategyEvaluator
     // ─── Internal state ───────────────────────────────────────────────────────
     private bool _trailingStopActive;
     private double _trailingStopPrice;
-    private readonly ITradeDayHighPredictor? _predictor;
+    private readonly IMovementPredictor? _predictor;
     private readonly IBarRepository? _barRepo;
     private int _barCount;
 
     // ─── Constructors ─────────────────────────────────────────────────────────
 
     /// <summary>Production constructor — injected with the ML predictor and bar repository.</summary>
-    public TradeDayHighStrategyEvaluator(ITradeDayHighPredictor predictor, IBarRepository barRepo)
+    public TradeDayHighStrategyEvaluator(IMovementPredictor predictor, IBarRepository barRepo)
     {
         _predictor = predictor;
         _barRepo = barRepo;
@@ -97,7 +97,7 @@ public class TradeDayHighStrategyEvaluator
 
         if (_predictor is null || _barRepo is null) return;
 
-        var prediction = await _predictor.PredictTradeDayHighAsync(sessionDate, sessionOpen);
+        var prediction = await _predictor.PredictMovement(sessionDate, sessionOpen);
         if (prediction is null) return;
 
         PredictedHigh = sessionOpen + prediction.PredictedMove;
