@@ -25,5 +25,12 @@ public record ModelEntry(
     string FeatureLocation,
     int FeatureCount,
     bool Active,
-    bool Export
+    bool Export,
+    List<ModelFeature> Features
+);
+
+public record ModelFeature(
+    string Name,
+    string Source = "daily",
+    Dictionary<string, int>? Params = null
 );
