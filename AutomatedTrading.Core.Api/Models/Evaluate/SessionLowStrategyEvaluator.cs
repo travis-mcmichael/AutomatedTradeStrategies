@@ -87,7 +87,7 @@ public class SessionLowStrategyEvaluator
         var prediction = await _predictor.PredictSessionLowAsync(sessionDate, sessionOpen);
         if (prediction is null) return;
 
-        PredictedLow = prediction.PredictedLow;
+        PredictedLow = sessionOpen + prediction.PredictedMove;
         DailyAtr = await loadDailyAtrAsync(sessionDate);
         IsReady = true;
     }

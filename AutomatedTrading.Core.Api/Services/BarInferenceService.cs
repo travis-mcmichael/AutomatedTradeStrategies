@@ -159,13 +159,13 @@ public class BarInferenceService : IBarHighPredictor, IBarLowPredictor, ITradeDa
     public async Task<BarHighPrediction?> PredictSessionHighAsync(string sessionDate, double sessionOpen)
     {
         var result = await RunSessionHighInference(sessionDate, sessionOpen);
-        return result is null ? null : new BarHighPrediction(result.PredictedHigh, result.PredictedMove);
+        return result is null ? null : new BarHighPrediction(result.PredictedMove);
     }
 
     public async Task<BarLowPrediction?> PredictSessionLowAsync(string sessionDate, double sessionOpen)
     {
         var result = await RunSessionLowInference(sessionDate, sessionOpen);
-        return result is null ? null : new BarLowPrediction(result.PredictedLow, result.PredictedMove);
+        return result is null ? null : new BarLowPrediction(-result.PredictedMove);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -175,13 +175,13 @@ public class BarInferenceService : IBarHighPredictor, IBarLowPredictor, ITradeDa
     public async Task<TradeDayHighPrediction?> PredictTradeDayHighAsync(string sessionDate, double rthOpen)
     {
         var result = await RunTradeDayHighInference(sessionDate, rthOpen);
-        return result is null ? null : new TradeDayHighPrediction(result.PredictedHigh, result.PredictedMove);
+        return result is null ? null : new TradeDayHighPrediction(result.PredictedMove);
     }
 
     public async Task<TradeDayLowPrediction?> PredictTradeDayLowAsync(string sessionDate, double rthOpen)
     {
         var result = await RunTradeDayLowInference(sessionDate, rthOpen);
-        return result is null ? null : new TradeDayLowPrediction(result.PredictedLow, result.PredictedMove);
+        return result is null ? null : new TradeDayLowPrediction(-result.PredictedMove);
     }
 
     // ──────────────────────────────────────────────────────────────────────────

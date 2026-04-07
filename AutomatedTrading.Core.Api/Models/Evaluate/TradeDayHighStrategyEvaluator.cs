@@ -100,7 +100,7 @@ public class TradeDayHighStrategyEvaluator
         var prediction = await _predictor.PredictTradeDayHighAsync(sessionDate, sessionOpen);
         if (prediction is null) return;
 
-        PredictedHigh = prediction.PredictedHigh;
+        PredictedHigh = sessionOpen + prediction.PredictedMove;
         DailyAtr = await loadDailyAtrAsync(sessionDate);
         IsReady = true;
     }

@@ -100,7 +100,7 @@ public class SessionHighStrategyEvaluator
         var prediction = await _predictor.PredictSessionHighAsync(sessionDate, sessionOpen);
         if (prediction is null) return;
 
-        PredictedHigh = prediction.PredictedHigh;
+        PredictedHigh = sessionOpen + prediction.PredictedMove;
         DailyAtr = await loadDailyAtrAsync(sessionDate);
         IsReady = true;
     }
