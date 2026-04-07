@@ -7,7 +7,10 @@ import joblib
 
 from datetime import datetime
 from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from sklearn.metrics import (
+    mean_absolute_error, mean_squared_error, r2_score,
+    accuracy_score, roc_auc_score, precision_score, recall_score,
+)
 
 # ==============================
 # Configuration
@@ -20,8 +23,9 @@ with open(MODELS_CONFIG_PATH) as f:
 
 EXECUTION_CONFIGS = [
     {
-        "name": m["modelName"],
-        "csv":  os.path.join(m["featureLocation"], "features.csv"),
+        "name":              m["modelName"],
+        "csv":               os.path.join(m["featureLocation"], "features.csv"),
+        "is_classification": "bar-classification" in m["modelName"],
     }
     for m in _config["models"]
     if m.get("active") and m.get("export")
@@ -31,19 +35,19 @@ TRAIN_SPLIT = 0.70
 VAL_SPLIT   = 0.15   # remaining 15% = test
 
 # ==============================
-# Evaluate helper
+# Evaluate helpers
 # ==============================
-def evaluate(model, split_name, X_data, y_data):
+def evaluate_regression(model, split_name, X_data, y_data):
     preds = model.predict(X_data)
 
     mae  = mean_absolute_error(y_data, preds)
     rmse = np.sqrt(mean_squared_error(y_data, preds))
     r2   = r2_score(y_data, preds)
 
-    within_tenth_atr = np.mean(np.abs(preds - y_data) < 0.1)
-    within_quarter_atr = np.mean(np.abs(preds- y_data) < 0.25)
-    within_half_atr = np.mean(np.abs(preds - y_data) < 0.5)
-    within_one_atr  = np.mean(np.abs(preds - y_data) < 1.0)
+    within_tenth_atr   = np.mean(np.abs(preds - y_data) < 0.1)
+    within_quarter_atr = np.mean(np.abs(preds - y_data) < 0.25)
+    within_half_atr    = np.mean(np.abs(preds - y_data) < 0.5)
+    within_one_atr     = np.mean(np.abs(preds - y_data) < 1.0)
 
     print(f"\n=== {split_name} ===")
     print(f"  MAE:              {mae:.4f}")
@@ -55,10 +59,26 @@ def evaluate(model, split_name, X_data, y_data):
     print(f"  Within 1.0x ATR:  {within_one_atr:.2%}")
 
 
+def evaluate_classification(model, split_name, X_data, y_data):
+    probs = model.predict(X_data)
+    preds = (probs >= 0.5).astype(int)
+
+    acc  = accuracy_score(y_data, preds)
+    auc  = roc_auc_score(y_data, probs)
+    prec = precision_score(y_data, preds, zero_division=0)
+    rec  = recall_score(y_data, preds, zero_division=0)
+
+    print(f"\n=== {split_name} ===")
+    print(f"  Accuracy:   {acc:.4f}")
+    print(f"  AUC:        {auc:.4f}")
+    print(f"  Precision:  {prec:.4f}")
+    print(f"  Recall:     {rec:.4f}")
+
+
 # ==============================
 # Train for one execution type
 # ==============================
-def train_model(name, csv_path):
+def train_model(name, csv_path, is_classification=False):
     output_dir    = os.path.join(os.path.dirname(csv_path), TODAY)
     os.makedirs(output_dir, exist_ok=True)
     model_output  = os.path.join(output_dir, "xgb_model.json")
@@ -108,24 +128,41 @@ def train_model(name, csv_path):
     X_val_scaled = scaler.transform(X_val)
     X_test_scaled = scaler.transform(X_test)
 
-    # Train XGBoost Regression
-    print("\nTraining XGBoost Regressor...")
-
-    model = xgb.XGBRegressor(
-        n_estimators=400,
-        max_depth=2,
-        learning_rate=0.05,
-        subsample=0.8,
-        colsample_bytree=0.7,
-        gamma=0,
-        reg_alpha=1,
-        reg_lambda=10,
-        tree_method="hist",
-        objective="reg:squarederror",
-        early_stopping_rounds=50,
-        n_jobs=-1,
-        random_state=42,
-    )
+    if is_classification:
+        print("\nTraining XGBoost Classifier (binary:logistic)...")
+        model = xgb.XGBRegressor(
+            n_estimators=400,
+            max_depth=4,
+            learning_rate=0.05,
+            subsample=0.8,
+            colsample_bytree=0.7,
+            gamma=0,
+            reg_alpha=1,
+            reg_lambda=5,
+            tree_method="hist",
+            objective="binary:logistic",
+            eval_metric="logloss",
+            early_stopping_rounds=50,
+            n_jobs=-1,
+            random_state=42,
+        )
+    else:
+        print("\nTraining XGBoost Regressor...")
+        model = xgb.XGBRegressor(
+            n_estimators=400,
+            max_depth=2,
+            learning_rate=0.05,
+            subsample=0.8,
+            colsample_bytree=0.7,
+            gamma=0,
+            reg_alpha=1,
+            reg_lambda=10,
+            tree_method="hist",
+            objective="reg:squarederror",
+            early_stopping_rounds=50,
+            n_jobs=-1,
+            random_state=42,
+        )
 
     model.fit(
         X_train_scaled,
@@ -137,9 +174,10 @@ def train_model(name, csv_path):
     print(f"\nBest iteration: {model.best_iteration}  |  Best val score: {model.best_score:.6f}")
 
     # Evaluate
-    evaluate(model, "Train", X_train_scaled, y_train)
-    evaluate(model, "Validation", X_val_scaled,   y_val)
-    evaluate(model, "Test", X_test_scaled,  y_test)
+    _evaluate = evaluate_classification if is_classification else evaluate_regression
+    _evaluate(model, "Train",      X_train_scaled, y_train)
+    _evaluate(model, "Validation", X_val_scaled,   y_val)
+    _evaluate(model, "Test",       X_test_scaled,  y_test)
 
     # Feature Importance
     feature_names = df.columns[:-1]
@@ -166,6 +204,6 @@ for config in EXECUTION_CONFIGS:
     if not os.path.isfile(config["csv"]):
         print(f"\nSkipping '{config['name']}': {config['csv']} not found.")
         continue
-    train_model(config["name"], config["csv"])
+    train_model(config["name"], config["csv"], config["is_classification"])
 
 print("\nDone.")

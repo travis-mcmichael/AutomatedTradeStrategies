@@ -11,7 +11,15 @@ PYTHON="python3"
 DOT_NET="/mnt/c/Program Files/dotnet/dotnet.exe"
 dotnet() { "$DOT_NET" "$@"; }
 
-EXECUTION_TYPES=("mes.session-day-bar.high" "mes.session-day-bar.low" "mes.trade-day-bar.high" "mes.trade-day-bar.low")
+MODELS_CONFIG="$REPO_ROOT/Models/Config/models.json"
+mapfile -t EXECUTION_TYPES < <($PYTHON -c "
+import json, sys
+with open(sys.argv[1]) as f:
+    config = json.load(f)
+for m in config['models']:
+    if m.get('active') and m.get('export'):
+        print(m['modelName'])
+" "$MODELS_CONFIG")
 
 source /home/superuser/onnx-env/bin/activate
 

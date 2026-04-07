@@ -68,6 +68,36 @@ class Program
                 case "mes.trade-day-bar.low":
                     await new TradeDayOpenLowFeatureExporter(outPath, barRepo).GenerateFeatures(start, end);
                     break;
+                case "mes.overnight.high":
+                    await new OvernightHighFeatureExporter(outPath, barRepo).GenerateFeatures(start, end);
+                    break;
+                case "mes.overnight.low":
+                    await new OvernightLowFeatureExporter(outPath, barRepo).GenerateFeatures(start, end);
+                    break;
+                case "mes.eleven-to-one.high":
+                    await new ElevenToOneHighFeatureExporter(outPath, barRepo).GenerateFeatures(start, end);
+                    break;
+                case "mes.eleven-to-one.low":
+                    await new ElevenToOneLowFeatureExporter(outPath, barRepo).GenerateFeatures(start, end);
+                    break;
+                case "mes.one-to-eod.high":
+                    await new OneToEodHighFeatureExporter(outPath, barRepo).GenerateFeatures(start, end);
+                    break;
+                case "mes.one-to-eod.low":
+                    await new OneToEodLowFeatureExporter(outPath, barRepo).GenerateFeatures(start, end);
+                    break;
+                case "mes.overnight.bar-classification":
+                    await new OvernightBarClassificationExporter(outPath, barRepo).GenerateFeatures(start, end);
+                    break;
+                case "mes.morning-rth.bar-classification":
+                    await new MorningRthBarClassificationExporter(outPath, barRepo).GenerateFeatures(start, end);
+                    break;
+                case "mes.eleven-to-one.bar-classification":
+                    await new ElevenToOneBarClassificationExporter(outPath, barRepo).GenerateFeatures(start, end);
+                    break;
+                case "mes.one-to-eod.bar-classification":
+                    await new OneToEodBarClassificationExporter(outPath, barRepo).GenerateFeatures(start, end);
+                break;
                 default:
                     Console.WriteLine($"Unknown model name '{model.ModelName}'. Skipping.");
                     break;
