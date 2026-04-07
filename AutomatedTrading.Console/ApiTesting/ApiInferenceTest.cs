@@ -1,6 +1,7 @@
 using AutomatedTrading.Console.ApiClient;
 using AutomatedTrading.Core.Api.Models;
 using AutomatedTrading.Core.Framework;
+using AutomatedTrading.Core.Framework.Config;
 using AutomatedTrading.Core.Framework.DataLayer.Repositories;
 using AutomatedTrading.Core.Framework.ML;
 using AutomatedTrading.Core.Framework.Utility;
@@ -19,13 +20,16 @@ public class ApiInferenceTest
     private readonly IBarRepository _barRepo;
     private readonly StrategyApiClient _client;
 
-    private static readonly string[] ModelKeys =
-    [
-        "mes.session-day-bar.high",
-        "mes.session-day-bar.low",
-        "mes.trade-day-bar.high",
-        "mes.trade-day-bar.low",
-    ];
+    private static string[] LoadActiveModelKeys()
+    {
+        return (ModelConfig.GetConfig()?.Models ?? [])
+            .Where(m => m.Active)
+            .Select(m => m.ModelName)
+            .ToArray();
+    }
+
+    private record ModelsConfigFile(List<ModelEntry> Models);
+    private record ModelEntry(string ModelName, bool Active);
 
     public ApiInferenceTest(IBarRepository barRepo, StrategyApiClient client)
     {
@@ -38,7 +42,8 @@ public class ApiInferenceTest
         var start = DateTime.ParseExact(startDate, "yyyyMMdd", null);
         var end = DateTime.ParseExact(endDate, "yyyyMMdd", null);
         var skipped = 0;
-        var results = ModelKeys.ToDictionary(k => k, _ => new List<SessionResult>());
+        var modelKeys = LoadActiveModelKeys();
+        var results = modelKeys.ToDictionary(k => k, _ => new List<SessionResult>());
 
         logHeader();
 
@@ -132,7 +137,7 @@ public class ApiInferenceTest
         foreach (var month in allMonths)
         {
             logMonthHeader(month);
-            foreach (var key in ModelKeys)
+            foreach (var key in modelKeys)
             {
                 var monthResults = results[key].Where(r => r.SessionDate[..6] == month).ToList();
                 if (monthResults.Count == 0) continue;
@@ -141,7 +146,7 @@ public class ApiInferenceTest
         }
 
         logSkipped(skipped);
-        foreach (var key in ModelKeys)
+        foreach (var key in modelKeys)
         {
             if (results[key].Count == 0) continue;
             logStats($"  {key,-22}", results[key]);

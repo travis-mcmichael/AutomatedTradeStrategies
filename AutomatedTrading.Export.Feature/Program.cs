@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using AutomatedTrading.Core.Framework;
+using AutomatedTrading.Core.Framework.Config;
 using AutomatedTrading.Core.Framework.DataLayer.Repositories;
 using AutomatedTrading.Core.Framework.DataLayer.Sqlite;
 using AutomatedTrading.Core.Framework.Utility;
@@ -26,7 +27,7 @@ class Program
         }
 
         var json = await File.ReadAllTextAsync(configPath);
-        var config = JsonSerializer.Deserialize<ModelsConfig>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        var config = ModelConfig.GetConfig(); // JsonSerializer.Deserialize<ModelsConfig>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
         if (config?.Models == null || config.Models.Count == 0)
         {
@@ -169,22 +170,4 @@ class Program
 
         Console.WriteLine($"Total samples written: {sampleCount}");
     }
-}
-
-class ModelsConfig
-{
-    public List<ModelEntry> Models { get; set; } = [];
-}
-
-class ModelEntry
-{
-    public string ModelName      { get; set; } = "";
-    public string Version        { get; set; } = "";
-    public string Instrument     { get; set; } = "";
-    public string TrainingStart  { get; set; } = "";
-    public string TrainingEnd    { get; set; } = "";
-    public string FeatureLocation { get; set; } = "";
-    public string OutputLocation { get; set; } = "";
-    public bool   Export         { get; set; }
-    public bool   Active         { get; set; }
 }

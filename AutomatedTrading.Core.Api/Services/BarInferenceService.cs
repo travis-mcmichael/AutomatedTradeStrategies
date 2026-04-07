@@ -1,7 +1,7 @@
-using System.Text.Json;
 using AutomatedTrading.Core.Api.Models;
 using AutomatedTrading.Core.Api.Models.API.Predict;
 using AutomatedTrading.Core.Framework;
+using AutomatedTrading.Core.Framework.Config;
 using AutomatedTrading.Core.Framework.DataLayer.Repositories;
 using AutomatedTrading.Core.Framework.ML;
 using AutomatedTrading.Core.Framework.Utility;
@@ -293,12 +293,8 @@ public class BarInferenceService : IBarHighPredictor, IBarLowPredictor, ITradeDa
 
     private static Dictionary<string, BaseMLEvaluator> loadEvaluators()
     {
-        var configPath = Operations.NormalizePath(AppConstants.MODELS_CONFIG_PATH);
-        var json = File.ReadAllText(configPath);
-        var config = JsonSerializer.Deserialize<ModelsConfigFile>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-
         var result = new Dictionary<string, BaseMLEvaluator>();
-        foreach (var m in config?.Models ?? [])
+        foreach (var m in ModelConfig.GetConfig()?.Models ?? [])
         {
             if (!m.Active) continue;
             var dir = Path.Combine(Operations.NormalizePath(m.OutputLocation), m.Version, m.ModelName);
@@ -316,12 +312,4 @@ public class BarInferenceService : IBarHighPredictor, IBarLowPredictor, ITradeDa
         }
         return result;
     }
-
-    private record ModelsConfigFile(List<ModelEntry> Models);
-    private record ModelEntry(
-        string ModelName,
-        string Version,
-        string OutputLocation,
-        int    FeatureCount,
-        bool   Active);
 }
