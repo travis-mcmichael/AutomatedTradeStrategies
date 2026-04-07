@@ -12,7 +12,14 @@ DOT_NET="/mnt/c/Program Files/dotnet/dotnet.exe"
 dotnet() { "$DOT_NET" "$@"; }
 
 MODELS_CONFIG="$REPO_ROOT/Models/Config/models.json"
-mapfile -t EXECUTION_TYPES < <(jq -r '.models[] | select(.active == true and .export == true) | .modelName' "$MODELS_CONFIG")
+mapfile -t EXECUTION_TYPES < <($PYTHON -c "
+import json, sys
+with open(sys.argv[1]) as f:
+    config = json.load(f)
+for m in config['models']:
+    if m.get('active') and m.get('export'):
+        print(m['modelName'])
+" "$MODELS_CONFIG")
 
 source /home/superuser/onnx-env/bin/activate
 

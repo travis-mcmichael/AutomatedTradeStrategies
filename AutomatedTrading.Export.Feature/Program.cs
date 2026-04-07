@@ -86,6 +86,18 @@ class Program
                 case "mes.one-to-eod.low":
                     await new OneToEodLowFeatureExporter(outPath, barRepo).GenerateFeatures(start, end);
                     break;
+                case "mes.overnight.bar-classification":
+                    await new OvernightBarClassificationExporter(outPath, barRepo).GenerateFeatures(start, end);
+                    break;
+                case "mes.morning-rth.bar-classification":
+                    await new MorningRthBarClassificationExporter(outPath, barRepo).GenerateFeatures(start, end);
+                    break;
+                case "mes.eleven-to-one.bar-classification":
+                    await new ElevenToOneBarClassificationExporter(outPath, barRepo).GenerateFeatures(start, end);
+                    break;
+                case "mes.one-to-eod.bar-classification":
+                    await new OneToEodBarClassificationExporter(outPath, barRepo).GenerateFeatures(start, end);
+                break;
                 default:
                     Console.WriteLine($"Unknown model name '{model.ModelName}'. Skipping.");
                     break;

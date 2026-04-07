@@ -12,10 +12,10 @@ class Program
 
     static async Task Main(string[] args)
     {
-        var runType = "backtest"; // inference | backtest
+        var runType = "inference"; // inference | backtest
         var runDate = DateTime.Today;
-        var rangeStart = new DateTime(2026, 3, 23);
-        var rangeEnd = new DateTime(2026, 4, 5);
+        var rangeStart = runDate; // new DateTime(2026, 3, 23);
+        var rangeEnd = runDate; //new DateTime(2026, 4, 5);
         var strategy = ApiStrategy.SessionHigh;
 
         var barRepo = new BarRepository(new SqliteConnectionFactory(AppConstants.SQLITE_CONNECTION));

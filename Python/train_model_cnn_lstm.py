@@ -6,10 +6,13 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import roc_auc_score
 from torch.utils.data import Dataset, DataLoader
 
+# NOTE: This script is a standalone prototype and is not part of mlpipeline.sh.
+# It expects a pre-built sequence dataset, not the flat per-bar CSVs produced
+# by the current exporters. Update CSV_PATH and FEATURES before use.
 CSV_PATH = "features.csv"
 
 SEQ_LEN = 100
-FEATURES = 13
+FEATURES = 19   # matches bar-classification exporters; update if using a different dataset
 BATCH_SIZE = 64
 EPOCHS = 20
 LR = 0.001
