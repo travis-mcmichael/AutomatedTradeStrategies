@@ -23,8 +23,6 @@ for m in config['models']:
 
 source /home/superuser/onnx-env/bin/activate
 
-MODELS_DIR="$REPO_ROOT/Models/$MODEL_DATE"
-
 # ==============================
 # Step 1: Export features
 # ==============================
@@ -72,7 +70,7 @@ for exec_type in "${EXECUTION_TYPES[@]}"; do
         continue
     fi
 
-    dest="$MODELS_DIR/$exec_type"
+    dest="$REPO_ROOT/Models/$exec_type/$MODEL_DATE"
     mkdir -p "$dest"
     cp "$onnx_file"   "$dest/xgb_model.onnx"
     cp "$scaler_file" "$dest/scaler_params.json"

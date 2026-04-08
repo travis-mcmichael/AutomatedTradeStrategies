@@ -66,7 +66,7 @@ public class BarNumericalInferenceService : IMovementPredictor
     private void loadEvaluator(ModelEntry model)
     {
         if (!model.Active) return;
-        var dir = Path.Combine(Operations.NormalizePath(model.OutputLocation), model.Version, model.ModelName);
+        var dir = Path.Combine(Operations.NormalizePath(model.OutputLocation), model.ModelName, model.Version);
         var eval = new BaseMLEvaluator(
             Path.Combine(dir, AppConstants.XGB_MODEL_FILENAME),
             Path.Combine(dir, AppConstants.SCALER_FILENAME),
