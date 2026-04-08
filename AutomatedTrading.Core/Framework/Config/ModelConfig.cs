@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
+using AutomatedTrading.Core.Framework.Enums;
 using AutomatedTrading.Core.Framework.Utility;
 
 namespace AutomatedTrading.Core.Framework.Config;
@@ -26,8 +27,12 @@ public class ModelEntry{
     public string Instrument { get; }
     public string TrainingStart { get; }
     public string TrainingEnd { get; }
+    public PredictionTarget Target { get; }
     public string OutputLocation { get; }
     public string FeatureLocation { get; }
+    public string BarType { get; }
+    public string? WindowStart { get; set; }
+    public string? WindowEnd { get; set; }
     public bool Active { get; }
     public bool Export { get; }
     public List<ModelFeature> Features { get; }
@@ -37,8 +42,12 @@ public class ModelEntry{
         string Instrument,
         string TrainingStart,
         string TrainingEnd,
+        PredictionTarget Target,
         string OutputLocation,
         string FeatureLocation,
+        string BarType,
+        string? WindowStart,
+        string? WindowEnd,
         bool Active,
         bool Export,
         List<ModelFeature> Features)
@@ -48,8 +57,12 @@ public class ModelEntry{
         this.Instrument = Instrument;
         this.TrainingStart = TrainingStart;
         this.TrainingEnd = TrainingEnd;
+        this.Target = Target;
         this.OutputLocation = OutputLocation;
         this.FeatureLocation = FeatureLocation;
+        this.BarType = BarType;
+        this.WindowStart = WindowStart;
+        this.WindowEnd = WindowEnd;
         this.Active = Active;
         this.Export = Export;
         this.Features = Features;

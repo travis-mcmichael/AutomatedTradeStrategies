@@ -26,16 +26,12 @@ public class FeatureExporter
     private readonly ModelEntry _model;
     private readonly string _outputPath;
     private readonly IBarRepository _barRepository;
-    private readonly bool _isTradeDay;
-    private readonly bool _isHigh;
 
     public FeatureExporter(ModelEntry model, string outputPath, IBarRepository barRepository)
     {
         _model = model;
         _outputPath = outputPath;
         _barRepository = barRepository;
-        _isTradeDay = model.Features.Any(f => f.Source == "currentMinute");
-        _isHigh = model.ModelName.EndsWith(".high");
     }
 
     public async Task GenerateFeatures(DateTime start, DateTime end)
@@ -94,28 +90,26 @@ public class FeatureExporter
                 double target;
                 List<BarData>? currentBarsForCtx;
 
-                if (_isTradeDay)
+                if (_model.BarType == "window")
                 {
-                    var rthBars = orderedCurrent
-                        .Where(b => b.Timestamp.TimeOfDay >= AppConstants.RTH_START_TIME &&
-                                    b.Timestamp.TimeOfDay <  AppConstants.RTH_END_TIME)
-                        .ToList();
-                    if (!rthBars.Any()) continue;
+                    var windowStart = int.Parse(_model.WindowStart);
+                    var windowEnd = int.Parse(_model.WindowEnd);
 
-                    open = rthBars.First().Open;
-                    target = _isHigh
-                        ? (rthBars.Max(b => b.High) - open) / atr20
-                        : (open - rthBars.Min(b => b.Low)) / atr20;
+                    var windowBars = orderedCurrent
+                        .Where(b => int.Parse(b.SessionTime) > windowStart && int.Parse(b.SessionTime) < windowEnd)
+                        .ToList();
+                    if (!windowBars.Any()) continue;
+                    open = windowBars.First().Open;
+                    target = getTarget(windowBars, open, atr20);
                     currentBarsForCtx = orderedCurrent;
                 }
                 else
                 {
                     open = orderedCurrent.First().Open;
-                    target = _isHigh
-                        ? (currentMinuteBars.Max(b => b.High) - open) / atr20
-                        : (open - currentMinuteBars.Min(b => b.Low)) / atr20;
+                    target = getTarget(currentMinuteBars, open, atr20);
                     currentBarsForCtx = null;
                 }
+
 
                 var ctx = new FeatureContext(
                     dailyBars,
@@ -167,6 +161,17 @@ public class FeatureExporter
         return $"{feature.Name}_{suffix}";
     }
 
-    private string targetColumnName() =>
-        (_isTradeDay ? "TradeDay" : "Session") + (_isHigh ? "High" : "Low");
+    private double getTarget(List<BarData> barData, double open, double atr)
+    {
+        switch (_model.Target)
+        {
+            case Core.Framework.Enums.PredictionTarget.HIGH:
+                return barData.Max(b => b.High) - open / atr;
+            case Core.Framework.Enums.PredictionTarget.LOW:
+                return (open - barData.Min(b => b.Low)) / atr;
+        }
+        return 0;
+    }
+
+    private string targetColumnName() => $"{_model.BarType} {_model.Target}";
 }

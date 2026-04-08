@@ -26,7 +26,7 @@ foreach (var model in config.Models.Where(m => m.Active && m.Features.Count > 0)
     var captured = model;
     builder.Services.AddKeyedSingleton<IMovementPredictor>(
         captured.ModelName,
-        (sp, _) => new BarNumericalInferenceService(
+        (sp, _) => new InferenceService(
             sp.GetRequiredService<IBarRepository>(),
             captured));
 }

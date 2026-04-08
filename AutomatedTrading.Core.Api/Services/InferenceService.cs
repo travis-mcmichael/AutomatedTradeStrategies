@@ -9,7 +9,7 @@ using AutomatedTrading.Core.Models;
 
 namespace AutomatedTrading.Core.Api.Services;
 
-public class BarNumericalInferenceService : IMovementPredictor
+public class InferenceService : IMovementPredictor
 {
     private const string DATE_FORMAT = "yyyyMMdd";
     private const int LOOKBACK = 40;
@@ -21,7 +21,7 @@ public class BarNumericalInferenceService : IMovementPredictor
     private readonly bool _peak;
     private BaseMLEvaluator? _evaluator;
 
-    public BarNumericalInferenceService(IBarRepository barRepo, ModelEntry model)
+    public InferenceService(IBarRepository barRepo, ModelEntry model)
     {
         _barRepo = barRepo;
         _features = model.Features;
