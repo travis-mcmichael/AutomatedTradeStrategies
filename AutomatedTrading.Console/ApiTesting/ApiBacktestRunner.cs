@@ -170,79 +170,30 @@ public class ApiBacktestRunner
     private async Task<(bool IsReady, double Predicted)> startSessionAsync(
         string sessionDate, double sessionOpen, ApiBacktestParams p)
     {
-        return _strategy switch
+        var req = new StrategySessionRequest(sessionDate, sessionOpen, p.Proximity, p.StopLoss, p.TargetProfit, p.Trail);
+        var r = await _client.StartSessionAsync(req);
+        if (r?.IsReady != true) return (false, 0);
+
+        // Pick the relevant predicted level for this strategy's direction
+        var predictionKey = _strategy switch
         {
-            ApiStrategy.SessionHigh => await startSessionHigh(sessionDate, sessionOpen, p),
-            ApiStrategy.SessionLow => await startSessionLow(sessionDate, sessionOpen, p),
-            ApiStrategy.TradeDayHigh => await startTradeDayHigh(sessionDate, sessionOpen, p),
-            ApiStrategy.TradeDayLow => await startTradeDayLow(sessionDate, sessionOpen, p),
-            _ => (false, 0),
+            ApiStrategy.SessionHigh  => "mes.session-day-bar.high",
+            ApiStrategy.SessionLow   => "mes.session-day-bar.low",
+            ApiStrategy.TradeDayHigh => "mes.trade-day-bar.high",
+            ApiStrategy.TradeDayLow  => "mes.trade-day-bar.low",
+            _                        => string.Empty,
         };
-    }
 
-    private async Task<(bool, double)> startSessionHigh(string date, double open, ApiBacktestParams p)
-    {
-        var r = await _client.StartSessionHighAsync(
-            new SessionHighSessionRequest(date, open, p.Proximity, p.StopLoss, p.TargetProfit, p.Trail));
-        return r is null ? (false, 0) : (r.IsReady, r.PredictedHigh);
-    }
-
-    private async Task<(bool, double)> startSessionLow(string date, double open, ApiBacktestParams p)
-    {
-        var r = await _client.StartSessionLowAsync(
-            new SessionLowSessionRequest(date, open, p.Proximity, p.StopLoss, p.TargetProfit, p.Trail));
-        return r is null ? (false, 0) : (r.IsReady, r.PredictedLow);
-    }
-
-    private async Task<(bool, double)> startTradeDayHigh(string date, double open, ApiBacktestParams p)
-    {
-        var r = await _client.StartTradeDayHighAsync(
-            new TradeDayHighSessionRequest(date, open, p.Proximity, p.StopLoss, p.TargetProfit, p.Trail));
-        return r is null ? (false, 0) : (r.IsReady, r.PredictedHigh);
-    }
-
-    private async Task<(bool, double)> startTradeDayLow(string date, double open, ApiBacktestParams p)
-    {
-        var r = await _client.StartTradeDayLowAsync(
-            new TradeDayLowSessionRequest(date, open, p.Proximity, p.StopLoss, p.TargetProfit, p.Trail));
-        return r is null ? (false, 0) : (r.IsReady, r.PredictedLow);
+        return r.Predictions.TryGetValue(predictionKey, out var predicted)
+            ? (true, predicted)
+            : (false, 0);
     }
 
     private async Task<(string Signal, double StopPrice)> evaluateBarAsync(
         BarData bar, PositionSide position, double entryPrice)
     {
-        var pos = position.ToString();
-        return _strategy switch
-        {
-            ApiStrategy.SessionHigh => await evalSessionHigh(bar, pos, entryPrice),
-            ApiStrategy.SessionLow => await evalSessionLow(bar, pos, entryPrice),
-            ApiStrategy.TradeDayHigh => await evalTradeDayHigh(bar, pos, entryPrice),
-            ApiStrategy.TradeDayLow => await evalTradeDayLow(bar, pos, entryPrice),
-            _ => ("None", 0),
-        };
-    }
-
-    private async Task<(string, double)> evalSessionHigh(BarData bar, string pos, double entry)
-    {
-        var r = await _client.EvaluateSessionHighBarAsync(new SessionHighBarRequest(bar.High, bar.Close, pos, entry));
-        return r is null ? ("None", 0) : (r.Signal, r.StopPrice);
-    }
-
-    private async Task<(string, double)> evalSessionLow(BarData bar, string pos, double entry)
-    {
-        var r = await _client.EvaluateSessionLowBarAsync(new SessionLowBarRequest(bar.Low, bar.Close, pos, entry));
-        return r is null ? ("None", 0) : (r.Signal, r.StopPrice);
-    }
-
-    private async Task<(string, double)> evalTradeDayHigh(BarData bar, string pos, double entry)
-    {
-        var r = await _client.EvaluateTradeDayHighBarAsync(new TradeDayHighBarRequest(bar.High, bar.Close, pos, entry));
-        return r is null ? ("None", 0) : (r.Signal, r.StopPrice);
-    }
-
-    private async Task<(string, double)> evalTradeDayLow(BarData bar, string pos, double entry)
-    {
-        var r = await _client.EvaluateTradeDayLowBarAsync(new TradeDayLowBarRequest(bar.Low, bar.Close, pos, entry));
+        var req = new StrategyBarRequest(bar.High, bar.Low, bar.Close, position.ToString(), entryPrice);
+        var r = await _client.EvaluateBarAsync(req);
         return r is null ? ("None", 0) : (r.Signal, r.StopPrice);
     }
 
