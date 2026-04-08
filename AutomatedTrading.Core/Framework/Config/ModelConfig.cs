@@ -5,8 +5,13 @@ using AutomatedTrading.Core.Framework.Utility;
 
 namespace AutomatedTrading.Core.Framework.Config;
 
-public record ModelConfig(List<ModelEntry> Models)
+public record ModelConfig
 {
+    public List<ModelEntry> Models { get; }
+    public ModelConfig(List<ModelEntry> models)
+    {
+        Models = models;
+    }
     public static ModelConfig? GetConfig()
     {
         var configPath = Operations.NormalizePath(AppConstants.MODELS_CONFIG_PATH);
@@ -15,22 +20,57 @@ public record ModelConfig(List<ModelEntry> Models)
     }
 }
 
-public record ModelEntry(
-    string ModelName,
-    string Version,
-    string Instrument,
-    string TrainingStart,
-    string TrainingEnd,
-    string OutputLocation,
-    string FeatureLocation,
-    int FeatureCount,
-    bool Active,
-    bool Export,
-    List<ModelFeature> Features
-);
+public class ModelEntry{
+    public string ModelName { get; }
+    public string Version { get; }
+    public string Instrument { get; }
+    public string TrainingStart { get; }
+    public string TrainingEnd { get; }
+    public string OutputLocation { get; }
+    public string FeatureLocation { get; }
+    public int FeatureCount { get; }
+    public bool Active { get; }
+    public bool Export { get; }
+    public List<ModelFeature> Features { get; }
+    public ModelEntry(
+        string ModelName,
+        string Version,
+        string Instrument,
+        string TrainingStart,
+        string TrainingEnd,
+        string OutputLocation,
+        string FeatureLocation,
+        int FeatureCount,
+        bool Active,
+        bool Export,
+        List<ModelFeature> Features)
+    {
+        this.ModelName = ModelName;
+        this.Version = Version;
+        this.Instrument = Instrument;
+        this.TrainingStart = TrainingStart;
+        this.TrainingEnd = TrainingEnd;
+        this.OutputLocation = OutputLocation;
+        this.FeatureLocation = FeatureLocation;
+        this.FeatureCount = FeatureCount;
+        this.Active = Active;
+        this.Export = Export;
+        this.Features = Features;
+    }
+}
 
-public record ModelFeature(
+public class ModelFeature
+{
+    public string Name { get; }
+    public string Source { get; }
+    public Dictionary<string, int>? Params { get; }
+    public ModelFeature(
     string Name,
     string Source = "daily",
-    Dictionary<string, int>? Params = null
-);
+    Dictionary<string, int>? Params = null)
+    {
+        this.Name = Name;
+        this.Source = Source;
+        this.Params = Params;
+    }
+}

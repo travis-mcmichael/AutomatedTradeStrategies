@@ -5,21 +5,23 @@ using AutomatedTrading.Core.Framework.Logging;
 
 namespace AutomatedTrading.Core.Api.Endpoints;
 
-public static class TradeDayLowEndpoints
+public static class StrategyEndpoints
 {
-    private static readonly string SESSION_START = "/strategy/trade-day-low/session";
-    private static readonly string EVAL_BAR = "/strategy/trade-day-low/bar";
+    private static readonly string SESSION_START = "/strategy/session";
+    private static readonly string EVAL_BAR      = "/strategy/bar";
+
     public static void Map(WebApplication app)
     {
-        // Called once at RTH open. Runs ML inference, loads daily ATR,
+        // Called once at session open. Runs all active ML predictors, loads daily ATR,
         // and arms the evaluator for the session.
         app.MapPost(SESSION_START, async (
-            TradeDayLowSessionRequest req,
-            TradeDayLowStrategyEvaluator evaluator) =>
+            StrategySessionRequest req,
+            StrategyEvaluator evaluator) =>
         {
             Logger.Info($"Endpoint {SESSION_START} called.");
             if (string.IsNullOrWhiteSpace(req.SessionDate))
                 return Results.BadRequest("SessionDate is required.");
+
             await evaluator.StartSessionAsync(
                 req.SessionDate,
                 req.SessionOpen,
@@ -27,26 +29,28 @@ public static class TradeDayLowEndpoints
                 req.StopLossPoints,
                 req.TargetProfit,
                 req.Trail);
-            return Results.Ok(new TradeDayLowSessionResponse(
+
+            return Results.Ok(new StrategySessionResponse(
                 evaluator.IsReady,
-                evaluator.PredictedLow,
+                evaluator.Predictions,
                 evaluator.DailyAtr));
         });
 
         // Called on every bar close. Returns the signal the strategy should act on.
         app.MapPost(EVAL_BAR, (
-            TradeDayLowBarRequest req,
-            TradeDayLowStrategyEvaluator evaluator) =>
+            StrategyBarRequest req,
+            StrategyEvaluator evaluator) =>
         {
             Logger.Info($"Endpoint {EVAL_BAR} called.");
             var position = req.Position switch
             {
-                "Long" => PositionSide.Long,
+                "Long"  => PositionSide.Long,
                 "Short" => PositionSide.Short,
-                _ => PositionSide.Flat,
+                _       => PositionSide.Flat,
             };
-            var eval = evaluator.Evaluate(req.Low, req.Close, position, req.EntryPrice);
-            return Results.Ok(new TradeDayLowBarResponse(eval.Signal.ToString(), eval.StopPrice));
+
+            var eval = evaluator.Evaluate(req.High, req.Low, req.Close, position, req.EntryPrice);
+            return Results.Ok(new StrategyBarResponse(eval.Signal.ToString(), eval.StopPrice));
         });
     }
 }

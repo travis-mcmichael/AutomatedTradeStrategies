@@ -2,6 +2,7 @@ using AutomatedTrading.Core.Api.Endpoints;
 using AutomatedTrading.Core.Api.Models.API.Predict;
 using AutomatedTrading.Core.Api.Models.Evaluate;
 using AutomatedTrading.Core.Api.Services;
+using AutomatedTrading.Core.Framework.Config;
 using AutomatedTrading.Core.Framework.DataLayer;
 using AutomatedTrading.Core.Framework.DataLayer.Repositories;
 using AutomatedTrading.Core.Framework.DataLayer.Sqlite;
@@ -15,30 +16,31 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 builder.Services.AddSingleton<IDbConnectionFactory>(_ => new SqliteConnectionFactory(connectionString));
 builder.Services.AddSingleton<IBarRepository, BarRepository>();
 
-// ML inference (singleton — holds loaded ONNX InferenceSessions, config from Models/Config/models.json)
-builder.Services.AddSingleton<BarInferenceService>();
-builder.Services.AddSingleton<IMovementPredictor>(sp => sp.GetRequiredService<BarInferenceService>());
-builder.Services.AddSingleton<IBarLowPredictor>(sp => sp.GetRequiredService<BarInferenceService>());
-builder.Services.AddSingleton<ITradeDayHighPredictor>(sp => sp.GetRequiredService<BarInferenceService>());
-builder.Services.AddSingleton<ITradeDayLowPredictor>(sp => sp.GetRequiredService<BarInferenceService>());
+// ML inference — one keyed IMovementPredictor singleton per active model that has
+// a feature list defined in Models/Config/models.json.
+var config = ModelConfig.GetConfig()
+    ?? throw new InvalidOperationException("Failed to load Models/Config/models.json.");
 
-// Strategy evaluators (singleton — holds per-session trading state)
+foreach (var model in config.Models.Where(m => m.Active && m.Features.Count > 0))
+{
+    var captured = model;
+    builder.Services.AddKeyedSingleton<IMovementPredictor>(
+        captured.ModelName,
+        (sp, _) => new BarNumericalInferenceService(
+            sp.GetRequiredService<IBarRepository>(),
+            captured));
+}
+
+// Unified strategy evaluator — collects all active predictors into a dictionary.
 builder.Services.AddSingleton(sp =>
-    new SessionHighStrategyEvaluator(
-        sp.GetRequiredService<IMovementPredictor>(),
-        sp.GetRequiredService<IBarRepository>()));
-builder.Services.AddSingleton(sp =>
-    new SessionLowStrategyEvaluator(
-        sp.GetRequiredService<IBarLowPredictor>(),
-        sp.GetRequiredService<IBarRepository>()));
-builder.Services.AddSingleton(sp =>
-    new TradeDayHighStrategyEvaluator(
-        sp.GetRequiredService<ITradeDayHighPredictor>(),
-        sp.GetRequiredService<IBarRepository>()));
-builder.Services.AddSingleton(sp =>
-    new TradeDayLowStrategyEvaluator(
-        sp.GetRequiredService<ITradeDayLowPredictor>(),
-        sp.GetRequiredService<IBarRepository>()));
+{
+    var predictors = config.Models
+        .Where(m => m.Active && m.Features.Count > 0)
+        .ToDictionary(
+            m => m.ModelName,
+            m => sp.GetRequiredKeyedService<IMovementPredictor>(m.ModelName));
+    return new StrategyEvaluator(predictors, sp.GetRequiredService<IBarRepository>());
+});
 
 var app = builder.Build();
 
@@ -47,9 +49,6 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-SessionHighEndpoints.Map(app);
-SessionLowEndpoints.Map(app);
-TradeDayHighEndpoints.Map(app);
-TradeDayLowEndpoints.Map(app);
+StrategyEndpoints.Map(app);
 
 app.Run();
