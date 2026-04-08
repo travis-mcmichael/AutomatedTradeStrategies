@@ -28,7 +28,6 @@ public class ModelEntry{
     public string TrainingEnd { get; }
     public string OutputLocation { get; }
     public string FeatureLocation { get; }
-    public int FeatureCount { get; }
     public bool Active { get; }
     public bool Export { get; }
     public List<ModelFeature> Features { get; }
@@ -40,7 +39,6 @@ public class ModelEntry{
         string TrainingEnd,
         string OutputLocation,
         string FeatureLocation,
-        int FeatureCount,
         bool Active,
         bool Export,
         List<ModelFeature> Features)
@@ -52,7 +50,6 @@ public class ModelEntry{
         this.TrainingEnd = TrainingEnd;
         this.OutputLocation = OutputLocation;
         this.FeatureLocation = FeatureLocation;
-        this.FeatureCount = FeatureCount;
         this.Active = Active;
         this.Export = Export;
         this.Features = Features;

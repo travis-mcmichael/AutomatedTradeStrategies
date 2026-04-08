@@ -69,8 +69,7 @@ public class BarNumericalInferenceService : IMovementPredictor
         var dir = Path.Combine(Operations.NormalizePath(model.OutputLocation), model.ModelName, model.Version);
         var eval = new BaseMLEvaluator(
             Path.Combine(dir, AppConstants.XGB_MODEL_FILENAME),
-            Path.Combine(dir, AppConstants.SCALER_FILENAME),
-            model.FeatureCount);
+            Path.Combine(dir, AppConstants.SCALER_FILENAME));
         eval.LoadModel();
         if (!eval.SessionLoaded())
         {

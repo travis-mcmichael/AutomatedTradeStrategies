@@ -18,9 +18,8 @@ with open(MODELS_CONFIG_PATH) as f:
 
 EXECUTION_CONFIGS = [
     {
-        "name":           m["modelName"],
-        "dir":            os.path.join(m["featureLocation"], TODAY),
-        "feature_count":  m.get("featureCount"),
+        "name": m["modelName"],
+        "dir":  os.path.join(m["featureLocation"], TODAY),
     }
     for m in _config["models"]
     if m.get("active") and m.get("export")
@@ -29,7 +28,7 @@ EXECUTION_CONFIGS = [
 # ==============================
 # Export one execution type
 # ==============================
-def export_model(name, model_input, scaler_input, onnx_output, scaler_output, expected_feature_count=None):
+def export_model(name, model_input, scaler_input, onnx_output, scaler_output):
     print(f"\n{'='*50}")
     print(f"  Exporting: {name}")
     print(f"{'='*50}")
@@ -40,12 +39,6 @@ def export_model(name, model_input, scaler_input, onnx_output, scaler_output, ex
     print(f"  Features: {model.n_features_in_}")
     print(f"  Objective: {model.objective}")
     print(f"  Best iteration: {getattr(model, 'best_iteration', 'n/a')}")
-
-    if expected_feature_count is not None and model.n_features_in_ != expected_feature_count:
-        raise ValueError(
-            f"Model has {model.n_features_in_} features but config expects "
-            f"{expected_feature_count} for '{name}'."
-        )
 
     print(f"\nExporting to ONNX → {onnx_output}...")
     initial_type = [("float_input", FloatTensorType([None, model.n_features_in_]))]
@@ -96,6 +89,6 @@ for config in EXECUTION_CONFIGS:
     onnx_output = os.path.join(d, "xgb_model.onnx")
     scaler_output = os.path.join(d, "scaler_params.json")
 
-    export_model(config["name"], model_input, scaler_input, onnx_output, scaler_output, config["feature_count"])
+    export_model(config["name"], model_input, scaler_input, onnx_output, scaler_output)
 
 print("\nDone.")
