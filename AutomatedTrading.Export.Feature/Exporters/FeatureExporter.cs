@@ -1,4 +1,3 @@
-using AutomatedTrading.Core.Framework;
 using AutomatedTrading.Core.Framework.Config;
 using AutomatedTrading.Core.Framework.DataLayer.Repositories;
 using AutomatedTrading.Core.Framework.Utility;
@@ -67,85 +66,73 @@ public class FeatureExporter
         var headerWritten = false;
         var rowsWritten = 0;
 
+        double[]? featureValues = null;
+        double? target = null;
         using var writer = new StreamWriter(_outputPath);
-
-        for (int i = MinLookback; i < sessionDates.Count; i++)
+        for (var i = MinLookback; i < sessionDates.Count; i++)
         {
-            var j = i - 1; // index of most recent complete session in dailyBars
-
-            var currentMinuteBars = minuteBarsBySession[sessionDates[i]];
-            var prevMinuteBars = minuteBarsBySession[sessionDates[j]];
-
-            if (!currentMinuteBars.Any() || !prevMinuteBars.Any()) continue;
-
             try
             {
-                var atr20 = Computations.ATR(dailyBars, j, 20);
-                if (atr20 == 0) continue;
-
-                var current = dailyBars[j];
-                var orderedCurrent = currentMinuteBars.OrderBy(b => b.Timestamp).ToList();
-
-                double open;
-                double target;
-                List<BarData>? currentBarsForCtx;
-
-                if (_model.BarType == "window")
+                var j = i - 1;
+                if (_model.BarType == "session")
+                {
+                    var atr20 = Computations.ATR(dailyBars, j, 20);
+                    if (atr20 == 0) continue;
+                    featureValues = buildSessionFeatures(dailyBars, i, atr20, sessionDates, minuteBarsBySession);
+                    target = getTarget(dailyBars, dailyBars[i].Open, atr20);
+                }
+                else if (_model.BarType == "window")
                 {
                     var windowStart = int.Parse(_model.WindowStart);
                     var windowEnd = int.Parse(_model.WindowEnd);
-
-                    var windowBars = orderedCurrent
-                        .Where(b => int.Parse(b.SessionTime) > windowStart && int.Parse(b.SessionTime) < windowEnd)
+                    var windowBars = sessionDates.Select(d => 
+                        BarData.Aggregate(minuteBarsBySession[d]
+                            .Where(b => 
+                                int.Parse(b.SessionTime) >= windowStart && 
+                                int.Parse(b.SessionTime) < windowEnd)
+                            .OrderBy(b => b.Timestamp)
+                            .ToList()))
                         .ToList();
                     if (!windowBars.Any()) continue;
-                    open = windowBars.First().Open;
+                    var atr20 = Computations.ATR(windowBars, j, MinLookback);
+                    if (atr20 == 0) continue;
+                    var open = windowBars[i].Open;
                     target = getTarget(windowBars, open, atr20);
-                    currentBarsForCtx = orderedCurrent;
+                    featureValues = buildWindowFeatures(windowBars, windowStart, windowEnd, i, atr20, open, sessionDates, minuteBarsBySession);
                 }
-                else
+                else if (_model.BarType == "minute")
                 {
-                    open = orderedCurrent.First().Open;
-                    target = getTarget(currentMinuteBars, open, atr20);
-                    currentBarsForCtx = null;
+                    var sessionBars = minuteBarsBySession[sessionDates[i]];
+                    var atr20 = Computations.ATR(sessionBars, j, 20);
+                    if (atr20 == 0) continue;
+                    var open = sessionBars.First().Open;
+                    target = getTarget(sessionBars, open, atr20);
+                    featureValues = buildMinuteFeatures(sessionBars, i, atr20, open, sessionDates, minuteBarsBySession);
                 }
-
-
-                var ctx = new FeatureContext(
-                    dailyBars,
-                    j,
-                    current,
-                    open,
-                    atr20,
-                    sessionDates[i],
-                    prevMinuteBars,
-                    currentBarsForCtx
-                );
-
-                var featureValues = FeatureComputations.ParseFeatures(_model.Features, ctx);
-
                 if (!headerWritten)
                 {
                     var header = string.Join(",", _model.Features.Select(columnName));
                     await writer.WriteLineAsync(header + "," + targetColumnName());
                     headerWritten = true;
                 }
-
-                await writer.WriteLineAsync(
-                    string.Join(",", featureValues.Select(f => f.ToString("G6"))) +
-                    "," + target.ToString("G6")
-                );
-
-                rowsWritten++;
-                if (rowsWritten % 100 == 0)
-                    Console.WriteLine($"  {rowsWritten} rows written...");
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"  Error on session {sessionDates[i]}: {ex.Message}");
             }
-        }
 
+            if (featureValues != null)
+            {
+                await writer.WriteLineAsync(
+                string.Join(",", featureValues.Select(f => f.ToString("G6"))) +
+                    "," + target?.ToString("G6"));
+            }
+
+            rowsWritten++;
+            if (rowsWritten % 100 == 0)
+                Console.WriteLine($"  {rowsWritten} rows written...");
+        }
+        
         Console.WriteLine($"  Feature export complete. {rowsWritten} rows written to {_outputPath}");
     }
 
@@ -166,7 +153,7 @@ public class FeatureExporter
         switch (_model.Target)
         {
             case Core.Framework.Enums.PredictionTarget.HIGH:
-                return barData.Max(b => b.High) - open / atr;
+                return (barData.Max(b => b.High) - open) / atr;
             case Core.Framework.Enums.PredictionTarget.LOW:
                 return (open - barData.Min(b => b.Low)) / atr;
         }
@@ -174,4 +161,60 @@ public class FeatureExporter
     }
 
     private string targetColumnName() => $"{_model.BarType} {_model.Target}";
+
+    private double[]? buildWindowFeatures(List<BarData> windowBars, int start, int end, int i, double atr, double open, List<string> sessionDates, Dictionary<string, List<BarData>> minuteBarsBySession)
+    {        
+        var prev = minuteBarsBySession[sessionDates[i - 1]].Where(b => 
+            int.Parse(b.SessionDate) >= start && 
+            int.Parse(b.SessionTime)< end)
+        .OrderBy(b => b.Timestamp)
+        .ToList();
+        var current = minuteBarsBySession[sessionDates[i]].Where(b => 
+            int.Parse(b.SessionDate) >= start && 
+            int.Parse(b.SessionTime)< end)
+        .OrderBy(b => b.Timestamp)
+        .ToList(); 
+        var ctx = new FeatureContext
+        (
+            windowBars,
+            i - 1,
+            windowBars[i - 1],
+            open,
+            atr,
+            sessionDates[i],
+            prev,
+            current
+        );
+        return FeatureComputations.ParseFeatures(_model.Features, ctx);
+    }
+
+    private double[] buildMinuteFeatures(List<BarData> bars, int i, double atr, double open, List<string> sessionDates, Dictionary<string, List<BarData>?> minuteBarsBySession)
+    {
+        return FeatureComputations.ParseFeatures(_model.Features, new FeatureContext
+        (
+            bars,
+            i - 1,
+            bars.Last(),
+            open,
+            atr,
+            sessionDates[i],
+            minuteBarsBySession[sessionDates[i - 1]],
+            bars
+        ));
+    }
+
+    private double[]? buildSessionFeatures(List<BarData> dailyBars, int i, double atr, List<string> sessionDates, Dictionary<string, List<BarData>> minuteBarsBySession)
+    {
+        return FeatureComputations.ParseFeatures(_model.Features, new FeatureContext
+        (
+            dailyBars,
+            i - 1,
+            dailyBars[i - 1],
+            dailyBars[i].Open,
+            atr,
+            sessionDates[i],
+            minuteBarsBySession[sessionDates[i]],
+            minuteBarsBySession[sessionDates[i - 1]]
+        ));
+    }
 }
