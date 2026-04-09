@@ -26,7 +26,7 @@ public class InferenceService : IMovementPredictor
         _barRepo = barRepo;
         _features = model.Features;
         _isTradeDay = model.Features.Any(f => f.Source == "currentMinute");
-        _peak = model.ModelName.EndsWith(".high");
+        _peak = model.Target == Framework.Enums.PredictionTarget.HIGH;
         loadEvaluator(model);
     }
 

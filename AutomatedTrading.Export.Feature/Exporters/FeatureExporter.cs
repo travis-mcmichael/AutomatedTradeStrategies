@@ -21,7 +21,6 @@ namespace AutomatedTrading.Export.Feature.Exporters;
 public class FeatureExporter
 {
     private const int MinLookback = 20;
-
     private readonly ModelEntry _model;
     private readonly string _outputPath;
     private readonly IBarRepository _barRepository;
@@ -194,7 +193,7 @@ public class FeatureExporter
         (
             bars,
             i - 1,
-            bars.Last(),
+            bars[i - 1],
             open,
             atr,
             sessionDates[i],
@@ -213,8 +212,8 @@ public class FeatureExporter
             dailyBars[i].Open,
             atr,
             sessionDates[i],
-            minuteBarsBySession[sessionDates[i]],
-            minuteBarsBySession[sessionDates[i - 1]]
+            minuteBarsBySession[sessionDates[i - 1]],
+            minuteBarsBySession[sessionDates[i]]
         ));
     }
 }
