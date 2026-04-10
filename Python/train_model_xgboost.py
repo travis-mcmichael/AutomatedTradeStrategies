@@ -25,7 +25,7 @@ EXECUTION_CONFIGS = [
     {
         "name":              m["modelName"],
         "csv":               os.path.join(m["featureLocation"], "features.csv"),
-        "is_classification": "bar-classification" in m["modelName"],
+        "is_classification": m.get("target") == "CLASS",
     }
     for m in _config["models"]
     if m.get("active") and m.get("export")
@@ -60,8 +60,8 @@ def evaluate_regression(model, split_name, X_data, y_data):
 
 
 def evaluate_classification(model, split_name, X_data, y_data):
-    probs = model.predict(X_data)
-    preds = (probs >= 0.5).astype(int)
+    preds = model.predict(X_data)
+    probs = model.predict_proba(X_data)[:, 1]
 
     acc  = accuracy_score(y_data, preds)
     auc  = roc_auc_score(y_data, probs)
@@ -130,7 +130,7 @@ def train_model(name, csv_path, is_classification=False):
 
     if is_classification:
         print("\nTraining XGBoost Classifier (binary:logistic)...")
-        model = xgb.XGBRegressor(
+        model = xgb.XGBClassifier(
             n_estimators=400,
             max_depth=4,
             learning_rate=0.05,

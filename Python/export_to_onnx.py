@@ -18,8 +18,9 @@ with open(MODELS_CONFIG_PATH) as f:
 
 EXECUTION_CONFIGS = [
     {
-        "name": m["modelName"],
-        "dir":  os.path.join(m["featureLocation"], TODAY),
+        "name":              m["modelName"],
+        "dir":               os.path.join(m["featureLocation"], TODAY),
+        "is_classification": m.get("target") == "CLASS",
     }
     for m in _config["models"]
     if m.get("active") and m.get("export")
@@ -28,13 +29,13 @@ EXECUTION_CONFIGS = [
 # ==============================
 # Export one execution type
 # ==============================
-def export_model(name, model_input, scaler_input, onnx_output, scaler_output):
+def export_model(name, model_input, scaler_input, onnx_output, scaler_output, is_classification=False):
     print(f"\n{'='*50}")
     print(f"  Exporting: {name}")
     print(f"{'='*50}")
 
     print(f"Loading model from {model_input}...")
-    model = xgb.XGBRegressor()
+    model = xgb.XGBClassifier() if is_classification else xgb.XGBRegressor()
     model.load_model(model_input)
     print(f"  Features: {model.n_features_in_}")
     print(f"  Objective: {model.objective}")
@@ -89,6 +90,6 @@ for config in EXECUTION_CONFIGS:
     onnx_output = os.path.join(d, "xgb_model.onnx")
     scaler_output = os.path.join(d, "scaler_params.json")
 
-    export_model(config["name"], model_input, scaler_input, onnx_output, scaler_output)
+    export_model(config["name"], model_input, scaler_input, onnx_output, scaler_output, config["is_classification"])
 
 print("\nDone.")

@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
-using AutomatedTrading.Core.Framework.Enums;
 using AutomatedTrading.Core.Framework.Utility;
 
 namespace AutomatedTrading.Core.Framework.Config;
@@ -27,7 +26,7 @@ public class ModelEntry{
     public string Instrument { get; }
     public string TrainingStart { get; }
     public string TrainingEnd { get; }
-    public PredictionTarget Target { get; }
+    public string Target { get; }
     public string OutputLocation { get; }
     public string FeatureLocation { get; }
     public string BarType { get; }
@@ -42,7 +41,7 @@ public class ModelEntry{
         string Instrument,
         string TrainingStart,
         string TrainingEnd,
-        PredictionTarget Target,
+        string Target,
         string OutputLocation,
         string FeatureLocation,
         string BarType,

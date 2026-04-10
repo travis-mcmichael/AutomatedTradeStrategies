@@ -140,9 +140,21 @@ public class BaseMLEvaluator : IDisposable
 
     private static double extractOutput(IReadOnlyCollection<DisposableNamedOnnxValue> results)
     {
-        var output = results.FirstOrDefault();
-        if (output?.Value is DenseTensor<float> tensor)
+        var first = results.FirstOrDefault();
+        if (first is null) return 0.0;
+
+        // Regression: single float tensor output
+        if (first.Value is DenseTensor<float> tensor)
             return tensor[0];
+
+        // Classification: output[0] = labels (int64), output[1] = probabilities (ZipMap)
+        var probOutput = results.ElementAtOrDefault(1);
+        if (probOutput is not null)
+        {
+            var maps = probOutput.AsEnumerable<Dictionary<long, float>>();
+            if (maps?.FirstOrDefault() is { } probs && probs.TryGetValue(1L, out var p))
+                return p;
+        }
 
         return 0.0;
     }
