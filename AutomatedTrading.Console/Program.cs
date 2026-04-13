@@ -13,9 +13,9 @@ class Program
     static async Task Main(string[] args)
     {
         var runType = "inference"; // inference | backtest
-        var runDate = DateTime.Today;
-        var rangeStart = runDate; // new DateTime(2026, 3, 23);
-        var rangeEnd = runDate; //new DateTime(2026, 4, 5);
+        var runDate = new DateTime(2026, 4, 13);
+        var rangeStart = runDate;//new DateTime(2026, 3, 1);
+        var rangeEnd = runDate;// new DateTime(2026, 4, 1);
         var strategy = ApiStrategy.SessionHigh;
 
         var barRepo = new BarRepository(new SqliteConnectionFactory(AppConstants.SQLITE_CONNECTION));

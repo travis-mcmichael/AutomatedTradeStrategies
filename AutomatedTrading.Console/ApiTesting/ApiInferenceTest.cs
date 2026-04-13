@@ -1,10 +1,10 @@
 using AutomatedTrading.Console.ApiClient;
 using AutomatedTrading.Core.Api.Models;
-using AutomatedTrading.Core.Framework;
 using AutomatedTrading.Core.Framework.Config;
 using AutomatedTrading.Core.Framework.DataLayer.Repositories;
 using AutomatedTrading.Core.Framework.ML;
 using AutomatedTrading.Core.Framework.Utility;
+using AutomatedTrading.Core.Models;
 
 namespace AutomatedTrading.Console.ApiTesting;
 
@@ -20,10 +20,9 @@ public class ApiInferenceTest
     private readonly IBarRepository _barRepo;
     private readonly StrategyApiClient _client;
 
-    private static string[] LoadActiveModelKeys() =>
+    private static ModelEntry[] LoadActiveModels() =>
         (ModelConfig.GetConfig()?.Models ?? [])
-            .Where(m => m.Active && m.Features.Count > 0)
-            .Select(m => m.ModelName)
+            .Where(m => m.Active && m.Features.Count > 0 && m.Target != "CLASS")
             .ToArray();
 
     public ApiInferenceTest(IBarRepository barRepo, StrategyApiClient client)
@@ -37,8 +36,8 @@ public class ApiInferenceTest
         var start = DateTime.ParseExact(startDate, "yyyyMMdd", null);
         var end   = DateTime.ParseExact(endDate,   "yyyyMMdd", null);
         var skipped = 0;
-        var modelKeys = LoadActiveModelKeys();
-        var results = modelKeys.ToDictionary(k => k, _ => new List<SessionResult>());
+        var models  = LoadActiveModels();
+        var results = models.ToDictionary(m => m.ModelName, _ => new List<SessionResult>());
 
         logHeader();
 
@@ -50,32 +49,43 @@ public class ApiInferenceTest
 
             var ordered = bars.OrderBy(b => b.Timestamp).ToList();
             var sessionOpen = ordered.First().Open;
-            var rthBars = ordered
-                .Where(b => b.Timestamp.TimeOfDay >= AppConstants.RTH_START_TIME &&
-                             b.Timestamp.TimeOfDay <  AppConstants.RTH_END_TIME)
-                .ToList();
-            var rthOpen = rthBars.Count > 0 ? rthBars.First().Open : sessionOpen;
 
             var resp = await _client.StartSessionAsync(new StrategySessionRequest(sessionDate, sessionOpen));
             if (resp?.IsReady != true) { skipped++; continue; }
 
             var sessionResults = new List<(string Key, SessionResult Result)>();
 
-            foreach (var modelName in modelKeys)
+            foreach (var model in models)
             {
-                if (!resp.Predictions.TryGetValue(modelName, out var predictedPrice)) continue;
+                if (!resp.Predictions.TryGetValue(model.ModelName, out var predictedPrice)) continue;
 
-                var isTradeDay = modelName.Contains("trade-day");
-                var isHigh     = modelName.EndsWith(".high");
-                var refOpen    = isTradeDay ? rthOpen : sessionOpen;
-                var barsForActual = isTradeDay ? rthBars : ordered;
+                var isHigh = model.Target == "HIGH";
+
+                List<BarData> barsForActual;
+                double refOpen;
+
+                if (model.BarType == "window" && model.WindowStart != null && model.WindowEnd != null)
+                {
+                    var winStart = parseWindowTime(model.WindowStart);
+                    var winEnd   = parseWindowTime(model.WindowEnd);
+                    barsForActual = ordered
+                        .Where(b => inWindow(b.Timestamp.TimeOfDay, winStart, winEnd))
+                        .ToList();
+                    refOpen = barsForActual.Count > 0 ? barsForActual.First().Open : sessionOpen;
+                }
+                else
+                {
+                    barsForActual = ordered;
+                    refOpen = sessionOpen;
+                }
+
                 if (barsForActual.Count == 0) continue;
 
                 var actual = isHigh
                     ? barsForActual.Max(b => b.High)
                     : barsForActual.Min(b => b.Low);
 
-                // Moves expressed as signed distance from reference open:
+                // Moves expressed as signed distance from the window open:
                 //   high models: positive = above open
                 //   low  models: positive = below open (negated so magnitude is comparable)
                 var predictedMove = isHigh
@@ -85,7 +95,7 @@ public class ApiInferenceTest
                     ? actual - refOpen
                     : refOpen - actual;
 
-                sessionResults.Add((modelName, new SessionResult(
+                sessionResults.Add((model.ModelName, new SessionResult(
                     sessionDate, predictedPrice, actual,
                     predictedMove, actualMove,
                     resp.DailyAtr)));
@@ -110,21 +120,33 @@ public class ApiInferenceTest
         foreach (var month in allMonths)
         {
             logMonthHeader(month);
-            foreach (var key in modelKeys)
+            foreach (var model in models)
             {
-                var monthResults = results[key].Where(r => r.SessionDate[..6] == month).ToList();
+                var monthResults = results[model.ModelName].Where(r => r.SessionDate[..6] == month).ToList();
                 if (monthResults.Count == 0) continue;
-                logStats($"  {key,-35}", monthResults);
+                logStats($"  {model.ModelName,-35}", monthResults);
             }
         }
 
         logSkipped(skipped);
-        foreach (var key in modelKeys)
+        foreach (var model in models)
         {
-            if (results[key].Count == 0) continue;
-            logStats($"  {key,-35}", results[key]);
+            if (results[model.ModelName].Count == 0) continue;
+            logStats($"  {model.ModelName,-35}", results[model.ModelName]);
         }
     }
+
+    // Parses a window boundary string ("83000", "160000") into a TimeSpan.
+    private static TimeSpan parseWindowTime(string t)
+    {
+        var s = t.PadLeft(6, '0');
+        return new TimeSpan(int.Parse(s[..2]), int.Parse(s[2..4]), int.Parse(s[4..6]));
+    }
+
+    // Handles straight windows (08:30–16:00) and cross-midnight windows (17:00–08:30).
+    private static bool inWindow(TimeSpan t, TimeSpan start, TimeSpan end) =>
+        start <= end ? t >= start && t < end
+                     : t >= start || t < end;
 
     // ── Logging ───────────────────────────────────────────────────────────────
 
