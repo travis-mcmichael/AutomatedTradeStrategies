@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using AutomatedTrading.Core.Api.Models;
+using AutomatedTrading.Core.Models;
 
 namespace AutomatedTrading.Console.ApiClient;
 

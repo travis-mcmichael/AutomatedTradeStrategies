@@ -1,4 +1,6 @@
-namespace AutomatedTrading.Core.Api.Models;
+using System.Collections.Generic;
+
+namespace AutomatedTrading.Core.Models;
 
 public record StrategySessionRequest(
     string SessionDate,

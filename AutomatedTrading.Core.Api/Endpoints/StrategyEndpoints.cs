@@ -2,6 +2,7 @@ using AutomatedTrading.Core.Api.Models;
 using AutomatedTrading.Core.Api.Models.Evaluate;
 using AutomatedTrading.Core.Framework.Enums;
 using AutomatedTrading.Core.Framework.Logging;
+using AutomatedTrading.Core.Models;
 
 namespace AutomatedTrading.Core.Api.Endpoints;
 

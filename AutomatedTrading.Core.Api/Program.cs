@@ -1,4 +1,5 @@
 using AutomatedTrading.Core.Api.Endpoints;
+using AutomatedTrading.Core.Framework.Logging;
 using AutomatedTrading.Core.Api.Models.API.Predict;
 using AutomatedTrading.Core.Api.Models.Evaluate;
 using AutomatedTrading.Core.Api.Services;
@@ -6,6 +7,8 @@ using AutomatedTrading.Core.Framework.Config;
 using AutomatedTrading.Core.Framework.DataLayer;
 using AutomatedTrading.Core.Framework.DataLayer.Repositories;
 using AutomatedTrading.Core.Framework.DataLayer.Sqlite;
+
+Logger.Configure();
 
 var builder = WebApplication.CreateBuilder(args);
 
