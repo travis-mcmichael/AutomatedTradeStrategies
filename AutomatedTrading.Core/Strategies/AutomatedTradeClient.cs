@@ -12,7 +12,7 @@ using AutomatedTrading.Core.Models;
 
 namespace AutomatedTrading.Core.Strategies;
 
-public class AutomatedTradeClient
+public class AutomatedTradeClient : IDisposable
 {
     private const string _url = "http://localhost:5244";
     public static string ENTRY_LONG  = "ATClient_Long";
@@ -59,7 +59,7 @@ public class AutomatedTradeClient
         _http = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
     }
 
-    public async Task StartSession(DateTime barTime, double sessionOpen)
+    public async Task<StrategySessionResponse?> StartSession(DateTime barTime, double sessionOpen)
     {
         var sessionDate = SessionDateFor(barTime).ToString("yyyyMMdd");
         _currentSessionDate = sessionDate;
@@ -80,7 +80,7 @@ public class AutomatedTradeClient
             if (!response.IsSuccessStatusCode)
             {
                 Logger.Info($"Session endpoint returned {(int)response.StatusCode}:{response.ReasonPhrase}");
-                return;
+                return null;
             }
             var json   = await response.Content.ReadAsStringAsync();
             var result = JsonConvert.DeserializeObject<StrategySessionResponse>(json);
@@ -88,10 +88,12 @@ public class AutomatedTradeClient
             {
                 Logger.Info($"Session {sessionDate}: dailyATR={result.DailyAtr:F2}  open={sessionOpen:F2}  predictions={result.Predictions?.Count ?? 0}");
             }
+            return result;
         }
         catch (Exception ex)
         {
             Logger.Error($"Session call failed - {ex.Message}");
+            return null;
         }
     }
 
@@ -163,7 +165,7 @@ public class AutomatedTradeClient
         }
     }
 
-    public void Terminate()
+    public void Dispose()
     {
         _http?.Dispose();
     }

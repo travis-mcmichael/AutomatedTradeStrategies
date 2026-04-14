@@ -23,13 +23,7 @@ public static class StrategyEndpoints
             if (string.IsNullOrWhiteSpace(req.SessionDate))
                 return Results.BadRequest("SessionDate is required.");
 
-            await evaluator.StartSessionAsync(
-                req.SessionDate,
-                req.SessionOpen,
-                req.Proximity,
-                req.StopLossPoints,
-                req.TargetProfit,
-                req.Trail);
+            await evaluator.StartSessionAsync(req.SessionDate, req.SessionOpen);
 
             return Results.Ok(new StrategySessionResponse(
                 evaluator.IsReady,

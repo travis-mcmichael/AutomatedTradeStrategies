@@ -1,10 +1,9 @@
-using AutomatedTrading.Console.ApiClient;
-using AutomatedTrading.Core.Api.Models;
 using AutomatedTrading.Core.Framework.Config;
 using AutomatedTrading.Core.Framework.DataLayer.Repositories;
 using AutomatedTrading.Core.Framework.ML;
 using AutomatedTrading.Core.Framework.Utility;
 using AutomatedTrading.Core.Models;
+using AutomatedTrading.Core.Strategies;
 
 namespace AutomatedTrading.Console.ApiTesting;
 
@@ -18,23 +17,23 @@ namespace AutomatedTrading.Console.ApiTesting;
 public class ApiInferenceTest
 {
     private readonly IBarRepository _barRepo;
-    private readonly StrategyApiClient _client;
+    private readonly AutomatedTradeClient _client;
 
     private static ModelEntry[] LoadActiveModels() =>
         (ModelConfig.GetConfig()?.Models ?? [])
             .Where(m => m.Active && m.Features.Count > 0 && m.Target != "CLASS")
             .ToArray();
 
-    public ApiInferenceTest(IBarRepository barRepo, StrategyApiClient client)
+    public ApiInferenceTest(IBarRepository barRepo, AutomatedTradeClient client)
     {
         _barRepo = barRepo;
-        _client = client;
+        _client  = client;
     }
 
     public async Task RunAsync(string startDate, string endDate)
     {
-        var start = DateTime.ParseExact(startDate, "yyyyMMdd", null);
-        var end   = DateTime.ParseExact(endDate,   "yyyyMMdd", null);
+        var start   = DateTime.ParseExact(startDate, "yyyyMMdd", null);
+        var end     = DateTime.ParseExact(endDate,   "yyyyMMdd", null);
         var skipped = 0;
         var models  = LoadActiveModels();
         var results = models.ToDictionary(m => m.ModelName, _ => new List<SessionResult>());
@@ -47,10 +46,10 @@ public class ApiInferenceTest
             var bars = await _barRepo.GetBarsBySessionDateAsync(sessionDate);
             if (bars.Count == 0) { skipped++; continue; }
 
-            var ordered = bars.OrderBy(b => b.Timestamp).ToList();
+            var ordered     = bars.OrderBy(b => b.Timestamp).ToList();
             var sessionOpen = ordered.First().Open;
 
-            var resp = await _client.StartSessionAsync(new StrategySessionRequest(sessionDate, sessionOpen));
+            var resp = await _client.StartSession(date, sessionOpen);
             if (resp?.IsReady != true) { skipped++; continue; }
 
             var sessionResults = new List<(string Key, SessionResult Result)>();
@@ -66,8 +65,8 @@ public class ApiInferenceTest
 
                 if (model.BarType == "window" && model.WindowStart != null && model.WindowEnd != null)
                 {
-                    var winStart = parseWindowTime(model.WindowStart);
-                    var winEnd   = parseWindowTime(model.WindowEnd);
+                    var winStart  = parseWindowTime(model.WindowStart);
+                    var winEnd    = parseWindowTime(model.WindowEnd);
                     barsForActual = ordered
                         .Where(b => inWindow(b.Timestamp.TimeOfDay, winStart, winEnd))
                         .ToList();
@@ -76,7 +75,7 @@ public class ApiInferenceTest
                 else
                 {
                     barsForActual = ordered;
-                    refOpen = sessionOpen;
+                    refOpen       = sessionOpen;
                 }
 
                 if (barsForActual.Count == 0) continue;
@@ -88,12 +87,8 @@ public class ApiInferenceTest
                 // Moves expressed as signed distance from the window open:
                 //   high models: positive = above open
                 //   low  models: positive = below open (negated so magnitude is comparable)
-                var predictedMove = isHigh
-                    ? predictedPrice - refOpen
-                    : refOpen - predictedPrice;
-                var actualMove = isHigh
-                    ? actual - refOpen
-                    : refOpen - actual;
+                var predictedMove = isHigh ? predictedPrice - refOpen : refOpen - predictedPrice;
+                var actualMove    = isHigh ? actual - refOpen         : refOpen - actual;
 
                 sessionResults.Add((model.ModelName, new SessionResult(
                     sessionDate, predictedPrice, actual,
@@ -174,14 +169,14 @@ public class ApiInferenceTest
 
     private static void logStats(string label, List<SessionResult> results)
     {
-        var errors = results.Select(r => Math.Abs(r.Predicted - r.Actual)).ToList();
-        var avgAtr = results.Average(r => r.Atr20);
-        var mae = errors.Average();
+        var errors      = results.Select(r => Math.Abs(r.Predicted - r.Actual)).ToList();
+        var avgAtr      = results.Average(r => r.Atr20);
+        var mae         = errors.Average();
         var avgPredMove = results.Average(r => r.PredictedMove);
         var avgActMove  = results.Average(r => r.ActualMove);
         var w05 = errors.Count(e => e < avgAtr * 0.5);
         var w10 = errors.Count(e => e < avgAtr);
-        var n = results.Count;
+        var n   = results.Count;
         System.Console.WriteLine(
             $"{label.Trim(),-38}  n={n,3} | AvgPredMove={avgPredMove,7:F2}  AvgActMove={avgActMove,7:F2} | " +
             $"MAE={mae,7:F2} pts | MAE/ATR={Operations.SafeDiv(mae, avgAtr):F3} | " +
