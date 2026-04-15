@@ -8,8 +8,6 @@ using AutomatedTrading.Core.Strategies;
 
 namespace AutomatedTrading.Console.ApiTesting;
 
-public enum ApiStrategy { SessionHigh, SessionLow, TradeDayHigh, TradeDayLow }
-
 public record ApiBacktestParams(
     string Name,
     double Proximity = 0.5,
@@ -31,12 +29,10 @@ public record ApiBacktestParams(
 public class ApiBacktestRunner
 {
     private readonly IBarRepository _barRepo;
-    private readonly ApiStrategy    _strategy;
 
-    public ApiBacktestRunner(IBarRepository barRepo, ApiStrategy strategy)
+    public ApiBacktestRunner(IBarRepository barRepo)
     {
-        _barRepo  = barRepo;
-        _strategy = strategy;
+        _barRepo = barRepo;
     }
 
     // ── Batch entry point ─────────────────────────────────────────────────────
@@ -77,17 +73,22 @@ public class ApiBacktestRunner
 
             var ordered = bars.OrderBy(b => b.Timestamp).ToList();
 
-            var sessionOpen = getSessionOpen(ordered);
+            var sessionOpen = ordered.FirstOrDefault()?.Open;
             if (sessionOpen is null) continue;
 
-            var (isReady, predicted) = await startSessionAsync(client, date, sessionOpen.Value);
-            if (!isReady)
+            var sessionResponse = await client.StartSession(date, sessionOpen.Value);
+            if (sessionResponse is null)
             {
-                Logger.Info($"{sessionDate}: not ready — skipping");
+                Logger.Info($"{sessionDate}: session call returned null — is the API running?");
+                continue;
+            }
+            if (!sessionResponse.IsReady)
+            {
+                Logger.Info($"{sessionDate}: evaluator not ready (ATR unavailable) — skipping");
                 continue;
             }
 
-            Logger.Info($"{sessionDate}: prediction={predicted:F2}");
+            Logger.Info($"{sessionDate}: open={sessionOpen:F2}  dailyATR={sessionResponse.DailyAtr:F2}");
 
             var barsToEvaluate = getBarsToEvaluate(ordered);
             foreach (var bar in barsToEvaluate)
@@ -104,22 +105,22 @@ public class ApiBacktestRunner
                         run.EntryPrice = bar.Close;
                         run.EntryTime  = bar.Timestamp;
                         run.StopPrice  = stopPrice;
-                        Logger.Info($"{bar.SessionDate,9}{bar.SessionTime,7} - {signal,10} @{bar.Close,10:f2}, stop @{stopPrice,10:f2}, prediction @{predicted,10:f2}");
+                        Logger.Info($"{bar.SessionDate,9}{bar.SessionTime,7} - {signal,10} @{bar.Close,10:f2}, stop @{stopPrice,10:f2}");
                         break;
                     case "EnterLong":
                         run.Position   = PositionSide.Long;
                         run.EntryPrice = bar.Close;
                         run.EntryTime  = bar.Timestamp;
                         run.StopPrice  = stopPrice;
-                        Logger.Info($"{bar.SessionDate,9}{bar.SessionTime,7} - {signal,10} @{bar.Close,10:f2}, stop @{stopPrice,10:f2}, prediction @{predicted,10:f2}");
+                        Logger.Info($"{bar.SessionDate,9}{bar.SessionTime,7} - {signal,10} @{bar.Close,10:f2}, stop @{stopPrice,10:f2}");
                         break;
                     case "ExitLong" when run.Position == PositionSide.Long:
                         closePosition(run, client, bar.Timestamp, sessionDate, bar.Close, "ExitLong");
-                        Logger.Info($"{bar.SessionDate,9}{bar.SessionTime,7} - {signal,10} @{bar.Close,10:f2}, prediction @{predicted,10:F2}");
+                        Logger.Info($"{bar.SessionDate,9}{bar.SessionTime,7} - {signal,10} @{bar.Close,10:f2}");
                         break;
                     case "ExitShort" when run.Position == PositionSide.Short:
                         closePosition(run, client, bar.Timestamp, sessionDate, bar.Close, "ExitShort");
-                        Logger.Info($"{bar.SessionDate,9}{bar.SessionTime,7} - {signal,10} @{bar.Close,10:f2}, prediction {predicted,10:F2}");
+                        Logger.Info($"{bar.SessionDate,9}{bar.SessionTime,7} - {signal,10} @{bar.Close,10:f2}");
                         break;
                     case "UpdateStop":
                         run.StopPrice = stopPrice;
@@ -133,6 +134,8 @@ public class ApiBacktestRunner
                 var last = barsToEvaluate[^1];
                 closePosition(run, client, last.Timestamp, sessionDate, last.Close, "SessionClose");
             }
+
+            logSessionPredictions(sessionDate, sessionResponse);
         }
 
         return run;
@@ -140,59 +143,21 @@ public class ApiBacktestRunner
 
     // ── Strategy-specific helpers ─────────────────────────────────────────────
 
-    private double? getSessionOpen(List<BarData> ordered) => _strategy switch
-    {
-        ApiStrategy.SessionHigh or ApiStrategy.SessionLow => ordered.First().Open,
-        ApiStrategy.TradeDayHigh or ApiStrategy.TradeDayLow =>
-            ordered.FirstOrDefault(b =>
-                b.Timestamp.TimeOfDay >= AppConstants.RTH_START_TIME &&
-                b.Timestamp.TimeOfDay <  AppConstants.RTH_END_TIME)?.Open,
-        _ => null,
-    };
+    private static List<BarData> getBarsToEvaluate(List<BarData> ordered) => ordered;
 
-    private List<BarData> getBarsToEvaluate(List<BarData> ordered) => _strategy switch
-    {
-        ApiStrategy.TradeDayHigh or ApiStrategy.TradeDayLow => ordered
-            .Where(b => b.Timestamp.TimeOfDay >= AppConstants.RTH_START_TIME &&
-                        b.Timestamp.TimeOfDay <  AppConstants.RTH_END_TIME)
-            .ToList(),
-        _ => ordered,
-    };
-
-    private bool isStopTriggered(BarData bar, PositionSide position, double stopPrice) =>
-        _strategy switch
+    private static bool isStopTriggered(BarData bar, PositionSide position, double stopPrice) =>
+        position switch
         {
-            ApiStrategy.SessionHigh or ApiStrategy.TradeDayHigh => position == PositionSide.Short && bar.High >= stopPrice,
-            ApiStrategy.SessionLow  or ApiStrategy.TradeDayLow  => position == PositionSide.Long  && bar.Low  <= stopPrice,
-            _ => false,
+            PositionSide.Long  => bar.Low  <= stopPrice,
+            PositionSide.Short => bar.High >= stopPrice,
+            _                  => false,
         };
 
     // ── API call helpers ──────────────────────────────────────────────────────
 
-    private async Task<(bool IsReady, double Predicted)> startSessionAsync(
-        AutomatedTradeClient client, DateTime date, double sessionOpen)
-    {
-        var r = await client.StartSession(date, sessionOpen);
-        if (r?.IsReady != true) return (false, 0);
-
-        var predictionKey = _strategy switch
-        {
-            ApiStrategy.SessionHigh  => "mes.session-day-bar.high",
-            ApiStrategy.SessionLow   => "mes.session-day-bar.low",
-            ApiStrategy.TradeDayHigh => "mes.trade-day-bar.high",
-            ApiStrategy.TradeDayLow  => "mes.trade-day-bar.low",
-            _                        => string.Empty,
-        };
-
-        return r.Predictions.TryGetValue(predictionKey, out var predicted)
-            ? (true, predicted)
-            : (false, 0);
-    }
-
     private async Task<(string Signal, double StopPrice)> evaluateBarAsync(
         AutomatedTradeClient client, BarData bar, PositionSide position, double entryPrice)
     {
-        // Sync run's authoritative position state to the client before the request.
         client.Position   = position;
         client.EntryPrice = entryPrice > 0 ? entryPrice : null;
         var r = await client.Evaluate(bar);
@@ -223,8 +188,20 @@ public class ApiBacktestRunner
         run.EntryPrice = 0;
         run.StopPrice  = double.MaxValue;
 
-        // Keep client position in sync so the next bar request reflects the flat state.
         client.Position   = PositionSide.Flat;
         client.EntryPrice = null;
+    }
+
+    // ── Logging helpers ───────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Logs whatever predictions the API has populated for this session.
+    /// Called after bar evaluation so lazy predictions have had time to arrive.
+    /// </summary>
+    private static void logSessionPredictions(string sessionDate, StrategySessionResponse response)
+    {
+        if (response.Predictions is null || response.Predictions.Count == 0) return;
+        foreach (var (modelName, level) in response.Predictions)
+            Logger.Info($"  {sessionDate} prediction [{modelName}]: {level:F2}");
     }
 }

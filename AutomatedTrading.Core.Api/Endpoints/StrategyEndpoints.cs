@@ -19,7 +19,6 @@ public static class StrategyEndpoints
             StrategySessionRequest req,
             StrategyEvaluator evaluator) =>
         {
-            Logger.Info($"Endpoint {SESSION_START} called.");
             if (string.IsNullOrWhiteSpace(req.SessionDate))
                 return Results.BadRequest("SessionDate is required.");
 
@@ -36,7 +35,6 @@ public static class StrategyEndpoints
             StrategyBarRequest req,
             StrategyEvaluator evaluator) =>
         {
-            Logger.Info($"Endpoint {EVAL_BAR} called.");
             var position = req.Position switch
             {
                 "Long"  => PositionSide.Long,
@@ -44,7 +42,7 @@ public static class StrategyEndpoints
                 _       => PositionSide.Flat,
             };
 
-            var eval = evaluator.Evaluate(req.High, req.Low, req.Close, position, req.EntryPrice);
+            var eval = evaluator.Evaluate(req.High, req.Low, req.Close, position, req.SessionTime, req.EntryPrice);
             return Results.Ok(new StrategyBarResponse(eval.Signal.ToString(), eval.StopPrice));
         });
     }

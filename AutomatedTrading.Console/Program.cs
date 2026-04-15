@@ -10,11 +10,10 @@ class Program
 {
     static async Task Main(string[] args)
     {
-        var runType    = "inference"; // inference | backtest
+        var runType    = "backtest"; // inference | backtest
         var runDate    = new DateTime(2026, 4, 13);
         var rangeStart = runDate;
         var rangeEnd   = runDate;
-        var strategy   = ApiStrategy.SessionHigh;
 
         var barRepo = new BarRepository(new SqliteConnectionFactory(AppConstants.SQLITE_CONNECTION));
 
@@ -32,7 +31,7 @@ class Program
             new ApiBacktestParams("Prox0.75-SL5-TP20-T10", Proximity: 0.25, StopLoss: 0.25, TargetProfit: 40.0, Trail: 20.0),
         };
 
-        var runner  = new ApiBacktestRunner(barRepo, strategy);
+        var runner  = new ApiBacktestRunner(barRepo);
         var results = await runner.RunBatchAsync(
             rangeStart.ToString("yyyyMMdd"),
             rangeEnd.ToString("yyyyMMdd"),

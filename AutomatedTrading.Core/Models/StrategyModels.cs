@@ -22,6 +22,7 @@ public record StrategyBarRequest(
     double Low,
     double Close,
     string Position,
+    string SessionTime,
     double EntryPrice = 0
 );
 

@@ -34,14 +34,15 @@ foreach (var model in config.Models.Where(m => m.Active && m.Features.Count > 0)
             captured));
 }
 
-// Unified strategy evaluator — collects all active predictors into a dictionary.
+// Unified strategy evaluator — collects all active predictors paired with their
+// ModelEntry (for window configuration) into a dictionary.
 builder.Services.AddSingleton(sp =>
 {
     var predictors = config.Models
         .Where(m => m.Active && m.Features.Count > 0)
         .ToDictionary(
             m => m.ModelName,
-            m => sp.GetRequiredKeyedService<IMovementPredictor>(m.ModelName));
+            m => (sp.GetRequiredKeyedService<IMovementPredictor>(m.ModelName), m));
     return new StrategyEvaluator(predictors, sp.GetRequiredService<IBarRepository>());
 });
 
