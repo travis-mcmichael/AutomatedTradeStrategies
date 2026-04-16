@@ -1,4 +1,3 @@
-using AutomatedTrading.Core.Framework;
 using AutomatedTrading.Core.Framework.Interfaces;
 using AutomatedTrading.Core.Models;
 

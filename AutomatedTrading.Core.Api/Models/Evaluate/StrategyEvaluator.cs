@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.ComponentModel.DataAnnotations;
 using AutomatedTrading.Core.Api.Models.Predict;
 using AutomatedTrading.Core.Framework;
 using AutomatedTrading.Core.Framework.Config;
