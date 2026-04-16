@@ -103,7 +103,7 @@ public class AutomatedTradeClient : IDisposable
             High:       bar.High,
             Low:        bar.Low,
             Close:      bar.Close,
-            SessionTime: bar.SessionTime,
+            SessionTime: bar.SessionTime!,
             Position:   _position.ToString(),
             EntryPrice: _entryPrice ?? 0);
 

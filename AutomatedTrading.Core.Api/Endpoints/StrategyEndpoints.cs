@@ -1,7 +1,6 @@
-using AutomatedTrading.Core.Api.Models;
 using AutomatedTrading.Core.Api.Models.Evaluate;
 using AutomatedTrading.Core.Framework.Enums;
-using AutomatedTrading.Core.Framework.Logging;
+using AutomatedTrading.Core.Framework.Predictors;
 using AutomatedTrading.Core.Models;
 
 namespace AutomatedTrading.Core.Api.Endpoints;
@@ -22,7 +21,7 @@ public static class StrategyEndpoints
             if (string.IsNullOrWhiteSpace(req.SessionDate))
                 return Results.BadRequest("SessionDate is required.");
 
-            await evaluator.StartSessionAsync(req.SessionDate, req.SessionOpen);
+            await evaluator.StartSessionAsync(req.SessionDate);
 
             return Results.Ok(new StrategySessionResponse(
                 evaluator.IsReady,
@@ -31,7 +30,7 @@ public static class StrategyEndpoints
         });
 
         // Called on every bar close. Returns the signal the strategy should act on.
-        app.MapPost(EVAL_BAR, (
+        app.MapPost(EVAL_BAR, async (
             StrategyBarRequest req,
             StrategyEvaluator evaluator) =>
         {
@@ -42,7 +41,7 @@ public static class StrategyEndpoints
                 _       => PositionSide.Flat,
             };
 
-            var eval = evaluator.Evaluate(req.High, req.Low, req.Close, position, req.SessionTime, req.EntryPrice);
+            var eval = await evaluator.Evaluate(req.High, req.Low, req.Close, position, req.SessionTime, req.EntryPrice);
             return Results.Ok(new StrategyBarResponse(eval.Signal.ToString(), eval.StopPrice));
         });
     }

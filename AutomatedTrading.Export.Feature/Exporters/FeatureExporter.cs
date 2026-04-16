@@ -121,7 +121,7 @@ public class FeatureExporter
             return null;
         })
         .Where(bar => bar != null)
-        .OrderBy(bar => bar.Timestamp)
+        .OrderBy(bar => bar!.Timestamp)
         .ToList();
 
         if (sequence.Count == 0) return written;

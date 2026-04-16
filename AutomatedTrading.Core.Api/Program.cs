@@ -1,6 +1,6 @@
 using AutomatedTrading.Core.Api.Endpoints;
 using AutomatedTrading.Core.Framework.Logging;
-using AutomatedTrading.Core.Api.Models.API.Predict;
+using AutomatedTrading.Core.Api.Models.Predict;
 using AutomatedTrading.Core.Api.Models.Evaluate;
 using AutomatedTrading.Core.Api.Services;
 using AutomatedTrading.Core.Framework.Config;
@@ -29,9 +29,7 @@ foreach (var model in config.Models.Where(m => m.Active && m.Features.Count > 0)
     var captured = model;
     builder.Services.AddKeyedSingleton<IMovementPredictor>(
         captured.ModelName,
-        (sp, _) => new InferenceService(
-            sp.GetRequiredService<IBarRepository>(),
-            captured));
+        (sp, _) => new InferenceService(captured));
 }
 
 // Unified strategy evaluator — collects all active predictors paired with their

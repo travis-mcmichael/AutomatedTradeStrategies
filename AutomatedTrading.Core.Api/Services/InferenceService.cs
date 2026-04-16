@@ -1,7 +1,6 @@
-using AutomatedTrading.Core.Api.Models.API.Predict;
+using AutomatedTrading.Core.Api.Models.Predict;
 using AutomatedTrading.Core.Framework;
 using AutomatedTrading.Core.Framework.Config;
-using AutomatedTrading.Core.Framework.DataLayer.Repositories;
 using AutomatedTrading.Core.Framework.Logging;
 using AutomatedTrading.Core.Framework.ML;
 using AutomatedTrading.Core.Framework.Utility;
@@ -11,11 +10,7 @@ namespace AutomatedTrading.Core.Api.Services;
 
 public class InferenceService : IMovementPredictor
 {
-    private const string DATE_FORMAT = "yyyyMMdd";
-    private const int LOOKBACK = 40;
     private const int ATR_SPAN = 20;
-
-    private readonly IBarRepository _barRepo;
     private readonly List<ModelFeature> _features;
     private readonly bool _peak;
     private BaseMLEvaluator? _evaluator;
@@ -45,7 +40,7 @@ public class InferenceService : IMovementPredictor
             sequence,
             j,
             atr,
-            current.SessionDate,
+            current.SessionDate!,
             barDataBySession
             );
 

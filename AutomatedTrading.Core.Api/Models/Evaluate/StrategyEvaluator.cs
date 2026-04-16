@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 using System.ComponentModel.DataAnnotations;
-using AutomatedTrading.Core.Api.Models.API.Predict;
+using AutomatedTrading.Core.Api.Models.Predict;
 using AutomatedTrading.Core.Framework;
 using AutomatedTrading.Core.Framework.Config;
 using AutomatedTrading.Core.Framework.DataLayer.Repositories;
@@ -145,14 +145,14 @@ public class StrategyEvaluator
                     switch (model.BarType)
                     {
                         case "window":
-                            var start = int.Parse(model.WindowStart);
-                            var end = int.Parse(model.WindowEnd);
+                            var start = int.Parse(model.WindowStart!);
+                            var end = int.Parse(model.WindowEnd!);
                             foreach (var key in _data.Keys)
                             {
                                 sequence.Add(
                                     BarData.Aggregate(_data[key].Where(b =>
                                     {
-                                        var time = int.Parse(b.SessionTime);
+                                        var time = int.Parse(b.SessionTime!);
                                         return time >= start && time < end;
                                     })
                                     .OrderBy(b => b.Timestamp)
@@ -164,9 +164,9 @@ public class StrategyEvaluator
                                 sequence.Add(BarData.Aggregate(_data[key]));
                         break;
                         case "minute":
-                            if (_data[_sessionDate] != null)
+                            if (_data[_sessionDate!] != null)
                             {
-                                sequence = _data[_sessionDate];
+                                sequence = _data[_sessionDate!];
                                 if (sequence.Count > LOOKBACK)
                                 {
                                     sequence = sequence
