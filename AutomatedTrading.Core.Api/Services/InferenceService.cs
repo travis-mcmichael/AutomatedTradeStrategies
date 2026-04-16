@@ -17,40 +17,37 @@ public class InferenceService : IMovementPredictor
 
     private readonly IBarRepository _barRepo;
     private readonly List<ModelFeature> _features;
-    private readonly bool _isTradeDay;
     private readonly bool _peak;
     private BaseMLEvaluator? _evaluator;
+    private string _modelName;
 
-    public InferenceService(IBarRepository barRepo, ModelEntry model)
+    public InferenceService(ModelEntry model)
     {
-        _barRepo = barRepo;
         _features = model.Features;
-        _isTradeDay = model.Features.Any(f => f.Source == "currentMinute");
         _peak = model.Target == "HIGH";// Framework.Enums.PredictionTarget.HIGH;
+        _modelName = model.ModelName;
         loadEvaluator(model);
     }
 
-    public async Task<MovementPrediction?> PredictMovement(string sessionDate, double sessionOpen)
+    public async Task<MovementPrediction?> PredictMovement(List<BarData> sequence, Dictionary<string, List<BarData>> barDataBySession)
     {
         if (!isLoaded()) return null;
-
-        var (sequence, prevBars, currentBars) = await loadData(sessionDate);
-        if (sequence is null || prevBars is null) return null;
-        if (_isTradeDay && currentBars is null) return null;
 
         var j = sequence.Count - 1;
         var atr = Computations.ATR(sequence, j, ATR_SPAN);
         if (atr == 0) return null;
+        var current = sequence[j];
+        var open = sequence.First().Open;
+        
+        Logger.Info($"Predict movement for {_modelName} on {current.SessionDate} with window open @ {open:F2}, ATR{ATR_SPAN} = {atr}.");
 
         var ctx = new FeatureContext(
             sequence,
             j,
-            sequence[j],
-            sessionOpen,
             atr,
-            sessionDate,
-            prevBars,
-            currentBars);
+            current.SessionDate,
+            barDataBySession
+            );
 
         var features = FeatureComputations.ParseFeatures(_features, ctx);
         var scaled = _evaluator!.Scale(features);
@@ -77,43 +74,5 @@ public class InferenceService : IMovementPredictor
             return;
         }
         _evaluator = eval;
-    }
-
-    // Loads the daily bar sequence (ending at the previous session) plus the previous
-    // session's minute bars. For trade-day models, also loads the current session's
-    // minute bars so pre-market features can be computed.
-    private async Task<(List<BarData>? sequence, List<BarData>? prevBars, List<BarData>? currentBars)> loadData(string sessionDate)
-    {
-        var date = DateTime.ParseExact(sessionDate, DATE_FORMAT, null);
-        var prevSessionDate = TradingCalendar.GetPreviousSessionDate(date).ToString(DATE_FORMAT);
-
-        var prevBars = await _barRepo.GetBarsBySessionDateAsync(prevSessionDate);
-        if (!prevBars.Any()) return (null, null, null);
-
-        var sequence = await loadDailyBars(prevSessionDate, LOOKBACK);
-        if (sequence.Count <= ATR_SPAN) return (null, null, null);
-
-        List<BarData>? currentBars = null;
-        if (_isTradeDay)
-        {
-            currentBars = await _barRepo.GetBarsBySessionDateAsync(sessionDate);
-            if (!currentBars.Any()) return (null, null, null);
-        }
-
-        return (sequence, prevBars, currentBars);
-    }
-
-    private async Task<List<BarData>> loadDailyBars(string sessionDate, int lookback)
-    {
-        var list = new List<BarData>();
-        var date = DateTime.ParseExact(sessionDate, DATE_FORMAT, null);
-        for (var i = lookback; i >= 0; i--)
-        {
-            var d = date.AddDays(-i).ToString(DATE_FORMAT);
-            var bars = await _barRepo.GetBarsBySessionDateAsync(d);
-            if (bars.Count == 0) continue;
-            list.Add(BarData.Aggregate(bars));
-        }
-        return list;
     }
 }

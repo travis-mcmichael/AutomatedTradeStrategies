@@ -1,5 +1,6 @@
 using AutomatedTrading.Core.Framework.Config;
 using AutomatedTrading.Core.Framework.DataLayer.Repositories;
+using AutomatedTrading.Core.Framework.Logging;
 using AutomatedTrading.Core.Framework.ML;
 using AutomatedTrading.Core.Framework.Utility;
 using AutomatedTrading.Core.Models;
@@ -147,23 +148,23 @@ public class ApiInferenceTest
 
     private static void logHeader()
     {
-        System.Console.WriteLine(
+        Logger.Info(
             $"\n{"Session",-10}{"Model",-38}{"PredMove",9}{"ActMove",9}{"Predicted",10}{"Actual",10}{"Error",8}{"ATR",8}{"Err/ATR",8}");
-        System.Console.WriteLine(new string('-', 120));
+        Logger.Info(new string('-', 120));
     }
 
     private static void logMonthHeader(string month) =>
-        System.Console.WriteLine($"\n=== {DateTime.ParseExact(month, "yyyyMM", null):MMMM yyyy} ===");
+        Logger.Info($"\n=== {DateTime.ParseExact(month, "yyyyMM", null):MMMM yyyy} ===");
 
     private static void logSkipped(int skipped) =>
-        System.Console.WriteLine($"\n=== Totals  (skipped: {skipped}) ===");
+        Logger.Info($"\n=== Totals  (skipped: {skipped}) ===");
 
     private static void logSession(SessionResult r, string modelName, string sessionDate, bool first)
     {
         var error  = r.Predicted - r.Actual;
         var errAtr = Operations.SafeDiv(error, r.Atr20);
         var dateCol = first ? sessionDate : new string(' ', 8);
-        System.Console.WriteLine(
+        Logger.Info(
             $"{dateCol,-10}{modelName,-38}{r.PredictedMove,9:F2}{r.ActualMove,9:F2}{r.Predicted,10:F2}{r.Actual,10:F2}{error,8:F2}{r.Atr20,8:F2}{errAtr,8:F3}");
     }
 
@@ -177,7 +178,7 @@ public class ApiInferenceTest
         var w05 = errors.Count(e => e < avgAtr * 0.5);
         var w10 = errors.Count(e => e < avgAtr);
         var n   = results.Count;
-        System.Console.WriteLine(
+        Logger.Info(
             $"{label.Trim(),-38}  n={n,3} | AvgPredMove={avgPredMove,7:F2}  AvgActMove={avgActMove,7:F2} | " +
             $"MAE={mae,7:F2} pts | MAE/ATR={Operations.SafeDiv(mae, avgAtr):F3} | " +
             $"W0.5={w05,3}/{n} ({(double)w05 / n,4:P0}) | W1.0={w10,3}/{n} ({(double)w10 / n,4:P0})");

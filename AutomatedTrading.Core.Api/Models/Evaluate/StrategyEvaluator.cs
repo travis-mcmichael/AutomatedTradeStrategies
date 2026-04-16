@@ -1,5 +1,7 @@
 using System.Collections.Concurrent;
+using System.ComponentModel.DataAnnotations;
 using AutomatedTrading.Core.Api.Models.API.Predict;
+using AutomatedTrading.Core.Framework;
 using AutomatedTrading.Core.Framework.Config;
 using AutomatedTrading.Core.Framework.DataLayer.Repositories;
 using AutomatedTrading.Core.Framework.Enums;
@@ -21,6 +23,7 @@ namespace AutomatedTrading.Core.Api.Models.Evaluate;
 /// </summary>
 public class StrategyEvaluator
 {
+    private const int LOOKBACK = 20;
     // ─── Observable session state ─────────────────────────────────────────────
     public bool IsReady    { get; private set; }
     public double DailyAtr { get; private set; }
@@ -33,9 +36,9 @@ public class StrategyEvaluator
     private readonly IBarRepository? _barRepo;
     private readonly ConcurrentDictionary<string, double> _predictions = new();
     private readonly ConcurrentDictionary<string, bool> _predictedModels = new();
+    private readonly Dictionary<string, List<BarData>> _data = new();
 
     private string? _sessionDate;
-    private double  _sessionOpen;
 
     // ─── Constructors ─────────────────────────────────────────────────────────
 
@@ -49,13 +52,6 @@ public class StrategyEvaluator
         resetState();
     }
 
-    /// <summary>Test constructor — no external dependencies needed.</summary>
-    public StrategyEvaluator()
-    {
-        _predictors = new();
-        resetState();
-    }
-
     // ─── Session initialisation ───────────────────────────────────────────────
 
     /// <summary>
@@ -63,35 +59,36 @@ public class StrategyEvaluator
     /// predictions are triggered lazily from <see cref="Evaluate"/> as bars arrive.
     /// Call once per session at the relevant market open.
     /// </summary>
-    public async Task StartSessionAsync(string sessionDate, double sessionOpen)
+    public async Task StartSessionAsync(string sessionDate)
     {
         Logger.Info($"{nameof(StrategyEvaluator)}.StartSessionAsync:" +
-            $"SessionDate={sessionDate,-12}" +
-            $"SessionOpen={sessionOpen,-12:f2}");
+            $"SessionDate={sessionDate,-12}");
 
         resetState();
 
         _sessionDate = sessionDate;
-        _sessionOpen = sessionOpen;
 
         if (_barRepo is null) return;
 
-        DailyAtr = await loadDailyAtrAsync(sessionDate);
-        if (DailyAtr == 0) return;
+        var dataTmp = new List<BarData>();
+        var end = DateTime.ParseExact(_sessionDate, AppConstants.DATE_FORMAT, null);
+        var start = end;
+        for (var i = 0; i <= LOOKBACK; i++)
+            start = TradingCalendar.GetPreviousSessionDate(start);
+        await _barRepo.StreamBarsAsync(start, end, bar =>
+        {
+            if (bar.SessionDate == null) return Task.CompletedTask;
+            if (!_data.TryGetValue(bar.SessionDate, out var list))
+            {
+                list = new List<BarData>();
+                _data[bar.SessionDate] = list;
+            }
+            list.Add(bar);
+            return Task.CompletedTask;
+        });
+        Logger.Info($"Loaded sessions starting @ {start:yyyy-MM-dd} through {end:yyyy-MM-dd}");
 
         IsReady = true;
-    }
-
-    /// <summary>
-    /// Test path: inject known predictions and ATR directly without hitting the DB or models.
-    /// </summary>
-    public void StartSession(Dictionary<string, double> predictions, double dailyAtr)
-    {
-        resetState();
-        foreach (var (k, v) in predictions)
-            _predictions.TryAdd(k, v);
-        DailyAtr = dailyAtr;
-        IsReady  = true;
     }
 
     // ─── Per-bar evaluation ───────────────────────────────────────────────────
@@ -101,7 +98,7 @@ public class StrategyEvaluator
     /// and has not yet been predicted this session, runs inference and stores the result.
     /// Returns <see cref="StrategySignal.None"/> until entry/exit logic is implemented.
     /// </summary>
-    public BarEvaluation Evaluate(
+    public async Task<BarEvaluation> Evaluate(
         double barHigh,
         double barLow,
         double barClose,
@@ -118,7 +115,7 @@ public class StrategyEvaluator
             $"EntryPrice={entryPrice,-10:f2}");
 
         if (IsReady && _sessionDate is not null)
-            runPendingPredictions(sessionTime);
+            await runPendingPredictions(sessionTime);
 
         return new BarEvaluation(StrategySignal.None, 0);
     }
@@ -129,12 +126,14 @@ public class StrategyEvaluator
     /// Checks every model that has not yet predicted this session and runs inference
     /// for any whose window has opened by <paramref name="sessionTime"/>.
     /// </summary>
-    private void runPendingPredictions(string sessionTime)
+    private async Task runPendingPredictions(string sessionTime)
     {
         foreach (var (modelName, (predictor, model)) in _predictors)
         {
             if (_predictedModels.ContainsKey(modelName)) continue;
             if (!isWindowOpen(sessionTime, model.WindowStart, model.WindowEnd)) continue;
+
+            Logger.Info($"Running prediction for {model.ModelName}");
 
             // Fire-and-forget is intentional: Evaluate is called synchronously from
             // the bar-close handler. Await in a background task and store when done.
@@ -142,10 +141,48 @@ public class StrategyEvaluator
             {
                 try
                 {
-                    var prediction = await predictor.PredictMovement(_sessionDate!, _sessionOpen);
+                    var sequence = new List<BarData>();
+                    switch (model.BarType)
+                    {
+                        case "window":
+                            var start = int.Parse(model.WindowStart);
+                            var end = int.Parse(model.WindowEnd);
+                            foreach (var key in _data.Keys)
+                            {
+                                sequence.Add(
+                                    BarData.Aggregate(_data[key].Where(b =>
+                                    {
+                                        var time = int.Parse(b.SessionTime);
+                                        return time >= start && time < end;
+                                    })
+                                    .OrderBy(b => b.Timestamp)
+                                    .ToList()));
+                            }
+                            break;
+                        case "session":
+                            foreach (var key in _data.Keys)
+                                sequence.Add(BarData.Aggregate(_data[key]));
+                        break;
+                        case "minute":
+                            if (_data[_sessionDate] != null)
+                            {
+                                sequence = _data[_sessionDate];
+                                if (sequence.Count > LOOKBACK)
+                                {
+                                    sequence = sequence
+                                        .Skip(sequence.Count - LOOKBACK)
+                                        .OrderBy(b => b.Timestamp)
+                                        .ToList();
+                                }
+                            }
+                        break;
+                    }
+                    
+                    var open = sequence.First().Open;
+                    var prediction = await predictor.PredictMovement(sequence, _data);
                     if (prediction is not null)
                     {
-                        var level = _sessionOpen + prediction.PredictedMove;
+                        var level = open + prediction.PredictedMove;
                         _predictions[modelName] = level;
                         Logger.Info($" {modelName}: {level:f2} (move {prediction.PredictedMove:+0.00;-0.00})");
                     }
@@ -184,7 +221,6 @@ public class StrategyEvaluator
         IsReady      = false;
         DailyAtr     = 0;
         _sessionDate = null;
-        _sessionOpen = 0;
         _predictions.Clear();
         _predictedModels.Clear();
     }

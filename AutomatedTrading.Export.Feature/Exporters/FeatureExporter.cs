@@ -40,35 +40,13 @@ public class FeatureExporter
             Logger.Info($"  No features configured for '{_model.ModelName}'. Skipping.");
             return;
         }
-
         Logger.Info("  Loading 1-minute bars from database...");
         var minuteBarsBySession = new Dictionary<string, List<BarData>>();
-
-        await _barRepository.StreamBarsAsync(start, end, bar =>
-        {
-            if (bar.SessionDate == null) return Task.CompletedTask;
-            if (!minuteBarsBySession.TryGetValue(bar.SessionDate, out var list))
-            {
-                list = new List<BarData>();
-                minuteBarsBySession[bar.SessionDate] = list;
-            }
-            list.Add(bar);
-            return Task.CompletedTask;
-        });
-
+        await GetBarsBySession(start, end, minuteBarsBySession!);
         Logger.Info($"  Loaded {minuteBarsBySession.Count} sessions. Building features...");
-
-        var sessionDates = minuteBarsBySession.Keys.Where(x =>
-        {
-            var day = DateTime.ParseExact(x, "yyyyMMdd", null).DayOfWeek;
-            return day != DayOfWeek.Sunday && day != DayOfWeek.Saturday;
-        }).OrderBy(x => x).ToList();
-        
+        var sessionDates = minuteBarsBySession.Keys.OrderBy(x => x).ToList();
         var rowsWritten = 0;
-        var errDate = string.Empty;
-
-        double[]? featureValues = null;
-        double? target = null;
+        var currDate = string.Empty;
         using var writer = new StreamWriter(_outputPath);
         try
         {
@@ -76,80 +54,20 @@ public class FeatureExporter
             await writer.WriteLineAsync(header + "," + targetColumnName());
             if (_model.BarType == "session")
             {
-                var dailyBars = sessionDates
-                    .Select(d => BarData.Aggregate(minuteBarsBySession[d]))
-                    .ToList();
-                for (var i = MinLookback; i < sessionDates.Count; i++)
-                {
-                    errDate = sessionDates[i];
-                    var atr20 = Computations.ATR(dailyBars, i - 1, MinLookback);
-                    if (atr20 == 0) continue;
-                    featureValues = buildSessionFeatures(dailyBars, i, atr20, sessionDates, minuteBarsBySession);
-                    target = getTarget(minuteBarsBySession[sessionDates[i]], dailyBars[i].Open, atr20);
-                    if (featureValues != null)
-                        await writer.WriteLineAsync(string.Join(",", featureValues.Select(f => f.ToString("G6"))) + "," + target?.ToString("G6"));
-                    rowsWritten++;
-                    if (rowsWritten % 100 == 0)
-                        Console.WriteLine($"  {rowsWritten} rows written...");
-                }
+                rowsWritten = await buildSessionFeatures(minuteBarsBySession, sessionDates, rowsWritten, writer);
             }
             else if (_model.BarType == "window")
             {
-                var windowStart = int.Parse(_model.WindowStart);
-                var windowEnd = int.Parse(_model.WindowEnd);
-                var dailyBars = sessionDates.Select(d =>
-                {
-                    var minuteBarsForDay = minuteBarsBySession[d];
-                    var windowBars = minuteBarsForDay.Where(b =>
-                        InWindow(int.Parse(b.SessionTime), windowStart, windowEnd));
-                    if (windowBars.Any())
-                        return BarData.Aggregate(windowBars.OrderBy(b => b.Timestamp).ToList());
-                    return null;
-                })
-                .Where(b => b != null)
-                .OrderBy(b => b.Timestamp)
-                .ToList();
-                if (!dailyBars.Any()) return;
-                for (var i = MinLookback; i < dailyBars.Count; i++)
-                {
-                    errDate = dailyBars[i].SessionDate;
-                    var atr20 = Computations.ATR(dailyBars, i - 1, MinLookback);
-                    if (atr20 == 0) continue;
-                    var open = dailyBars[i].Open;
-                    target = getTarget(minuteBarsBySession[dailyBars[i].SessionDate], open, atr20);
-                    featureValues = buildWindowFeatures(dailyBars, windowStart, windowEnd, i, atr20, open, dailyBars[i].SessionDate, dailyBars[i - 1].SessionDate, minuteBarsBySession);
-                    if (featureValues != null)
-                        await writer.WriteLineAsync(string.Join(",", featureValues.Select(f => f.ToString("G6"))) + "," + target?.ToString("G6"));
-                    rowsWritten++;
-                    if (rowsWritten % 100 == 0)
-                        Console.WriteLine($"  {rowsWritten} rows written...");
-                }
+                rowsWritten = await buildWindowFeatures(minuteBarsBySession, sessionDates, rowsWritten, writer);
             }
             else if (_model.BarType == "minute")
             {
-                var dailyBars = sessionDates
-                    .Select(d => BarData.Aggregate(minuteBarsBySession[d]))
-                    .ToList();
-                for (var i = MinLookback; i < sessionDates.Count; i++)
-                {
-                    errDate = sessionDates[i];
-                    var sessionBars = minuteBarsBySession[sessionDates[i]];
-                    var atr20 = Computations.ATR(dailyBars, i - 1, MinLookback);
-                    if (atr20 == 0) continue;
-                    var open = sessionBars.First().Open;
-                    target = getTarget(sessionBars, open, atr20);
-                    featureValues = buildMinuteFeatures(dailyBars, sessionBars, i, atr20, open, sessionDates, minuteBarsBySession);
-                    if (featureValues != null)
-                        await writer.WriteLineAsync(string.Join(",", featureValues.Select(f => f.ToString("G6"))) + "," + target?.ToString("G6"));
-                    rowsWritten++;
-                    if (rowsWritten % 100 == 0)
-                        Console.WriteLine($"  {rowsWritten} rows written...");
-                }
+                rowsWritten = await buildMinuteFeatures(minuteBarsBySession, sessionDates, rowsWritten, writer);
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"  Error on session {errDate}: {ex.Message}");
+            Console.WriteLine($"  Error on session {currDate}: {ex.Message}");
         }
 
         Console.WriteLine($"  Feature export complete. {rowsWritten} rows written to {_outputPath}");
@@ -187,57 +105,128 @@ public class FeatureExporter
         start <= end ? time >= start && time < end
                      : time >= start || time < end;
 
-    private double[]? buildWindowFeatures(List<BarData> windowBars, int start, int end, int i, double atr, double open, string currentDate, string prevDate, Dictionary<string, List<BarData>> minuteBarsBySession)
+    private async Task<int> buildWindowFeatures(Dictionary<string, List<BarData>> minuteBarsBySession, 
+        List<string> sessionDates, 
+        int written,
+        StreamWriter writer)
     {
-        var prev = minuteBarsBySession[prevDate].Where(b =>
-            InWindow(int.Parse(b.SessionTime), start, end))
-        .OrderBy(b => b.Timestamp)
+        var start = int.Parse(_model.WindowStart!);
+        var end = int.Parse(_model.WindowEnd!);
+        var sequence = sessionDates.Select(date =>
+        {
+            var minuteBarsForDay = minuteBarsBySession[date];
+            var windowBars = minuteBarsForDay.Where(bar => InWindow(int.Parse(bar.SessionTime!), start, end));
+            if (windowBars.Any())
+                return BarData.Aggregate(windowBars.ToList());
+            return null;
+        })
+        .Where(bar => bar != null)
+        .OrderBy(bar => bar.Timestamp)
         .ToList();
-        var current = minuteBarsBySession[currentDate].Where(b =>
-            InWindow(int.Parse(b.SessionTime), start, end))
-        .OrderBy(b => b.Timestamp)
-        .ToList();
-        var ctx = new FeatureContext
-        (
-            windowBars,
-            i - 1,
-            windowBars[i - 1],
-            open,
-            atr,
-            currentDate,
-            prev,
-            current
-        );
-        return FeatureComputations.ParseFeatures(_model.Features, ctx);
+
+        if (sequence.Count == 0) return written;
+
+        for (var i = MinLookback; i < sessionDates.Count; i++)
+        {
+            var atr20 = Computations.ATR(sequence!, i - 1, MinLookback);
+            if (atr20 == 0) continue;
+            var target = getTarget(minuteBarsBySession[sessionDates[i]], sequence?.FirstOrDefault()!.Open ?? 0, atr20);
+            var featureValues = FeatureComputations.ParseFeatures(
+                _model.Features,
+                new FeatureContext
+                (
+                    sequence!,
+                    i - 1,
+                    atr20,
+                    sessionDates[i],
+                    minuteBarsBySession
+                ));
+            if (featureValues != null)
+            {
+                await writer.WriteLineAsync($"{string.Join(",", featureValues.Select(f => f.ToString("G6")))},{target:G6}");
+                written++;
+            }
+            if (written % 100 == 0)
+                    Console.WriteLine($"  {written} rows written...");
+        }
+        return written; 
     }
 
-    private double[] buildMinuteFeatures(List<BarData> dailyBars, List<BarData> sessionBars, int i, double atr, double open, List<string> sessionDates, Dictionary<string, List<BarData>> minuteBarsBySession)
+    private async Task<int> buildMinuteFeatures(Dictionary<string, List<BarData>> minuteBarsBySession, 
+        List<string> sessionDates, 
+        int written,
+        StreamWriter writer)
     {
-        return FeatureComputations.ParseFeatures(_model.Features, new FeatureContext
-        (
-            dailyBars,
-            i - 1,
-            dailyBars[i - 1],
-            open,
-            atr,
-            sessionDates[i],
-            minuteBarsBySession[sessionDates[i - 1]],
-            sessionBars
-        ));
+        for (var i = 0; i < sessionDates.Count; i++)
+        {
+            var sequence = minuteBarsBySession[sessionDates[i]];
+            var atr20 = Computations.ATR(sequence, i - 1, MinLookback);
+            if (atr20 == 0) continue;
+            var features = FeatureComputations.ParseFeatures(_model.Features, new FeatureContext
+            (
+                sequence,
+                i - 1,
+                atr20,
+                sessionDates[i],
+                minuteBarsBySession
+            ));
+            if (features != null)
+            {
+                var target = getTarget(sequence, sequence.First().Open, atr20);
+                await writer.WriteLineAsync($"{string.Join(",", features.Select(f => f.ToString("G6")))},{target:G6}");
+                written++;
+                if (written % 100 == 0)
+                    Console.WriteLine($"  {written} rows written...");
+            }
+        }
+        return written;
     }
 
-    private double[]? buildSessionFeatures(List<BarData> dailyBars, int i, double atr, List<string> sessionDates, Dictionary<string, List<BarData>> minuteBarsBySession)
+    private async Task<int> buildSessionFeatures(Dictionary<string, List<BarData>> minuteBarsBySession, 
+        List<string> sessionDates, 
+        int written,
+        StreamWriter writer)
     {
-        return FeatureComputations.ParseFeatures(_model.Features, new FeatureContext
-        (
-            dailyBars,
-            i - 1,
-            dailyBars[i - 1],
-            dailyBars[i].Open,
-            atr,
-            sessionDates[i],
-            minuteBarsBySession[sessionDates[i - 1]],
-            minuteBarsBySession[sessionDates[i]]
-        ));
+        var sequence = sessionDates.Select(date => BarData.Aggregate(minuteBarsBySession[date])).ToList();
+        for (var i = MinLookback; i < sessionDates.Count; i++)
+        {
+            var atr20 = Computations.ATR(sequence, i - 1, MinLookback);
+            if (atr20 == 0) continue;
+            var features = FeatureComputations.ParseFeatures(
+                _model.Features,
+                new FeatureContext
+                (
+                    sequence,
+                    i - 1,
+                    atr20,
+                    sessionDates[i],
+                    minuteBarsBySession
+                ));
+            if (features != null)
+            {
+                var target = getTarget(minuteBarsBySession[sessionDates[i]], sequence.First().Open, atr20);
+                await writer.WriteLineAsync(
+                    $"{string.Join(",", features.Select(f => f.ToString("G6")))},{target:G6}");
+                written++;
+                if (written % 100 == 0)
+                    Console.WriteLine($"  {written} rows written...");
+            }
+        }
+        return written;
+    }
+
+    private async Task GetBarsBySession(DateTime start, DateTime end, Dictionary<string, List<BarData>?> minuteBarsBySession)
+    {
+        await _barRepository.StreamBarsAsync(start, end, bar =>
+        {
+            if (bar.SessionDate == null) return Task.CompletedTask;
+            if (!minuteBarsBySession.TryGetValue(bar.SessionDate, out var list))
+            {
+                list = new List<BarData>();
+                minuteBarsBySession[bar.SessionDate] = list;
+            }
+            list?.Add(bar);
+            return Task.CompletedTask;
+        });
     }
 }

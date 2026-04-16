@@ -13,22 +13,16 @@ public class FeatureContext
 {
     public List<BarData> Sequence { get; set; }
     public int J { get; set; }
-    public BarData Current { get; set; }
-    public double Open { get; set; }
     public double ATR { get; set; }
     public string SessionDate { get; set; }
-    public List<BarData> PrevBars { get; set; }
-    public List<BarData>? CurrentBars { get; set; } = null;
-    public FeatureContext(List<BarData> sequence, int j, BarData current, double open, double atr, string sessionDate, List<BarData> prevBars, List<BarData>? currentBars)
+    public Dictionary<string, List<BarData>> MinuteBars { get; set; }
+    public FeatureContext(List<BarData> sequence, int j, double atr, string sessionDate, Dictionary<string, List<BarData>> minuteBars)
     {
         Sequence = sequence;
         J = j;
-        Current = current;
-        Open = open;
         ATR = atr;
-        SessionDate = sessionDate;
-        PrevBars = prevBars;
-        CurrentBars = currentBars;
+        MinuteBars = minuteBars;
+        SessionDate = sessionDate; 
     }
 }
 
@@ -46,163 +40,142 @@ public static class FeatureComputations
 
     public static double ParseFeatureComputation(ModelFeature feature, FeatureContext ctx)
     {
+        var sessionDate = DateTime.ParseExact(ctx.SessionDate, AppConstants.DATE_FORMAT, null);
+
         var p = feature.Params;
+        var source = feature.Source;
+        var bars = new List<BarData>();
+        var prevMinuteBars = ctx.MinuteBars[TradingCalendar
+            .GetPreviousSessionDate(sessionDate)
+            .ToString(AppConstants.DATE_FORMAT)];
+        var currMinuteBars = ctx.MinuteBars[ctx.SessionDate];
+
+        switch (source)
+        {
+            case "prevMinute":
+                bars.AddRange(prevMinuteBars);
+                break;
+            case "currMinute":
+                bars.AddRange(currMinuteBars);
+                break;
+            default:
+                bars.AddRange(ctx.Sequence);
+                break;
+        }
+
+        var current = ctx.Sequence[ctx.J];
 
         switch (feature.Name)
         {
             // ── Prev daily bar vs session open ────────────────────────────────
             case "PrevHighVsOpen":
-                return Operations.SafeDiv(ctx.Current.High, ctx.Open);
-
+                return Operations.SafeDiv(BarData.Aggregate(prevMinuteBars).High, BarData.Aggregate(currMinuteBars).Open);
             case "PrevLowVsOpen":
-                return Operations.SafeDiv(ctx.Current.Low, ctx.Open);
-
+                return Operations.SafeDiv(BarData.Aggregate(prevMinuteBars).Low, BarData.Aggregate(currMinuteBars).Open);
             // ── Prev daily bar shape ──────────────────────────────────────────
-            case "PrevHighLowRange":
-                return Computations.HighLowRange(ctx.Current, ctx.ATR);
-
-            case "PrevBodySize":
-                return Computations.BodySize(ctx.Current, ctx.ATR);
-
-            case "PrevUpperWick":
-                return Computations.UpperWick(ctx.Current, ctx.ATR);
-
-            case "PrevLowerWick":
-                return Computations.LowerWick(ctx.Current, ctx.ATR);
-
-            case "PrevClosePosition":
-                return Computations.ClosePosition(ctx.Current);
-
+            case "HighLowRange":
+                return Computations.HighLowRange(BarData.Aggregate(bars), ctx.ATR);
+            case "BodySize":
+                return Computations.BodySize(BarData.Aggregate(bars), ctx.ATR);
+            case "UpperWick":
+                return Computations.UpperWick(BarData.Aggregate(bars), ctx.ATR);
+            case "LowerWick":
+                return Computations.LowerWick(BarData.Aggregate(bars), ctx.ATR);
+            case "ClosePosition":
+                return Computations.ClosePosition(BarData.Aggregate(bars));
             // ── ATR ratios ────────────────────────────────────────────────────
             case "AtrVsOpen":
-                return Operations.SafeDiv(Computations.ATR(ctx.Sequence, ctx.J, p!["period"]), ctx.Open);
-
+                return Operations.SafeDiv(Computations.ATR(bars, ctx.J, p!["period"]), BarData.Aggregate(bars).Open);
             case "AtrRatio":
                 return Operations.SafeDiv(
-                    Computations.ATR(ctx.Sequence, ctx.J, p!["fast"]),
-                    Computations.ATR(ctx.Sequence, ctx.J, p["slow"]));
-
+                    Computations.ATR(bars, ctx.J, p!["fast"]),
+                    Computations.ATR(bars, ctx.J, p["slow"]));
             // ── Range features ────────────────────────────────────────────────
             case "AvgRange":
-                return Computations.AverageRange(ctx.Sequence, ctx.J, p!["period"]);
-
+                return Computations.AverageRange(bars, ctx.J, p!["period"]);
             case "RangeVsAvgRange10":
                 return Operations.SafeDiv(
-                    ctx.Current.High - ctx.Current.Low,
-                    Computations.AverageRange(ctx.Sequence, ctx.J, 10));
-
+                    current.High - current.Low,
+                    Computations.AverageRange(bars, ctx.J, 10));
             // ── Returns ───────────────────────────────────────────────────────
             case "Return":
-                return Computations.Return(ctx.Sequence, ctx.J, p!["lookback"]);
-
+                return Computations.Return(bars, ctx.J, p!["lookback"]);
             // ── SMA ratios ────────────────────────────────────────────────────
             case "SmaRatio":
                 return Operations.SafeDiv(
-                    Computations.SMA(ctx.Sequence, ctx.J, p!["fast"], x => x.Close),
-                    Computations.SMA(ctx.Sequence, ctx.J, p["slow"], x => x.Close));
-
+                    Computations.SMA(bars, ctx.J, p!["fast"], x => x.Close),
+                    Computations.SMA(bars, ctx.J, p["slow"], x => x.Close));
             case "OpenVsSma":
                 return Operations.SafeDiv(
-                    ctx.Open,
-                    Computations.SMA(ctx.Sequence, ctx.J, p!["period"], x => x.Close));
-
+                    BarData.Aggregate(bars).Open,
+                    Computations.SMA(bars, ctx.J, p!["period"], x => x.Close));
             // ── Volume features ───────────────────────────────────────────────
             case "VolumeSma":
-                return Computations.SMA(ctx.Sequence, ctx.J, p!["period"], x => x.Volume);
-
+                return Computations.SMA(bars, ctx.J, p!["period"], x => x.Volume);
             case "VolumeZScore":
-                return Computations.VolumeZScore(ctx.Sequence, ctx.J, p!["period"]);
-
+                return Computations.VolumeZScore(bars, ctx.J, p!["period"]);
             // ── Session open gap vs prev bar ──────────────────────────────────
             case "OpenVsPrevHigh":
-                return Operations.SafeDiv(ctx.Open - ctx.Current.High, ctx.ATR);
-
+                return Operations.SafeDiv(BarData.Aggregate(currMinuteBars).Open - BarData.Aggregate(prevMinuteBars).High, ctx.ATR);
             case "OpenVsPrevLow":
-                return Operations.SafeDiv(ctx.Open - ctx.Current.Low, ctx.ATR);
-
+                return Operations.SafeDiv(BarData.Aggregate(currMinuteBars).Open - BarData.Aggregate(prevMinuteBars).Low, ctx.ATR);
             case "OpenVsPrevClose":
-                return Operations.SafeDiv(ctx.Open - ctx.Current.Close, ctx.ATR);
-
+                return Operations.SafeDiv(BarData.Aggregate(currMinuteBars).Open - BarData.Aggregate(prevMinuteBars).Close, ctx.ATR);
             // ── Momentum / oscillators ────────────────────────────────────────
             case "Rsi":
-                return Computations.RSI(ctx.Sequence, ctx.J, p!["period"]);
-
+                return Computations.RSI(bars, ctx.J, p!["period"]);
             // ── Calendar ──────────────────────────────────────────────────────
             case "DayOfWeek":
-                return (int)DateTime.ParseExact(ctx.SessionDate, "yyyyMMdd", null).DayOfWeek;
-
+                return (int)DateTime.ParseExact(ctx.SessionDate, AppConstants.DATE_FORMAT, null).DayOfWeek;
             case "DayOfMonth":
-                return DateTime.ParseExact(ctx.SessionDate, "yyyyMMdd", null).Day;
-
+                return DateTime.ParseExact(ctx.SessionDate, AppConstants.DATE_FORMAT, null).Day;
             // ── Gap (daily context + session open) ────────────────────────────
             case "GapToRthOpen":
-                return Computations.GapToRthOpen(ctx.Open, ctx.Current.Close, ctx.ATR);
-
+                return Computations.GapToRthOpen(bars, BarData.Aggregate(prevMinuteBars).Close, ctx.ATR);
             // ── Prev session minute bars ──────────────────────────────────────
             case "OvernightRange":
-                return Computations.OvernightRange(ctx.PrevBars, ctx.ATR);
-
+                return Computations.OvernightRange(bars, ctx.ATR);
             case "OvernightVolumeRatio":
-                return Computations.OvernightVolumeRatio(ctx.PrevBars);
-
+                return Computations.OvernightVolumeRatio(bars);
             case "OvernightDropRatio":
-                return Computations.OvernightDropRatio(ctx.PrevBars, ctx.ATR);
-
+                return Computations.OvernightDropRatio(bars, ctx.ATR);
             case "RegularHoursRange":
-                return Computations.RegularHoursRange(ctx.PrevBars, ctx.ATR);
-
+                return Computations.RegularHoursRange(bars, ctx.ATR);
             case "FirstHourRange":
-                return Computations.FirstHourRange(ctx.PrevBars, ctx.ATR);
-
+                return Computations.FirstRthHourRange(bars, ctx.ATR);
             case "LastHourRange":
-                return Computations.LastHourRange(ctx.PrevBars, ctx.ATR);
-
+                return Computations.LastRthHourRange(bars, ctx.ATR);
             case "HighTimeRatio":
-                return Computations.HighTimeRatio(ctx.PrevBars);
-
+                return Computations.HighTimeRatio(bars);
             case "LowTimeRatio":
-                return Computations.LowTimeRatio(ctx.PrevBars);
-
-            case "PrevOpenToHighRatio":
-                return Computations.PrevOpenToHighRatio(ctx.PrevBars, ctx.ATR);
-
-            case "PrevOpenToLowRatio":
-                return Computations.PrevOpenToLowRatio(ctx.PrevBars, ctx.ATR);
-
+                return Computations.LowTimeRatio(bars); 
+            case "OpenToHighRatio":
+                return Computations.OpenToHighRatio(bars, ctx.ATR);
+            case "OpenToLowRatio":
+                return Computations.OpenToLowRatio(bars, ctx.ATR);
             case "LastHourClosePosition":
-                return Computations.LastHourClosePosition(ctx.PrevBars);
-
+                return Computations.LastRthHourClosePosition(bars);
             case "RthRange":
-                return Computations.RthRange(ctx.PrevBars, ctx.ATR);
-
+                return Computations.RthRange(bars, ctx.ATR);
             case "FirstHalfHourRange":
-                return Computations.FirstHalfHourRange(ctx.PrevBars, ctx.ATR);
-
+                return Computations.FirstHalfRthHourRange(bars, ctx.ATR);
             case "RthHighTimeRatio":
-                return Computations.RthHighTimeRatio(ctx.PrevBars);
-
+                return Computations.RthHighTimeRatio(bars);
             case "RthLowTimeRatio":
-                return Computations.RthLowTimeRatio(ctx.PrevBars);
-
+                return Computations.RthLowTimeRatio(bars);
             case "RthOpenToHighRatio":
-                return Computations.RthOpenToHighRatio(ctx.PrevBars, ctx.ATR);
-
+                return Computations.RthOpenToHighRatio(bars, ctx.ATR);
             case "RthOpenToLowRatio":
-                return Computations.RthOpenToLowRatio(ctx.PrevBars, ctx.ATR);
-
+                return Computations.RthOpenToLowRatio(bars, ctx.ATR);
             // ── Current session pre-market minute bars ────────────────────────
             case "PreMarketRange":
-                return Computations.PreMarketRange(ctx.CurrentBars!, ctx.ATR);
-
+                return Computations.PreMarketRange(bars, ctx.ATR);
             case "PreMarketHighVsOpen":
-                return Computations.PreMarketHighVsOpen(ctx.CurrentBars!, ctx.Open, ctx.ATR);
-
+                return Computations.PreMarketHighVsOpen(bars, ctx.ATR);
             case "PreMarketLowVsOpen":
-                return Computations.PreMarketLowVsOpen(ctx.CurrentBars!, ctx.Open, ctx.ATR);
-
+                return Computations.PreMarketLowVsOpen(bars, ctx.ATR);
             case "PreMarketVolumeRatio":
-                return Computations.PreMarketVolumeRatio(ctx.CurrentBars!);
-
+                return Computations.PreMarketVolumeRatio(bars);
             default:
                 throw new ArgumentException($"Unknown feature name: '{feature.Name}'");
         }
