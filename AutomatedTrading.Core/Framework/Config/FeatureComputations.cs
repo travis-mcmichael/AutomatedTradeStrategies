@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using AutomatedTrading.Core.Framework.Utility;
 using AutomatedTrading.Core.Models;
 
@@ -45,9 +46,12 @@ public static class FeatureComputations
         var p = feature.Params;
         var source = feature.Source;
         var bars = new List<BarData>();
-        var prevMinuteBars = ctx.MinuteBars[TradingCalendar
-            .GetPreviousSessionDate(sessionDate)
-            .ToString(AppConstants.DATE_FORMAT)];
+        var prevDate = TradingCalendar.GetPreviousSessionDate(sessionDate);
+        while (!ctx.MinuteBars.ContainsKey(prevDate.ToString(AppConstants.DATE_FORMAT)))
+        {
+            prevDate = TradingCalendar.GetPreviousSessionDate(prevDate);
+        }
+        var prevMinuteBars = ctx.MinuteBars[prevDate.ToString(AppConstants.DATE_FORMAT)];
         var currMinuteBars = ctx.MinuteBars[ctx.SessionDate];
 
         switch (source)

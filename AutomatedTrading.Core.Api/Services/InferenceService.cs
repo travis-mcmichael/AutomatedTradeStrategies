@@ -50,7 +50,9 @@ public class InferenceService : IMovementPredictor
 
         // High models predict upside from open (positive); low models negate so that
         // open + PredictedMove gives the predicted low price.
-        return new MovementPrediction(_peak ? rawMove : -rawMove);
+        var mv = _peak ? rawMove : -rawMove;
+        Logger.Info($"Predict movement result: {mv}");
+        return new MovementPrediction(mv);
     }
 
     private bool isLoaded() => _evaluator != null && _evaluator.SessionLoaded();
