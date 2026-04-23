@@ -46,7 +46,6 @@ public class FeatureExporter
         Logger.Info($"  Loaded {minuteBarsBySession.Count} sessions. Building features...");
         var sessionDates = minuteBarsBySession.Keys.OrderBy(x => x).ToList();
         var rowsWritten = 0;
-        var currDate = string.Empty;
         using var writer = new StreamWriter(_outputPath);
         try
         {
@@ -67,7 +66,7 @@ public class FeatureExporter
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"  Error on session {currDate}: {ex.Message}");
+            Console.WriteLine($"  Error building features : {ex.Message}\r\n\t{ex.StackTrace}");
         }
 
         Console.WriteLine($"  Feature export complete. {rowsWritten} rows written to {_outputPath}");
@@ -117,21 +116,21 @@ public class FeatureExporter
             var minuteBarsForDay = minuteBarsBySession[date];
             var windowBars = minuteBarsForDay.Where(bar => InWindow(int.Parse(bar.SessionTime!), start, end));
             if (windowBars.Any())
-                return BarData.Aggregate(windowBars.ToList());
+                return BarData.Aggregate([.. windowBars]);
             return null;
         })
         .Where(bar => bar != null)
         .OrderBy(bar => bar!.Timestamp)
         .ToList();
 
-        if (sequence.Count == 0) return written;
+        if (sequence.Count == 0 || sessionDates.Count < MinLookback) return written;
 
-        for (var i = MinLookback; i < sessionDates.Count; i++)
+        for (var i = MinLookback; i < sequence.Count; i++)
         {
             var atr20 = Computations.ATR(sequence!, i - 1, MinLookback);
-            if (atr20 == 0) continue;
-            var target = getTarget(minuteBarsBySession[sessionDates[i]], sequence?.FirstOrDefault()!.Open ?? 0, atr20);
-            var featureValues = FeatureComputations.ParseFeatures(
+            if (atr20 == 0 || sequence[i] is null) continue;
+            var target = getTarget(minuteBarsBySession[sequence[i]?.SessionDate ?? ""], sequence[i]?.Open ?? 0, atr20);
+             var featureValues = FeatureComputations.ParseFeatures(
                 _model.Features,
                 new FeatureContext
                 (
@@ -147,7 +146,7 @@ public class FeatureExporter
                 written++;
             }
             if (written % 100 == 0)
-                    Console.WriteLine($"  {written} rows written...");
+                    Console.WriteLine($"  {written} rows written...");   
         }
         return written; 
     }
