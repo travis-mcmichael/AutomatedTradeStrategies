@@ -47,8 +47,14 @@ public static class FeatureComputations
         var source = feature.Source;
         var bars = new List<BarData>();
         var prevDate = TradingCalendar.GetPreviousSessionDate(sessionDate);
+        var minBarDate = ctx.MinuteBars.Keys
+            .Select(k => DateTime.ParseExact(k, AppConstants.DATE_FORMAT, null))
+            .DefaultIfEmpty(DateTime.MaxValue)
+            .Min();
         while (!ctx.MinuteBars.ContainsKey(prevDate.ToString(AppConstants.DATE_FORMAT)))
         {
+            if (prevDate < minBarDate)
+                throw new InvalidOperationException($"No prior minute-bar data found before session {ctx.SessionDate}");
             prevDate = TradingCalendar.GetPreviousSessionDate(prevDate);
         }
         var prevMinuteBars = ctx.MinuteBars[prevDate.ToString(AppConstants.DATE_FORMAT)];
@@ -73,8 +79,10 @@ public static class FeatureComputations
         {
             // ── Prev daily bar vs session open ────────────────────────────────
             case "PrevHighVsOpen":
+                if (currMinuteBars.Count == 0 || prevMinuteBars.Count == 0) return double.NaN;
                 return Operations.SafeDiv(BarData.Aggregate(prevMinuteBars).High, BarData.Aggregate(currMinuteBars).Open);
             case "PrevLowVsOpen":
+                if (currMinuteBars.Count == 0 || prevMinuteBars.Count == 0) return double.NaN;
                 return Operations.SafeDiv(BarData.Aggregate(prevMinuteBars).Low, BarData.Aggregate(currMinuteBars).Open);
             // ── Prev daily bar shape ──────────────────────────────────────────
             case "HighLowRange":
@@ -120,10 +128,13 @@ public static class FeatureComputations
                 return Computations.VolumeZScore(bars, ctx.J, p!["period"]);
             // ── Session open gap vs prev bar ──────────────────────────────────
             case "OpenVsPrevHigh":
+                if (currMinuteBars.Count == 0 || prevMinuteBars.Count == 0) return double.NaN;
                 return Operations.SafeDiv(BarData.Aggregate(currMinuteBars).Open - BarData.Aggregate(prevMinuteBars).High, ctx.ATR);
             case "OpenVsPrevLow":
+                if (currMinuteBars.Count == 0 || prevMinuteBars.Count == 0) return double.NaN;
                 return Operations.SafeDiv(BarData.Aggregate(currMinuteBars).Open - BarData.Aggregate(prevMinuteBars).Low, ctx.ATR);
             case "OpenVsPrevClose":
+                if (currMinuteBars.Count == 0 || prevMinuteBars.Count == 0) return double.NaN;
                 return Operations.SafeDiv(BarData.Aggregate(currMinuteBars).Open - BarData.Aggregate(prevMinuteBars).Close, ctx.ATR);
             // ── Momentum / oscillators ────────────────────────────────────────
             case "Rsi":
@@ -135,20 +146,27 @@ public static class FeatureComputations
                 return DateTime.ParseExact(ctx.SessionDate, AppConstants.DATE_FORMAT, null).Day;
             // ── Gap (daily context + session open) ────────────────────────────
             case "GapToRthOpen":
-                return Computations.GapToRthOpen(bars, BarData.Aggregate(prevMinuteBars).Close, ctx.ATR);
+                if (currMinuteBars.Count == 0 || prevMinuteBars.Count == 0) return double.NaN;
+                return Computations.GapToRthOpen(currMinuteBars, BarData.Aggregate(prevMinuteBars).Close, ctx.ATR);
             // ── Prev session minute bars ──────────────────────────────────────
             case "OvernightRange":
-                return Computations.OvernightRange(bars, ctx.ATR);
+                if (currMinuteBars.Count == 0) return double.NaN;
+                return Computations.OvernightRange(currMinuteBars, ctx.ATR);
             case "OvernightVolumeRatio":
-                return Computations.OvernightVolumeRatio(bars);
+                if (currMinuteBars.Count == 0) return double.NaN;
+                return Computations.OvernightVolumeRatio(currMinuteBars);
             case "OvernightDropRatio":
-                return Computations.OvernightDropRatio(bars, ctx.ATR);
+                if (currMinuteBars.Count == 0) return double.NaN;
+                return Computations.OvernightDropRatio(currMinuteBars, ctx.ATR);
             case "RegularHoursRange":
-                return Computations.RegularHoursRange(bars, ctx.ATR);
+                if (currMinuteBars.Count == 0) return double.NaN;
+                return Computations.RegularHoursRange(currMinuteBars, ctx.ATR);
             case "FirstHourRange":
-                return Computations.FirstRthHourRange(bars, ctx.ATR);
+                if (currMinuteBars.Count == 0) return double.NaN;
+                return Computations.FirstRthHourRange(currMinuteBars, ctx.ATR);
             case "LastHourRange":
-                return Computations.LastRthHourRange(bars, ctx.ATR);
+                if (currMinuteBars.Count == 0) return double.NaN;
+                return Computations.LastRthHourRange(currMinuteBars, ctx.ATR);
             case "HighTimeRatio":
                 return Computations.HighTimeRatio(bars);
             case "LowTimeRatio":
@@ -158,28 +176,39 @@ public static class FeatureComputations
             case "OpenToLowRatio":
                 return Computations.OpenToLowRatio(bars, ctx.ATR);
             case "LastHourClosePosition":
-                return Computations.LastRthHourClosePosition(bars);
+                if (currMinuteBars.Count == 0) return double.NaN;
+                return Computations.LastRthHourClosePosition(currMinuteBars);
             case "RthRange":
-                return Computations.RthRange(bars, ctx.ATR);
+                if (currMinuteBars.Count == 0) return double.NaN;
+                return Computations.RthRange(currMinuteBars, ctx.ATR);
             case "FirstHalfHourRange":
-                return Computations.FirstHalfRthHourRange(bars, ctx.ATR);
+                if (currMinuteBars.Count == 0) return double.NaN;
+                return Computations.FirstHalfRthHourRange(currMinuteBars, ctx.ATR);
             case "RthHighTimeRatio":
-                return Computations.RthHighTimeRatio(bars);
+                if (currMinuteBars.Count == 0) return double.NaN;
+                return Computations.RthHighTimeRatio(currMinuteBars);
             case "RthLowTimeRatio":
-                return Computations.RthLowTimeRatio(bars);
+                if (currMinuteBars.Count == 0) return double.NaN;
+                return Computations.RthLowTimeRatio(currMinuteBars);
             case "RthOpenToHighRatio":
-                return Computations.RthOpenToHighRatio(bars, ctx.ATR);
+                if (currMinuteBars.Count == 0) return double.NaN;
+                return Computations.RthOpenToHighRatio(currMinuteBars, ctx.ATR);
             case "RthOpenToLowRatio":
-                return Computations.RthOpenToLowRatio(bars, ctx.ATR);
+                if (currMinuteBars.Count == 0) return double.NaN;
+                return Computations.RthOpenToLowRatio(currMinuteBars, ctx.ATR);
             // ── Current session pre-market minute bars ────────────────────────
             case "PreMarketRange":
-                return Computations.PreMarketRange(bars, ctx.ATR);
+                if (currMinuteBars.Count == 0) return double.NaN;
+                return Computations.PreMarketRange(currMinuteBars, ctx.ATR);
             case "PreMarketHighVsOpen":
-                return Computations.PreMarketHighVsOpen(bars, ctx.ATR);
+                if (currMinuteBars.Count == 0) return double.NaN;
+                return Computations.PreMarketHighVsOpen(currMinuteBars, ctx.ATR);
             case "PreMarketLowVsOpen":
-                return Computations.PreMarketLowVsOpen(bars, ctx.ATR);
+                if (currMinuteBars.Count == 0) return double.NaN;
+                return Computations.PreMarketLowVsOpen(currMinuteBars, ctx.ATR);
             case "PreMarketVolumeRatio":
-                return Computations.PreMarketVolumeRatio(bars);
+                if (currMinuteBars.Count == 0) return double.NaN;
+                return Computations.PreMarketVolumeRatio(currMinuteBars);
             default:
                 throw new ArgumentException($"Unknown feature name: '{feature.Name}'");
         }

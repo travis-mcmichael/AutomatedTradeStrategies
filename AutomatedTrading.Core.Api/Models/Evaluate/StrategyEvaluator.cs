@@ -128,14 +128,14 @@ public class StrategyEvaluator
         string sessionTime,
         double entryPrice = 0)
     {
-        Logger.Info($"{nameof(StrategyEvaluator)}.Evaluate:\t" +
-            $"SessionTime={sessionTime,-9}" +
-            $"SessionDate={_sessionDate ?? "null",-10}" +
-            $"BarHigh={barHigh,-10:f2}" +
-            $"BarLow={barLow,-10:f2}" +
-            $"BarClose={barClose,-10:f2}" +
-            $"Position={position,-6}" +
-            $"EntryPrice={entryPrice,-10:f2}" + 
+        Logger.Info($"{nameof(StrategyEvaluator)}.Evaluate:\r\n\t" +
+            $"SessionTime={sessionTime}\r\n\t" +
+            $"SessionDate={_sessionDate ?? "null"}\r\n\t" +
+            $"BarHigh={barHigh:f2}\r\n\t" +
+            $"BarLow={barLow:f2}\r\n\t" +
+            $"BarClose={barClose:f2}\r\n\t" +
+            $"Position={position}\r\n\t" +
+            $"EntryPrice={entryPrice:f2}\r\n\t" + 
             $"IsReady={IsReady,6}");
 
         await _sessionLock.WaitAsync();
@@ -160,8 +160,6 @@ public class StrategyEvaluator
     /// </summary>
     private async Task runPendingPredictions(string sessionTime)
     {
-        Logger.Info($"runPendingPredictions {sessionTime}");
-
         // Snapshot mutable state so background tasks aren't affected by the next
         // StartSessionAsync call clearing _data or _sessionDate.
         var dataSnapshot   = _data.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToList());
@@ -169,48 +167,65 @@ public class StrategyEvaluator
 
         foreach (var (modelName, (predictor, model)) in _predictors)
         {
-            Logger.Info($"Assessing {modelName}...");
-            if (_predictedModels.ContainsKey(modelName)) continue;
-            Logger.Info($"Passed first check");
+            //if (_predictedModels.ContainsKey(modelName)) continue;
+            if (_predictions.ContainsKey(modelName)) continue;
             if (!isWindowOpen(sessionTime, model.WindowStart, model.WindowEnd)) continue;
 
             Logger.Info($"Running prediction for {model.ModelName}");
 
             // Mark immediately so subsequent bars don't trigger a second prediction
             // while the first is still in-flight.
-            _predictedModels.TryAdd(modelName, true);
 
             // Fire-and-forget is intentional: Evaluate is called synchronously from
             // the bar-close handler. Await in a background task and store when done.
-            _ = Task.Run(async () =>
-            {
-                try
+            // _ = Task.Run(async () =>
+            // {
+                
+            // });
+            try
                 {
                     var sequence = new List<BarData>();
                     switch (model.BarType)
                     {
                         case "window":
-                            var start = int.Parse(model.WindowStart!);
-                            var end = int.Parse(model.WindowEnd!);
+
+                            var windowBarCount = dataSnapshot[sessionDate].Count(b =>
+                            {
+                                return isWindowOpen(b.SessionTime!, model.WindowStart, model.WindowEnd);
+                            });
+                            if (windowBarCount < AppConstants.MINIMUM_BARS_TO_EVALUATE)
+                            {
+                                Logger.Info($"Not enough bars to evaluate {model.ModelName} @ {sessionTime}, skipping...");
+                                continue;
+                            }
+                            
                             foreach (var key in dataSnapshot.Keys)
                             {
                                 var bars = dataSnapshot[key] ?? new();
                                 bars = bars.Where(b =>
                                     {
-                                        var time = int.Parse(b.SessionTime!);
-                                        return time >= start && time < end;
+                                        return isWindowOpen(b.SessionTime!, model.WindowStart, model.WindowEnd);
                                     })
                                     .OrderBy(b => b.Timestamp)
                                     .ToList();
                                 if (bars.Count < AppConstants.MINIMUM_BARS_TO_EVALUATE)
                                 {
-                                    Logger.Info($"Not enough bars to evaluate {model.ModelName}, skipping...");
+                                    //Logger.Info($"Not enough bars to evaluate {model.ModelName} on {key} @ {sessionTime}, skipping...");
+                                    Logger.Info($"This shouldn't be happening anymore: Not enough bars to evaluate {model.ModelName} on {key} @ {sessionTime}, skipping...");
                                     continue;
                                 }
                                 sequence.Add(BarData.Aggregate(bars));
                             }
+                            sequence = sequence.OrderBy(b => b.Timestamp).ToList();
                             break;
                         case "session":
+                            var sessionBarCount = dataSnapshot[sessionDate].Count();
+                            if (sessionBarCount < AppConstants.MINIMUM_BARS_TO_EVALUATE)
+                            {
+                                Logger.Info($"Not enough bars to evaluate {model.ModelName} @ {sessionTime}, skipping...");
+                                continue;
+                            }
+                            
                             foreach (var key in dataSnapshot.Keys)
                             {
                                 var bars = dataSnapshot[key] ?? new();
@@ -220,6 +235,7 @@ public class StrategyEvaluator
                                 }
                                 sequence.Add(BarData.Aggregate(bars));
                             }
+                            sequence = sequence.OrderBy(b => b.Timestamp).ToList();
                             break;
                         case "minute":
                             if (dataSnapshot.TryGetValue(sessionDate, out var sessionBars))
@@ -242,20 +258,20 @@ public class StrategyEvaluator
                         return;
                     }
 
-                    var open = sequence.First().Open;
+                    var open = sequence.Last().Open;
                     var prediction = await predictor.PredictMovement(sequence, dataSnapshot);
                     if (prediction is not null)
                     {
                         var level = open + prediction.PredictedMove;
                         _predictions[modelName] = level;
-                        Logger.Info($" {modelName}: {level:f2} (move {prediction.PredictedMove:+0.00;-0.00})");
+                        var summary = string.Join("\r\n\t", _predictions.Select(p => $"{p.Key}: {p.Value:f2}"));
+                        Logger.Info($"Predictions \r\n\t{summary}");
                     }
                 }
                 catch (Exception ex)
                 {
                     Logger.Error($"Prediction failed for {modelName}: {ex.Message}\r\n{ex.StackTrace}");
                 }
-            });
         }
     }
 
@@ -269,11 +285,15 @@ public class StrategyEvaluator
     /// </summary>
     private static bool isWindowOpen(string sessionTime, string? windowStart, string? windowEnd)
     {
-        if (windowStart is null) return true;                          // no window — always trigger
-        if (string.Compare(sessionTime, windowStart, StringComparison.Ordinal) < 0) return false;
-        if (windowEnd is not null &&
-            string.Compare(sessionTime, windowEnd, StringComparison.Ordinal) > 0) return false;
-        return true;
+        if (windowStart is null || windowEnd is null) return true;                      // no window — always trigger
+        var start = int.Parse(windowStart);
+        var end = int.Parse(windowEnd);
+        var time = int.Parse(sessionTime);
+
+        if (start < end)
+            return time >= start && time < end;
+        else 
+            return time >= start || time < end;
     }
 
     private void resetState()
@@ -284,31 +304,5 @@ public class StrategyEvaluator
         _predictions.Clear();
         _predictedModels.Clear();
         _data        = new Dictionary<string, List<BarData>>();
-    }
-
-    private async Task<double> loadDailyAtrAsync(string sessionDate)
-    {
-        var dailyBars = new List<BarData>();
-        var date = DateTime.ParseExact(sessionDate, "yyyyMMdd", null);
-
-        for (var i = 1; dailyBars.Count < 20 && i <= 60; i++)
-        {
-            var d    = date.AddDays(-i).ToString("yyyyMMdd");
-            var bars = await _barRepo!.GetBarsBySessionDateAsync(d);
-            if (bars.Count == 0) continue;
-
-            var ordered = bars.OrderBy(b => b.Timestamp).ToList();
-            dailyBars.Insert(0, new BarData
-            {
-                Open  = ordered.First().Open,
-                High  = ordered.Max(b => b.High),
-                Low   = ordered.Min(b => b.Low),
-                Close = ordered.Last().Close,
-            });
-        }
-
-        if (dailyBars.Count < 2) return 0;
-        var lookback = Math.Min(20, dailyBars.Count - 1);
-        return Computations.ATR(dailyBars, dailyBars.Count - 1, lookback);
     }
 }

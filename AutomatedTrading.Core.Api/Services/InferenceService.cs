@@ -21,6 +21,8 @@ public class InferenceService : IMovementPredictor
         _features = model.Features;
         _peak = model.Target == "HIGH";// Framework.Enums.PredictionTarget.HIGH;
         _modelName = model.ModelName;
+
+        Logger.Info($"{_modelName} : Inference service contructor called");
         loadEvaluator(model);
     }
 
@@ -32,17 +34,16 @@ public class InferenceService : IMovementPredictor
         var atr = Computations.ATR(sequence, j, ATR_SPAN);
         if (atr == 0) return null;
         var current = sequence[j];
-        var open = sequence.First().Open;
+        var open = sequence.Last().Open;
         
-        Logger.Info($"Predict movement for {_modelName} on {current.SessionDate} with window open @ {open:F2}, ATR{ATR_SPAN} = {atr}.");
+        Logger.Info($"{_modelName} : Predict movement on {current.SessionDate} with open @ {open:F2}, ATR{ATR_SPAN} = {atr}.");
 
         var ctx = new FeatureContext(
             sequence,
             j,
             atr,
             current.SessionDate!,
-            barDataBySession
-            );
+            barDataBySession);
 
         var features = FeatureComputations.ParseFeatures(_features, ctx);
         var scaled = _evaluator!.Scale(features);
@@ -51,7 +52,7 @@ public class InferenceService : IMovementPredictor
         // High models predict upside from open (positive); low models negate so that
         // open + PredictedMove gives the predicted low price.
         var mv = _peak ? rawMove : -rawMove;
-        Logger.Info($"Predict movement result: {mv}");
+        Logger.Info($"{_modelName} : Predict movement result = {mv}");
         return new MovementPrediction(mv);
     }
 
@@ -67,7 +68,7 @@ public class InferenceService : IMovementPredictor
         eval.LoadModel();
         if (!eval.SessionLoaded())
         {
-            Logger.Info($"Warning: model '{model.ModelName}' failed to load from {dir}");
+            Logger.Info($"{model.ModelName} : Warning - model failed to load from {dir}");
             return;
         }
         _evaluator = eval;
