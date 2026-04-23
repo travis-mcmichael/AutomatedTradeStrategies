@@ -94,7 +94,7 @@ public class ApiInferenceTest
                 sessionResults.Add((model.ModelName, new SessionResult(
                     sessionDate, predictedPrice, actual,
                     predictedMove, actualMove,
-                    resp.DailyAtr)));
+                    resp.Atr[model.ModelName])));
             }
 
             if (sessionResults.Count == 0) { skipped++; continue; }

@@ -87,8 +87,6 @@ public class ApiBacktestRunner
                 continue;
             }
 
-            Logger.Info($"{sessionDate}: open={sessionOpen:F2}  dailyATR={sessionResponse.DailyAtr:F2}");
-
             var barsToEvaluate = getBarsToEvaluate(ordered);
             foreach (var bar in barsToEvaluate)
             {

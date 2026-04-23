@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using AutomatedTrading.Core.Api.Models.Predict;
 using AutomatedTrading.Core.Framework;
 using AutomatedTrading.Core.Framework.Config;
@@ -25,16 +24,17 @@ public class StrategyEvaluator
     private const int LOOKBACK = 20;
     // ─── Observable session state ─────────────────────────────────────────────
     public bool IsReady    { get; private set; }
-    public double DailyAtr { get; private set; }
 
     /// <summary>All predictions gathered so far this session, keyed by model name.</summary>
     public IReadOnlyDictionary<string, double> Predictions => _predictions;
+    public IReadOnlyDictionary<string, double> ATR => _atr;
 
     // ─── Private state ────────────────────────────────────────────────────────
     private readonly Dictionary<string, (IMovementPredictor Predictor, ModelEntry Model)> _predictors;
     private readonly IBarRepository? _barRepo;
-    private readonly ConcurrentDictionary<string, double> _predictions = new();
-    private readonly ConcurrentDictionary<string, bool> _predictedModels = new();
+    private readonly Dictionary<string, double> _predictions = new();
+    private readonly Dictionary<string, double> _predictionResults = new();
+    private readonly Dictionary<string, double> _atr = new();
     private Dictionary<string, List<BarData>> _data = new();
 
     // Serialises StartSessionAsync and Evaluate so bars cannot be processed while
@@ -128,15 +128,9 @@ public class StrategyEvaluator
         string sessionTime,
         double entryPrice = 0)
     {
-        Logger.Info($"{nameof(StrategyEvaluator)}.Evaluate:\r\n\t" +
-            $"SessionTime={sessionTime}\r\n\t" +
-            $"SessionDate={_sessionDate ?? "null"}\r\n\t" +
-            $"BarHigh={barHigh:f2}\r\n\t" +
-            $"BarLow={barLow:f2}\r\n\t" +
-            $"BarClose={barClose:f2}\r\n\t" +
-            $"Position={position}\r\n\t" +
-            $"EntryPrice={entryPrice:f2}\r\n\t" + 
-            $"IsReady={IsReady,6}");
+        Logger.Info($"{nameof(StrategyEvaluator)}.Evaluate:" +
+            $"SessionDate/Time={_sessionDate ?? "null"} {sessionTime,-8}" +
+            $"BarHigh={barHigh,9:f2}, BarLow={barLow,9:f2}, BarClose={barClose,9:f2}, Position={position,5}, EntryPrice={entryPrice,9:f2}");
 
         await _sessionLock.WaitAsync();
         try
@@ -164,12 +158,17 @@ public class StrategyEvaluator
         // StartSessionAsync call clearing _data or _sessionDate.
         var dataSnapshot   = _data.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToList());
         var sessionDate    = _sessionDate!;
+        var currentBar = dataSnapshot[_sessionDate!]?.FirstOrDefault(x => x.SessionTime == sessionTime);
 
         foreach (var (modelName, (predictor, model)) in _predictors)
         {
-            //if (_predictedModels.ContainsKey(modelName)) continue;
-            if (_predictions.ContainsKey(modelName)) continue;
             if (!isWindowOpen(sessionTime, model.WindowStart, model.WindowEnd)) continue;
+
+            if (_predictions.ContainsKey(modelName))
+            {
+                if (currentBar is not null) updatePredictionResults(currentBar, model);
+                continue;
+            }
 
             Logger.Info($"Running prediction for {model.ModelName}");
 
@@ -219,7 +218,7 @@ public class StrategyEvaluator
                             sequence = sequence.OrderBy(b => b.Timestamp).ToList();
                             break;
                         case "session":
-                            var sessionBarCount = dataSnapshot[sessionDate].Count();
+                            var sessionBarCount = dataSnapshot[sessionDate].Count;
                             if (sessionBarCount < AppConstants.MINIMUM_BARS_TO_EVALUATE)
                             {
                                 Logger.Info($"Not enough bars to evaluate {model.ModelName} @ {sessionTime}, skipping...");
@@ -228,7 +227,7 @@ public class StrategyEvaluator
                             
                             foreach (var key in dataSnapshot.Keys)
                             {
-                                var bars = dataSnapshot[key] ?? new();
+                                var bars = dataSnapshot[key] ?? [];
                                 if (bars.Count < AppConstants.MINIMUM_BARS_TO_EVALUATE)
                                 {
                                     Logger.Info($"Not enough bars to evaluate {model.ModelName}, skipping...");
@@ -264,8 +263,8 @@ public class StrategyEvaluator
                     {
                         var level = open + prediction.PredictedMove;
                         _predictions[modelName] = level;
-                        var summary = string.Join("\r\n\t", _predictions.Select(p => $"{p.Key}: {p.Value:f2}"));
-                        Logger.Info($"Predictions \r\n\t{summary}");
+                        _atr.Add(modelName, Computations.ATR(sequence, sequence.Count - 1, LOOKBACK));
+                        updatePredictionResults(currentBar!, model);
                     }
                 }
                 catch (Exception ex)
@@ -296,13 +295,71 @@ public class StrategyEvaluator
             return time >= start || time < end;
     }
 
+    private void updatePredictionResults(BarData bar, ModelEntry model)
+    {
+        switch (model.Target)
+        {
+            case "HIGH":
+            if (_predictionResults.TryGetValue(model.ModelName, out double high))
+                {
+                    if (bar.High > high)
+                    {
+                        Logger.Info($"{model.ModelName} - new high detected, {bar.High} @ {bar.SessionTime}");
+                        _predictionResults[model.ModelName] = bar.High;
+                        logPredictionSummary();
+                    }
+                }
+            else
+                {
+                    Logger.Info($"{model.ModelName} - new prediction added, setting high {bar.High} @ {bar.SessionTime}");
+                    _predictionResults.Add(model.ModelName, bar.High);
+                    logPredictionSummary();
+
+                } 
+                
+            break;
+            case "LOW":
+            if (_predictionResults.TryGetValue(model.ModelName, out double low))
+                {
+                    if (bar.Low < low)
+                    {
+                        Logger.Info($"{model.ModelName} - new low detected, {bar.Low} @ {bar.SessionTime}");
+                        _predictionResults[model.ModelName] = bar.Low;
+                        logPredictionSummary();
+
+                    }
+                }
+            else
+                {
+                    Logger.Info($"{model.ModelName} - new prediction added, setting low {bar.Low} @ {bar.SessionTime}");
+                    _predictionResults.Add(model.ModelName, bar.Low);
+                    logPredictionSummary();
+                }
+            break;
+        }
+    }
+    
+    private void logPredictionSummary()
+    {
+        List<string> lines = new List<string>();
+        foreach (var p in _predictions.OrderBy(x => x.Key))
+        {
+            var prediction = p.Value;
+            var actual = _predictionResults.TryGetValue(p.Key, out var r) ? r : double.NaN;
+            var difference = actual != double.NaN ? prediction - actual : actual;
+            lines.Add($"{p.Key,-25}pred: {prediction,8:f2}, actual: {actual,8:f2}, diff: {difference,8:f2}, ATR: {_atr[p.Key],8:f2}, diff/ATR: {Operations.SafeDiv(difference, _atr[p.Key]),8:f4}");
+        }
+        var summary = string.Join("\r\n\t", lines);
+        Logger.Info($"Predictions \r\n\t{summary}");
+    }
+
     private void resetState()
     {
         IsReady      = false;
-        DailyAtr     = 0;
         _sessionDate = null;
         _predictions.Clear();
-        _predictedModels.Clear();
-        _data        = new Dictionary<string, List<BarData>>();
+        _predictionResults.Clear();
+        _atr.Clear();
+        _data        = [];
     }
 }

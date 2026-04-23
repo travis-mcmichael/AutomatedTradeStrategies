@@ -86,7 +86,7 @@ public class AutomatedTradeClient : IDisposable
             var result = JsonConvert.DeserializeObject<StrategySessionResponse>(json);
             if (result?.IsReady == true)
             {
-                Logger.Info($"Session {sessionDate}: dailyATR={result.DailyAtr:F2}  open={sessionOpen:F2}  predictions={result.Predictions?.Count ?? 0}");
+                Logger.Info($"Session {sessionDate}: open={sessionOpen:F2}  predictions={result.Predictions?.Count ?? 0}");
             }
             return result;
         }

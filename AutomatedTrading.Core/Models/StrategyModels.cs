@@ -14,7 +14,7 @@ public record StrategySessionRequest(
 public record StrategySessionResponse(
     bool IsReady,
     IReadOnlyDictionary<string, double> Predictions,
-    double DailyAtr
+    IReadOnlyDictionary<string, double> Atr
 );
 
 public record StrategyBarRequest(

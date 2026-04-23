@@ -25,7 +25,7 @@ public static class StrategyEndpoints
             return Results.Ok(new StrategySessionResponse(
                 evaluator.IsReady,
                 evaluator.Predictions,
-                evaluator.DailyAtr));
+                evaluator.ATR));
         });
 
         // Called on every bar close. Returns the signal the strategy should act on.
