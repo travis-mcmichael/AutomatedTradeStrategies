@@ -12,7 +12,7 @@ namespace AutomatedTrading.Core.Api.Models.Evaluate;
 
 /// <summary>
 /// Unified strategy evaluator. Holds a set of ML predictors (one per active model from
-/// models.json) and lazily runs each predictor the first time a bar falls within that
+/// the ModelConfig table) and lazily runs each predictor the first time a bar falls within that
 /// model's configured window (WindowStart / WindowEnd in "HHmmss" format). Models with
 /// no window configured predict on the first available bar.
 ///

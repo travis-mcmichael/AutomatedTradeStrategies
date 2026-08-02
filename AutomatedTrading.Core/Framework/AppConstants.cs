@@ -8,12 +8,10 @@ public static class AppConstants
     public static readonly int TRADE_DAY_START = 83000;
     public static readonly int TRADE_DAY_END = 160000;
     public static readonly int MINIMUM_BARS_TO_EVALUATE = 15;
-    public static readonly string TEST_BASE_DIRECTORY = "TestData";
     public static readonly int TEST_DATA_OFFSET_HOURS = -5;
     public static readonly string SQLITE_CONNECTION = "Data Source=C:\\dev\\data\\SQLite\\home.db";
     public static readonly int TICK_DATA_BATCH_SIZE = 250;
     public static readonly int BAR_DATA_BATCH_SIZE = 250;
-    public static readonly string MODEL_DIR = "C:\\dev\\AutomatedTradeStrategies\\Models";
     public static readonly string DATE_FORMAT = "yyyyMMdd";
     public static readonly string TIME_FORMAT = "HHmmss";
 
