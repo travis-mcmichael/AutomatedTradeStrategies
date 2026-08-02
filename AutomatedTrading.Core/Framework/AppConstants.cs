@@ -1,5 +1,4 @@
 using System;
-using Microsoft.Extensions.Configuration;
 
 namespace AutomatedTrading.Core.Framework;
 
@@ -15,6 +14,8 @@ public static class AppConstants
     public static readonly int TICK_DATA_BATCH_SIZE = 250;
     public static readonly int BAR_DATA_BATCH_SIZE = 250;
     public static readonly string MODEL_DIR = "C:\\dev\\AutomatedTradeStrategies\\Models";
+    public static readonly string DATE_FORMAT = "yyyyMMdd";
+    public static readonly string TIME_FORMAT = "HHmmss";
 
     // MES session times in CT (timestamps assumed to be in CT)
     // Session opens 16:00 (5 PM ET), RTH 08:30-15:15 (9:30 AM - 4:15 PM ET)

@@ -12,18 +12,17 @@ public class BaseMLEvaluator : IDisposable
 {
     private readonly string modelPath;
     private readonly string scalerPath;
-    private readonly int featureCount;
     private InferenceSession? session;
     private string? inputName;
+    private int _featureCount;
     private double[]? scalerMean;
     private double[]? scalerScale;
     public bool ScalerLoaded { get; private set; }
 
-    public BaseMLEvaluator(string modelPath, string scalerPath, int featureCount)
+    public BaseMLEvaluator(string modelPath, string scalerPath)
     {
         this.modelPath = modelPath;
         this.scalerPath = scalerPath;
-        this.featureCount = featureCount;
     }
 
     public void LoadModel()
@@ -57,9 +56,9 @@ public class BaseMLEvaluator : IDisposable
             return 0.0;
         }
 
-        if (features.Length != featureCount)
+        if (features.Length != _featureCount)
         {
-            Logger.Warn($"Feature count mismatch: expected {featureCount}, got {features.Length}");
+            Logger.Warn($"Feature count mismatch: expected {_featureCount}, got {features.Length}");
             return 0.0;
         }
 
@@ -93,8 +92,9 @@ public class BaseMLEvaluator : IDisposable
         }
         try
         {
-            session   = new InferenceSession(modelPath);
-            inputName = session.InputMetadata.Keys.First();
+            session        = new InferenceSession(modelPath);
+            inputName      = session.InputMetadata.Keys.First();
+            _featureCount  = session.InputMetadata.Values.First().Dimensions[1];
         }
         catch (Exception ex)
         {
@@ -124,9 +124,9 @@ public class BaseMLEvaluator : IDisposable
             scalerMean = [.. scalerData.GetProperty("mean").EnumerateArray().Select(x => x.GetDouble())];
             scalerScale = [.. scalerData.GetProperty("scale").EnumerateArray().Select(x => x.GetDouble())];
 
-            if (scalerMean.Length != featureCount || scalerScale.Length != featureCount)
+            if (scalerMean.Length != _featureCount || scalerScale.Length != _featureCount)
             {
-                Logger.Warn($"Scaler length mismatch: expected {featureCount}, got mean={scalerMean.Length} scale={scalerScale.Length}");
+                Logger.Warn($"Scaler length mismatch: expected {_featureCount}, got mean={scalerMean.Length} scale={scalerScale.Length}");
                 return;
             }
 
@@ -140,9 +140,21 @@ public class BaseMLEvaluator : IDisposable
 
     private static double extractOutput(IReadOnlyCollection<DisposableNamedOnnxValue> results)
     {
-        var output = results.FirstOrDefault();
-        if (output?.Value is DenseTensor<float> tensor)
+        var first = results.FirstOrDefault();
+        if (first is null) return 0.0;
+
+        // Regression: single float tensor output
+        if (first.Value is DenseTensor<float> tensor)
             return tensor[0];
+
+        // Classification: output[0] = labels (int64), output[1] = probabilities (ZipMap)
+        var probOutput = results.ElementAtOrDefault(1);
+        if (probOutput is not null)
+        {
+            var maps = probOutput.AsEnumerable<Dictionary<long, float>>();
+            if (maps?.FirstOrDefault() is { } probs && probs.TryGetValue(1L, out var p))
+                return p;
+        }
 
         return 0.0;
     }

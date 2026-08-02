@@ -19,7 +19,7 @@ public class Computations
         {
             if (bars[j].SessionDate != session)
                 break;
-            
+
             if (bars[j].High > high)
                 high = bars[j].High;
             if (bars[j].Low < low)
@@ -296,7 +296,16 @@ public class Computations
         var overnight = ordered.Where(b => 
             b.Timestamp.TimeOfDay >= AppConstants.SESSION_OPEN_TIME || 
             b.Timestamp.TimeOfDay <  AppConstants.RTH_START_TIME).ToList();
-        return overnight.Count != 0 ? Operations.SafeDiv(overnight.Max(b => b.High) - overnight.Min(b => b.Low), atr) : 0;
+        return overnight.Count != 0 ? Operations.SafeDiv(overnight.Max(b => b.High) - overnight.Min(b => b.Low), atr) : double.NaN;
+    }
+
+    public static double RegularHoursRange(List<BarData> bars, double atr)
+    {
+        var ordered = bars.OrderBy(b => b.Timestamp).ToList();
+        var rth = ordered.Where(b => 
+        b.Timestamp.TimeOfDay >= AppConstants.RTH_START_TIME &&
+        b.Timestamp.TimeOfDay < AppConstants.RTH_END_TIME).ToList();
+        return rth.Count != 0 ? Operations.SafeDiv(rth.Max(b => b.High) - rth.Min(b => b.Low), atr) : double.NaN;
     }
 
     public static double OvernightVolumeRatio(List<BarData> bars)
@@ -306,7 +315,7 @@ public class Computations
         var overnight = ordered.Where(b => 
             b.Timestamp.TimeOfDay >= AppConstants.SESSION_OPEN_TIME || 
             b.Timestamp.TimeOfDay <  AppConstants.RTH_START_TIME).ToList();
-        return Operations.SafeDiv(overnight.Sum(b => b.Volume), totalVolume);
+        return overnight.Count != 0 ? Operations.SafeDiv(overnight.Sum(b => b.Volume), totalVolume) : double.NaN;
     }
 
     public static double OvernightDropRatio(List<BarData> bars, double atr)
@@ -321,16 +330,7 @@ public class Computations
         return Operations.SafeDiv(sessionOpen - overnightLow, atr);
     }
 
-    public static double RegularHoursRange(List<BarData> bars, double atr)
-    {
-        var ordered = bars.OrderBy(b => b.Timestamp).ToList();
-        var rth = ordered.Where(b => 
-            b.Timestamp.TimeOfDay >= AppConstants.SESSION_OPEN_TIME || 
-            b.Timestamp.TimeOfDay <  AppConstants.RTH_START_TIME).ToList();
-        return rth.Count != 0 ? Operations.SafeDiv(rth.Max(b => b.High) - rth.Min(b => b.Low), atr) : 0;
-    }
-
-    public static double FirstHourRange(List<BarData> bars, double atr)
+    public static double FirstRthHourRange(List<BarData> bars, double atr)
     {
         var ordered = bars.OrderBy(b => b.Timestamp).ToList();
         var firstHour = ordered.Where(b => 
@@ -339,7 +339,7 @@ public class Computations
         return firstHour.Count != 0 ? Operations.SafeDiv(firstHour.Max(b => b.High) - firstHour.Min(b => b.Low), atr) : 0;
     }
 
-    public static double LastHourRange(List<BarData> bars, double atr)
+    public static double LastRthHourRange(List<BarData> bars, double atr)
     {
         var ordered = bars.OrderBy(b => b.Timestamp).ToList();
         var lastHour  = ordered.Where(b => 
@@ -364,7 +364,7 @@ public class Computations
         return ordered.Count > 1 ? (double)lowBarIndex / (ordered.Count - 1) : 0.5;
     }
 
-    public static double PrevOpenToHighRatio(List<BarData> bars, double atr)
+    public static double OpenToHighRatio(List<BarData> bars, double atr)
     {
         var ordered = bars.OrderBy(b => b.Timestamp).ToList();
         var sessionOpen = ordered.First().Open;
@@ -372,7 +372,7 @@ public class Computations
         return Operations.SafeDiv(sessionHigh - sessionOpen, atr);
     }
 
-    public static double PrevOpenToLowRatio(List<BarData> bars, double atr)
+    public static double OpenToLowRatio(List<BarData> bars, double atr)
     {
         var ordered = bars.OrderBy(b => b.Timestamp).ToList();
         var sessionOpen = ordered.First().Open;
@@ -380,13 +380,13 @@ public class Computations
         return Operations.SafeDiv(sessionOpen - sessionLow, atr);
     }
 
-    public static double LastHourClosePosition(List<BarData> bars)
+    public static double LastRthHourClosePosition(List<BarData> bars)
     {
         var ordered = bars.OrderBy(b => b.Timestamp).ToList();
         var lastHour = ordered.Where(b =>
             b.Timestamp.TimeOfDay >= AppConstants.RTH_END_TIME - TimeSpan.FromHours(1) &&
             b.Timestamp.TimeOfDay <  AppConstants.RTH_END_TIME).ToList();
-        double lastHourClosePos = 0.5;
+        double lastHourClosePos = double.NaN;
         if (lastHour.Count != 0)
         {
             var lhHigh = lastHour.Max(b => b.High);
@@ -405,17 +405,17 @@ public class Computations
         var rth = bars.Where(b =>
             b.Timestamp.TimeOfDay >= AppConstants.RTH_START_TIME &&
             b.Timestamp.TimeOfDay <  AppConstants.RTH_END_TIME).ToList();
-        return rth.Count != 0 ? Operations.SafeDiv(rth.Max(b => b.High) - rth.Min(b => b.Low), atr) : 0;
+        return rth.Count != 0 ? Operations.SafeDiv(rth.Max(b => b.High) - rth.Min(b => b.Low), atr) : double.NaN;
     }
 
     /// <summary>Range of the first 30 minutes of RTH, normalised by ATR.</summary>
-    public static double FirstHalfHourRange(List<BarData> bars, double atr)
+    public static double FirstHalfRthHourRange(List<BarData> bars, double atr)
     {
         var firstHalfHour = bars.Where(b =>
             b.Timestamp.TimeOfDay >= AppConstants.RTH_START_TIME &&
             b.Timestamp.TimeOfDay <  AppConstants.RTH_START_TIME + TimeSpan.FromMinutes(30)).ToList();
         return firstHalfHour.Count != 0
-            ? Operations.SafeDiv(firstHalfHour.Max(b => b.High) - firstHalfHour.Min(b => b.Low), atr) : 0;
+            ? Operations.SafeDiv(firstHalfHour.Max(b => b.High) - firstHalfHour.Min(b => b.Low), atr) : double.NaN;
     }
 
     /// <summary>
@@ -428,7 +428,7 @@ public class Computations
             b.Timestamp.TimeOfDay >= AppConstants.RTH_START_TIME &&
             b.Timestamp.TimeOfDay <  AppConstants.RTH_END_TIME)
             .OrderBy(b => b.Timestamp).ToList();
-        if (rth.Count == 0) return 0.5;
+        if (rth.Count == 0) return double.NaN;
         var max = rth.Max(x => x.High);
         var highBar = rth.FirstOrDefault(b => b.High == max)!;
         var idx = rth.IndexOf(highBar);
@@ -445,7 +445,7 @@ public class Computations
             b.Timestamp.TimeOfDay >= AppConstants.RTH_START_TIME &&
             b.Timestamp.TimeOfDay <  AppConstants.RTH_END_TIME)
             .OrderBy(b => b.Timestamp).ToList();
-        if (rth.Count == 0) return 0.5;
+        if (rth.Count == 0) return double.NaN;
         var min = rth.Min(x => x.Low);
         var lowBar = rth.FirstOrDefault(x => x.Low == min)!;
         var idx = rth.IndexOf(lowBar);
@@ -459,7 +459,7 @@ public class Computations
             b.Timestamp.TimeOfDay >= AppConstants.RTH_START_TIME &&
             b.Timestamp.TimeOfDay <  AppConstants.RTH_END_TIME)
             .OrderBy(b => b.Timestamp).ToList();
-        if (rth.Count == 0) return 0;
+        if (rth.Count == 0) return double.NaN;
         var rthOpen = rth.First().Open;
         var rthHigh = rth.Max(b => b.High);
         return Operations.SafeDiv(rthHigh - rthOpen, atr);
@@ -472,7 +472,7 @@ public class Computations
             b.Timestamp.TimeOfDay >= AppConstants.RTH_START_TIME &&
             b.Timestamp.TimeOfDay <  AppConstants.RTH_END_TIME)
             .OrderBy(b => b.Timestamp).ToList();
-        if (rth.Count == 0) return 0;
+        if (rth.Count == 0) return double.NaN;
         var rthOpen = rth.First().Open;
         var rthLow  = rth.Min(b => b.Low);
         return Operations.SafeDiv(rthOpen - rthLow, atr);
@@ -486,39 +486,60 @@ public class Computations
         var pm = bars.Where(b =>
             b.Timestamp.TimeOfDay >= AppConstants.SESSION_OPEN_TIME ||
             b.Timestamp.TimeOfDay <  AppConstants.RTH_START_TIME).ToList();
-        return pm.Count != 0 ? Operations.SafeDiv(pm.Max(b => b.High) - pm.Min(b => b.Low), atr) : 0;
+        return pm.Count != 0 ? Operations.SafeDiv(pm.Max(b => b.High) - pm.Min(b => b.Low), atr) : double.NaN;
     }
 
     /// <summary>How far above the RTH open the pre-market high reached, normalised by ATR.</summary>
-    public static double PreMarketHighVsOpen(List<BarData> bars, double rthOpen, double atr)
+    public static double PreMarketHighVsOpen(List<BarData> bars, double atr)
     {
+         var rthBars = bars.Where(b => 
+        b.Timestamp.TimeOfDay >= AppConstants.RTH_END_TIME && 
+        b.Timestamp.TimeOfDay < AppConstants.RTH_END_TIME)
+        .ToList();
         var pm = bars.Where(b =>
             b.Timestamp.TimeOfDay >= AppConstants.SESSION_OPEN_TIME ||
             b.Timestamp.TimeOfDay <  AppConstants.RTH_START_TIME).ToList();
-        return pm.Count != 0 ? Operations.SafeDiv(pm.Max(b => b.High) - rthOpen, atr) : 0;
+        if (rthBars.Count == 0 || pm.Count == 0) return double.NaN;
+        var rth = BarData.Aggregate(rthBars);
+        return Operations.SafeDiv(pm.Max(b => b.High) - rth.Open, atr);
     }
 
     /// <summary>How far below the RTH open the pre-market low reached, normalised by ATR.</summary>
-    public static double PreMarketLowVsOpen(List<BarData> bars, double rthOpen, double atr)
+    public static double PreMarketLowVsOpen(List<BarData> bars, double atr)
     {
+        var rthBars = bars.Where(b => 
+        b.Timestamp.TimeOfDay >= AppConstants.RTH_END_TIME && 
+        b.Timestamp.TimeOfDay < AppConstants.RTH_END_TIME)
+        .ToList();
         var pm = bars.Where(b =>
             b.Timestamp.TimeOfDay >= AppConstants.SESSION_OPEN_TIME ||
             b.Timestamp.TimeOfDay <  AppConstants.RTH_START_TIME).ToList();
-        return pm.Count != 0 ? Operations.SafeDiv(pm.Min(b => b.Low) - rthOpen, atr) : 0;
+        if (rthBars.Count == 0 || pm.Count == 0) return double.NaN;
+        var rth = BarData.Aggregate(rthBars);
+        return Operations.SafeDiv(pm.Min(b => b.Low) - rth.Open, atr);
     }
 
     /// <summary>Overnight gap: RTH open minus previous day's close, normalised by ATR.</summary>
-    public static double GapToRthOpen(double rthOpen, double prevClose, double atr)
-        => Operations.SafeDiv(rthOpen - prevClose, atr);
+    public static double GapToRthOpen(List<BarData> bars, double prevClose, double atr)
+    {
+        var rthBars = bars.Where(b => 
+        b.Timestamp.TimeOfDay >= AppConstants.RTH_END_TIME && 
+        b.Timestamp.TimeOfDay < AppConstants.RTH_END_TIME)
+        .ToList();
+        if (rthBars.Count == 0) return double.NaN;
+        var rth = BarData.Aggregate(rthBars);
+        return Operations.SafeDiv(rth.Open - prevClose, atr);
+    } 
 
     /// <summary>Fraction of the full session's volume that traded during the pre-market window.</summary>
     public static double PreMarketVolumeRatio(List<BarData> bars)
     {
-        var total = bars.Sum(b => b.Volume);
-        var pm = bars.Where(b =>
-            b.Timestamp.TimeOfDay >= AppConstants.SESSION_OPEN_TIME ||
-            b.Timestamp.TimeOfDay <  AppConstants.RTH_START_TIME).ToList();
-        return Operations.SafeDiv(pm.Sum(b => b.Volume), total);
+        var pm = bars.Where(b => 
+        b.Timestamp.TimeOfDay >= AppConstants.SESSION_OPEN_TIME && 
+        b.Timestamp.TimeOfDay < AppConstants.RTH_START_TIME)
+        .ToList();
+        if (pm.Count == 0) return double.NaN;
+        return Operations.SafeDiv(pm.Sum(b => b.Volume), bars.Sum(b => b.Volume));
     }
 
     #endregion
