@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using AutomatedTrading.Core.Models;
 
-namespace AutomatedTrading.Core.Framework.Utility;
+namespace AutomatedTrading.Core.Framework;
 
 public class Computations
 {

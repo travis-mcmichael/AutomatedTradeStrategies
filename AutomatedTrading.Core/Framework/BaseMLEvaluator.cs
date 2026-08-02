@@ -6,7 +6,7 @@ using AutomatedTrading.Core.Framework.Logging;
 using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
 
-namespace AutomatedTrading.Core.Framework.ML;
+namespace AutomatedTrading.Core.Framework;
 
 public class BaseMLEvaluator : IDisposable
 {

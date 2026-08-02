@@ -1,6 +1,6 @@
 using AutomatedTrading.Core.Framework.DataLayer.Repositories;
 using AutomatedTrading.Core.Framework.Logging;
-using AutomatedTrading.Core.Framework.Utility;
+using AutomatedTrading.Core.Framework;
 using AutomatedTrading.Core.Models;
 
 namespace AutomatedTrading.Export.Feature.Exporters;

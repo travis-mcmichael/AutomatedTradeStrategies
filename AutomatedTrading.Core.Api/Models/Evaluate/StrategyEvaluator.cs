@@ -3,8 +3,6 @@ using AutomatedTrading.Core.Framework;
 using AutomatedTrading.Core.Framework.DataLayer.Repositories;
 using AutomatedTrading.Core.Framework.Enums;
 using AutomatedTrading.Core.Framework.Logging;
-using AutomatedTrading.Core.Framework.Predictors;
-using AutomatedTrading.Core.Framework.Utility;
 using AutomatedTrading.Core.Models;
 
 namespace AutomatedTrading.Core.Api.Models.Evaluate;

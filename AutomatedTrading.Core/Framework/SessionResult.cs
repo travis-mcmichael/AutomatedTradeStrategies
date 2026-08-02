@@ -1,4 +1,4 @@
-namespace AutomatedTrading.Core.Framework.ML;
+namespace AutomatedTrading.Core.Framework;
 
 public record SessionResult
 {

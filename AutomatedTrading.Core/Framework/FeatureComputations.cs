@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using AutomatedTrading.Core.Models;
 
-namespace AutomatedTrading.Core.Framework.Utility;
+namespace AutomatedTrading.Core.Framework;
 
 /// <summary>
 /// All data required to evaluate a single feature. Daily context is always required;
