@@ -13,13 +13,6 @@ class Program
     {
         Console.WriteLine("Feature Export starting...");
 
-        var configPath = Operations.NormalizePath(AppConstants.MODELS_CONFIG_PATH);
-        if (!File.Exists(configPath))
-        {
-            Console.WriteLine($"Config not found: {configPath}");
-            return;
-        }
-
         var factory = new SqliteConnectionFactory(AppConstants.SQLITE_CONNECTION);
 
         var barRepo = new BarRepository(factory);

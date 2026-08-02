@@ -1,5 +1,6 @@
 import os
 import json
+import sqlite3
 import xgboost as xgb
 import onnx
 import joblib
@@ -12,18 +13,19 @@ from onnxmltools.convert.common.data_types import FloatTensorType
 # ==============================
 TODAY = datetime.today().strftime("%Y%m%d")
 
-MODELS_CONFIG_PATH = "/mnt/c/dev/AutomatedTradeStrategies/Models/Config/models.json"
-with open(MODELS_CONFIG_PATH) as f:
-    _config = json.load(f)
+SQLITE_DB_PATH = "/mnt/c/dev/data/SQLite/home.db"
+with sqlite3.connect(SQLITE_DB_PATH) as _conn:
+    _rows = _conn.execute(
+        "SELECT ModelName, FeatureLocation, Target FROM ModelConfig WHERE Active = 1 AND Export = 1"
+    ).fetchall()
 
 EXECUTION_CONFIGS = [
     {
-        "name":              m["modelName"],
-        "dir":               os.path.join(m["featureLocation"], TODAY),
-        "is_classification": m.get("target") == "CLASS",
+        "name":              model_name,
+        "dir":               os.path.join(feature_location, TODAY),
+        "is_classification": target == "CLASS",
     }
-    for m in _config["models"]
-    if m.get("active") and m.get("export")
+    for model_name, feature_location, target in _rows
 ]
 
 # ==============================

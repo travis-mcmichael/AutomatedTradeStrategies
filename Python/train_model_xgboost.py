@@ -1,5 +1,5 @@
 import os
-import json
+import sqlite3
 import pandas as pd
 import numpy as np
 import xgboost as xgb
@@ -17,18 +17,19 @@ from sklearn.metrics import (
 # ==============================
 TODAY = datetime.today().strftime("%Y%m%d")
 
-MODELS_CONFIG_PATH = "/mnt/c/dev/AutomatedTradeStrategies/Models/Config/models.json"
-with open(MODELS_CONFIG_PATH) as f:
-    _config = json.load(f)
+SQLITE_DB_PATH = "/mnt/c/dev/data/SQLite/home.db"
+with sqlite3.connect(SQLITE_DB_PATH) as _conn:
+    _rows = _conn.execute(
+        "SELECT ModelName, FeatureLocation, Target FROM ModelConfig WHERE Active = 1 AND Export = 1"
+    ).fetchall()
 
 EXECUTION_CONFIGS = [
     {
-        "name":              m["modelName"],
-        "csv":               os.path.join(m["featureLocation"], "features.csv"),
-        "is_classification": m.get("target") == "CLASS",
+        "name":              model_name,
+        "csv":               os.path.join(feature_location, "features.csv"),
+        "is_classification": target == "CLASS",
     }
-    for m in _config["models"]
-    if m.get("active") and m.get("export")
+    for model_name, feature_location, target in _rows
 ]
 
 TRAIN_SPLIT = 0.70
@@ -44,19 +45,20 @@ def evaluate_regression(model, split_name, X_data, y_data):
     rmse = np.sqrt(mean_squared_error(y_data, preds))
     r2   = r2_score(y_data, preds)
 
-    within_tenth_atr   = np.mean(np.abs(preds - y_data) < 0.1)
-    within_quarter_atr = np.mean(np.abs(preds - y_data) < 0.25)
-    within_half_atr    = np.mean(np.abs(preds - y_data) < 0.5)
-    within_one_atr     = np.mean(np.abs(preds - y_data) < 1.0)
+    diff = preds - y_data
+    tenth_atr_over     = np.mean((diff > 0) & (diff < 0.1))
+    tenth_atr_under    = np.mean((diff < 0) & (diff > -0.1))
+    quarter_atr_over   = np.mean((diff > 0) & (diff < 0.25))
+    quarter_atr_under  = np.mean((diff < 0) & (diff > -0.25))
 
     print(f"\n=== {split_name} ===")
-    print(f"  MAE:              {mae:.4f}")
-    print(f"  RMSE:             {rmse:.4f}")
-    print(f"  R²:               {r2:.4f}")
-    print(f"  Within .10x ATR:  {within_tenth_atr:.2%}")
-    print(f"  Within .25x ATR:  {within_quarter_atr:.2%}")
-    print(f"  Within 0.5x ATR:  {within_half_atr:.2%}")
-    print(f"  Within 1.0x ATR:  {within_one_atr:.2%}")
+    print(f"  MAE:                        {mae:.4f}")
+    print(f"  RMSE:                       {rmse:.4f}")
+    print(f"  R²:                         {r2:.4f}")
+    print(f"  Less than .10x ATR over:    {tenth_atr_over:.2%}")
+    print(f"  Less than .10x ATR under:   {tenth_atr_under:.2%}")
+    print(f"  Less than .25x ATR over:    {quarter_atr_over:.2%}")
+    print(f"  Less than .25x ATR under:   {quarter_atr_under:.2%}")
 
 
 def evaluate_classification(model, split_name, X_data, y_data):
