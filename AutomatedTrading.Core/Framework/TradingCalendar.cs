@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace AutomatedTrading.Core.Framework.Utility;
+namespace AutomatedTrading.Core.Framework;
 
 public static class TradingCalendar
 {

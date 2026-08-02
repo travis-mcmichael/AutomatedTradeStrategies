@@ -1,9 +1,9 @@
 using AutomatedTrading.Core.Api.Models.Predict;
 using AutomatedTrading.Core.Framework;
-using AutomatedTrading.Core.Framework.Config;
+
+//using AutomatedTrading.Core.Framework.Config;
+
 using AutomatedTrading.Core.Framework.Logging;
-using AutomatedTrading.Core.Framework.ML;
-using AutomatedTrading.Core.Framework.Utility;
 using AutomatedTrading.Core.Models;
 
 namespace AutomatedTrading.Core.Api.Services;
@@ -16,10 +16,10 @@ public class InferenceService : IMovementPredictor
     private BaseMLEvaluator? _evaluator;
     private string _modelName;
 
-    public InferenceService(ModelEntry model)
+    public InferenceService(ModelConfig model)
     {
-        _features = model.Features;
-        _peak = model.Target == "HIGH";// Framework.Enums.PredictionTarget.HIGH;
+        _features = model.ModelFeatures;
+        _peak = model.Target == "HIGH";
         _modelName = model.ModelName;
 
         Logger.Info($"{_modelName} : Inference service contructor called");
@@ -58,7 +58,7 @@ public class InferenceService : IMovementPredictor
 
     private bool isLoaded() => _evaluator != null && _evaluator.SessionLoaded();
 
-    private void loadEvaluator(ModelEntry model)
+    private void loadEvaluator(ModelConfig model)
     {
         if (!model.Active) return;
         var dir = Path.Combine(Operations.NormalizePath(model.OutputLocation), model.ModelName, model.Version);

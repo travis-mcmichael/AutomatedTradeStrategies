@@ -1,18 +1,15 @@
 using AutomatedTrading.Core.Api.Models.Predict;
 using AutomatedTrading.Core.Framework;
-using AutomatedTrading.Core.Framework.Config;
 using AutomatedTrading.Core.Framework.DataLayer.Repositories;
 using AutomatedTrading.Core.Framework.Enums;
 using AutomatedTrading.Core.Framework.Logging;
-using AutomatedTrading.Core.Framework.Predictors;
-using AutomatedTrading.Core.Framework.Utility;
 using AutomatedTrading.Core.Models;
 
 namespace AutomatedTrading.Core.Api.Models.Evaluate;
 
 /// <summary>
 /// Unified strategy evaluator. Holds a set of ML predictors (one per active model from
-/// models.json) and lazily runs each predictor the first time a bar falls within that
+/// the ModelConfig table) and lazily runs each predictor the first time a bar falls within that
 /// model's configured window (WindowStart / WindowEnd in "HHmmss" format). Models with
 /// no window configured predict on the first available bar.
 ///
@@ -30,7 +27,7 @@ public class StrategyEvaluator
     public IReadOnlyDictionary<string, double> ATR => _atr;
 
     // ─── Private state ────────────────────────────────────────────────────────
-    private readonly Dictionary<string, (IMovementPredictor Predictor, ModelEntry Model)> _predictors;
+    private readonly Dictionary<string, (IMovementPredictor Predictor, ModelConfig Model)> _predictors;
     private readonly IBarRepository? _barRepo;
     private readonly Dictionary<string, double> _predictions = new();
     private readonly Dictionary<string, double> _predictionResults = new();
@@ -51,7 +48,7 @@ public class StrategyEvaluator
 
     /// <summary>Production constructor — receives all active model predictors from DI.</summary>
     public StrategyEvaluator(
-        Dictionary<string, (IMovementPredictor Predictor, ModelEntry Model)> predictors,
+        Dictionary<string, (IMovementPredictor Predictor, ModelConfig Model)> predictors,
         IBarRepository barRepo)
     {
         _predictors = predictors;
@@ -306,7 +303,7 @@ public class StrategyEvaluator
             return time >= start || time < end;
     }
 
-    private void updatePredictionResults(BarData bar, ModelEntry model)
+    private void updatePredictionResults(BarData bar, ModelConfig model)
     {
         switch (model.Target)
         {
@@ -392,24 +389,24 @@ public class StrategyEvaluator
             {
                 case "HIGH":
                 upperTarget = _predictions[modelName] - prox;
-                Logger.Info($"Upper target updated: {upperTarget}");
+                Logger.Info($"Upper target updated: {upperTarget:f2}");
                 break;
                 case "LOW":
                 lowerTarget = _predictions[modelName] + prox;
-                Logger.Info($"Lower target updated: {lowerTarget}");
+                Logger.Info($"Lower target updated: {lowerTarget:f2}");
                 break;
             }
 
             if (upperTarget.HasValue && lowerTarget.HasValue && 
                 upperTarget.Value < lowerTarget.Value + prox)
             {
-                Logger.Info($"Model prediction overlap - high: {upperTarget.Value}, low: {lowerTarget.Value}");
+                Logger.Info($"Model prediction overlap - high: {upperTarget.Value:f2}, low: {lowerTarget.Value:f2}");
                 while (upperTarget.Value < lowerTarget.Value + prox)
                 {
                     upperTarget += prox / 2;
                     lowerTarget -= prox / 2;
                 }
-                Logger.Info($"Targets updated: upper={upperTarget}, lower={lowerTarget}");
+                Logger.Info($"Targets updated: upper={upperTarget:f2}, lower={lowerTarget:f2}");
             }
         }
 
@@ -418,20 +415,22 @@ public class StrategyEvaluator
             case PositionSide.Flat:
             if (barClose > upperTarget)
                 {
-                    Logger.Info($"Entering SHORT: Position=Flat, BarClose={barClose},StopLoss={_stopLoss ?? 25}");
-                    return new BarEvaluation(StrategySignal.EnterShort, barClose + _stopLoss ?? 25);   
+                    stop = barClose + _stopLoss ?? 25;
+                    Logger.Info($"Entering SHORT: Position=Flat, BarClose={barClose},StopLoss={stop}");
+                    return new BarEvaluation(StrategySignal.EnterShort, stop);   
                 }
             if (barClose < lowerTarget)
                 {
-                    Logger.Info($"Entering LONG: Position=Flat, BarClose={barClose},StopLoss={_stopLoss ?? 25}");
-                    return new BarEvaluation(StrategySignal.EnterLong, barClose - _stopLoss ?? 25);
+                    stop = barClose - _stopLoss ?? 25;
+                    Logger.Info($"Entering LONG: Position=Flat, BarClose={barClose},StopLoss={stop}");
+                    return new BarEvaluation(StrategySignal.EnterLong, stop);
                 }
             return new BarEvaluation(StrategySignal.None, stop);
             case PositionSide.Long:
             if (barClose > upperTarget)
                 {
                     stop = barClose - _trail ?? 5.0;
-                    Logger.Info($"Currently LONG, Nearing predicted high @ {upperTarget}, tightening stop distance = {stop}");
+                    Logger.Info($"Currently LONG, Nearing predicted high @ {upperTarget:F2}, tightening stop distance = {stop}");
                     return new BarEvaluation(StrategySignal.UpdateStop, stop);   
                 }
             return new BarEvaluation(StrategySignal.None, stop);
@@ -439,43 +438,9 @@ public class StrategyEvaluator
             if (barClose < lowerTarget)
                 {
                     stop = barClose + _trail ?? 5.0;
-                    Logger.Info($"Currently SHORT, Nearing predicted low @ {lowerTarget}, tightening stop distance = {stop}");
+                    Logger.Info($"Currently SHORT, Nearing predicted low @ {lowerTarget:F2}, tightening stop distance = {stop}");
                     return new BarEvaluation(StrategySignal.UpdateStop, stop);
                 }
-            return new BarEvaluation(StrategySignal.EnterShort, stop);
-            default:
-            return new BarEvaluation(StrategySignal.None, 0);
-        }
-    }
-
-    private BarEvaluation evaluateAtShortPosition(double barClose, string sessionTime)
-    {
-        var position = PositionSide.Flat;
-        var stop = 0;
-        switch (position)
-        {
-            case PositionSide.Flat:
-            return new BarEvaluation(StrategySignal.None, stop);
-            case PositionSide.Long:
-            return new BarEvaluation(StrategySignal.EnterLong, stop);
-            case PositionSide.Short:
-            return new BarEvaluation(StrategySignal.EnterShort, stop);
-            default:
-            return new BarEvaluation(StrategySignal.None, 0);
-        }
-    }
-
-    private BarEvaluation evaluateAtLongPosition(double barClose, string sessionTime)
-    {
-        var position = PositionSide.Flat;
-        var stop = 0;
-        switch (position)
-        {
-            case PositionSide.Flat:
-            return new BarEvaluation(StrategySignal.None, stop);
-            case PositionSide.Long:
-            return new BarEvaluation(StrategySignal.EnterLong, stop);
-            case PositionSide.Short:
             return new BarEvaluation(StrategySignal.EnterShort, stop);
             default:
             return new BarEvaluation(StrategySignal.None, 0);

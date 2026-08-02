@@ -1,7 +1,7 @@
 
 using System;
 
-namespace AutomatedTrading.Core.Framework.Utility;
+namespace AutomatedTrading.Core.Framework;
 
 public class Operations
 {

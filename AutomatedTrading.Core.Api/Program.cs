@@ -3,7 +3,6 @@ using AutomatedTrading.Core.Framework.Logging;
 using AutomatedTrading.Core.Api.Models.Predict;
 using AutomatedTrading.Core.Api.Models.Evaluate;
 using AutomatedTrading.Core.Api.Services;
-using AutomatedTrading.Core.Framework.Config;
 using AutomatedTrading.Core.Framework.DataLayer;
 using AutomatedTrading.Core.Framework.DataLayer.Repositories;
 using AutomatedTrading.Core.Framework.DataLayer.Sqlite;
@@ -16,15 +15,14 @@ builder.Services.AddOpenApi();
 
 // Data access
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")!;
-builder.Services.AddSingleton<IDbConnectionFactory>(_ => new SqliteConnectionFactory(connectionString));
+var connectionFactory = new SqliteConnectionFactory(connectionString);
+builder.Services.AddSingleton<IDbConnectionFactory>(_ => connectionFactory);
 builder.Services.AddSingleton<IBarRepository, BarRepository>();
+builder.Services.AddSingleton<IModelConfigRepository, ModelConfigRepository>();
 
-// ML inference — one keyed IMovementPredictor singleton per active model that has
-// a feature list defined in Models/Config/models.json.
-var config = ModelConfig.GetConfig()
-    ?? throw new InvalidOperationException("Failed to load Models/Config/models.json.");
+var models = await new ModelConfigRepository(connectionFactory).GetAllAsync();
 
-foreach (var model in config.Models.Where(m => m.Active && m.Features.Count > 0))
+foreach (var model in models.Where(m => m.Active && m.ModelFeatures.Count > 0))
 {
     var captured = model;
     builder.Services.AddKeyedSingleton<IMovementPredictor>(
@@ -36,8 +34,8 @@ foreach (var model in config.Models.Where(m => m.Active && m.Features.Count > 0)
 // ModelEntry (for window configuration) into a dictionary.
 builder.Services.AddSingleton(sp =>
 {
-    var predictors = config.Models
-        .Where(m => m.Active && m.Features.Count > 0)
+    var predictors = models
+        .Where(m => m.Active && m.ModelFeatures.Count > 0)
         .ToDictionary(
             m => m.ModelName,
             m => (sp.GetRequiredKeyedService<IMovementPredictor>(m.ModelName), m));
@@ -52,5 +50,6 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 
 StrategyEndpoints.Map(app);
+ModelEndpoints.Map(app);
 
 app.Run();

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using AutomatedTrading.Core.Models;
 
-namespace AutomatedTrading.Core.Framework.Utility;
+namespace AutomatedTrading.Core.Framework;
 
 public class Computations
 {
@@ -492,8 +492,8 @@ public class Computations
     /// <summary>How far above the RTH open the pre-market high reached, normalised by ATR.</summary>
     public static double PreMarketHighVsOpen(List<BarData> bars, double atr)
     {
-         var rthBars = bars.Where(b => 
-        b.Timestamp.TimeOfDay >= AppConstants.RTH_END_TIME && 
+         var rthBars = bars.Where(b =>
+        b.Timestamp.TimeOfDay >= AppConstants.RTH_START_TIME &&
         b.Timestamp.TimeOfDay < AppConstants.RTH_END_TIME)
         .ToList();
         var pm = bars.Where(b =>
@@ -507,8 +507,8 @@ public class Computations
     /// <summary>How far below the RTH open the pre-market low reached, normalised by ATR.</summary>
     public static double PreMarketLowVsOpen(List<BarData> bars, double atr)
     {
-        var rthBars = bars.Where(b => 
-        b.Timestamp.TimeOfDay >= AppConstants.RTH_END_TIME && 
+        var rthBars = bars.Where(b =>
+        b.Timestamp.TimeOfDay >= AppConstants.RTH_START_TIME &&
         b.Timestamp.TimeOfDay < AppConstants.RTH_END_TIME)
         .ToList();
         var pm = bars.Where(b =>
@@ -522,8 +522,8 @@ public class Computations
     /// <summary>Overnight gap: RTH open minus previous day's close, normalised by ATR.</summary>
     public static double GapToRthOpen(List<BarData> bars, double prevClose, double atr)
     {
-        var rthBars = bars.Where(b => 
-        b.Timestamp.TimeOfDay >= AppConstants.RTH_END_TIME && 
+        var rthBars = bars.Where(b =>
+        b.Timestamp.TimeOfDay >= AppConstants.RTH_START_TIME &&
         b.Timestamp.TimeOfDay < AppConstants.RTH_END_TIME)
         .ToList();
         if (rthBars.Count == 0) return double.NaN;
@@ -534,8 +534,8 @@ public class Computations
     /// <summary>Fraction of the full session's volume that traded during the pre-market window.</summary>
     public static double PreMarketVolumeRatio(List<BarData> bars)
     {
-        var pm = bars.Where(b => 
-        b.Timestamp.TimeOfDay >= AppConstants.SESSION_OPEN_TIME && 
+        var pm = bars.Where(b =>
+        b.Timestamp.TimeOfDay >= AppConstants.SESSION_OPEN_TIME ||
         b.Timestamp.TimeOfDay < AppConstants.RTH_START_TIME)
         .ToList();
         if (pm.Count == 0) return double.NaN;

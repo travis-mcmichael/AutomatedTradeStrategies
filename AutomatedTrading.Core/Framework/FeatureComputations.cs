@@ -1,10 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using AutomatedTrading.Core.Framework.Utility;
 using AutomatedTrading.Core.Models;
 
-namespace AutomatedTrading.Core.Framework.Config;
+namespace AutomatedTrading.Core.Framework;
 
 /// <summary>
 /// All data required to evaluate a single feature. Daily context is always required;
@@ -42,8 +41,11 @@ public static class FeatureComputations
     public static double ParseFeatureComputation(ModelFeature feature, FeatureContext ctx)
     {
         var sessionDate = DateTime.ParseExact(ctx.SessionDate, AppConstants.DATE_FORMAT, null);
-
-        var p = feature.Params;
+        Dictionary<string, int> p = new Dictionary<string, int>();
+        foreach (var param in feature.ModelFeatureParams)
+        {
+            p.Add(param.ParamKey, param.ParamValue);
+        }
         var source = feature.Source;
         var bars = new List<BarData>();
         var prevDate = TradingCalendar.GetPreviousSessionDate(sessionDate);
