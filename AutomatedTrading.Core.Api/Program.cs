@@ -3,11 +3,9 @@ using AutomatedTrading.Core.Framework.Logging;
 using AutomatedTrading.Core.Api.Models.Predict;
 using AutomatedTrading.Core.Api.Models.Evaluate;
 using AutomatedTrading.Core.Api.Services;
-using AutomatedTrading.Core.Framework.Config;
 using AutomatedTrading.Core.Framework.DataLayer;
 using AutomatedTrading.Core.Framework.DataLayer.Repositories;
 using AutomatedTrading.Core.Framework.DataLayer.Sqlite;
-using AutomatedTrading.Core.Models;
 
 Logger.Configure();
 
