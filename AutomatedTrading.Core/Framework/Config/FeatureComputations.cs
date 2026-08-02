@@ -42,8 +42,11 @@ public static class FeatureComputations
     public static double ParseFeatureComputation(ModelFeature feature, FeatureContext ctx)
     {
         var sessionDate = DateTime.ParseExact(ctx.SessionDate, AppConstants.DATE_FORMAT, null);
-
-        var p = feature.Params;
+        Dictionary<string, int> p = new Dictionary<string, int>();
+        foreach (var param in feature.ModelFeatureParams)
+        {
+            p.Add(param.ParamKey, param.ParamValue);
+        }
         var source = feature.Source;
         var bars = new List<BarData>();
         var prevDate = TradingCalendar.GetPreviousSessionDate(sessionDate);

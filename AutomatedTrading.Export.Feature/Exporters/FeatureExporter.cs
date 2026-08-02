@@ -22,11 +22,11 @@ namespace AutomatedTrading.Export.Feature.Exporters;
 public class FeatureExporter
 {
     private const int MinLookback = 20;
-    private readonly ModelEntry _model;
+    private readonly ModelConfig _model;
     private readonly string _outputPath;
     private readonly IBarRepository _barRepository;
 
-    public FeatureExporter(ModelEntry model, string outputPath, IBarRepository barRepository)
+    public FeatureExporter(ModelConfig model, string outputPath, IBarRepository barRepository)
     {
         _model = model;
         _outputPath = outputPath;
@@ -35,7 +35,7 @@ public class FeatureExporter
 
     public async Task GenerateFeatures(DateTime start, DateTime end)
     {
-        if (_model.Features.Count == 0)
+        if (_model.ModelFeatures.Count == 0)
         {
             Logger.Info($"  No features configured for '{_model.ModelName}'. Skipping.");
             return;
@@ -49,7 +49,7 @@ public class FeatureExporter
         using var writer = new StreamWriter(_outputPath);
         try
         {
-            var header = string.Join(",", _model.Features.Select(columnName));
+            var header = string.Join(",", _model.ModelFeatures.Select(columnName));
             await writer.WriteLineAsync(header + "," + targetColumnName());
             if (_model.BarType == "session")
             {
@@ -77,10 +77,10 @@ public class FeatureExporter
     // SmaRatio(fast=5,slow=20) → "SmaRatio_5_20".
     private static string columnName(ModelFeature feature)
     {
-        if (feature.Params is null || feature.Params.Count == 0)
+        if (feature.ModelFeatureParams is null || feature.ModelFeatureParams.Count == 0)
             return feature.Name;
 
-        var suffix = string.Join("_", feature.Params.OrderBy(kv => kv.Key).Select(kv => kv.Value));
+        var suffix = string.Join("_", feature.ModelFeatureParams.OrderBy(kv => kv.ParamKey).Select(kv => kv.ParamValue));
         return $"{feature.Name}_{suffix}";
     }
 
@@ -131,7 +131,7 @@ public class FeatureExporter
             if (atr20 == 0 || sequence[i] is null) continue;
             var target = getTarget(minuteBarsBySession[sequence[i]?.SessionDate ?? ""], sequence[i]?.Open ?? 0, atr20);
              var featureValues = FeatureComputations.ParseFeatures(
-                _model.Features,
+                _model.ModelFeatures,
                 new FeatureContext
                 (
                     sequence!,
@@ -161,7 +161,7 @@ public class FeatureExporter
             var sequence = minuteBarsBySession[sessionDates[i]];
             var atr20 = Computations.ATR(sequence, i - 1, MinLookback);
             if (atr20 == 0) continue;
-            var features = FeatureComputations.ParseFeatures(_model.Features, new FeatureContext
+            var features = FeatureComputations.ParseFeatures(_model.ModelFeatures, new FeatureContext
             (
                 sequence,
                 i - 1,
@@ -192,7 +192,7 @@ public class FeatureExporter
             var atr20 = Computations.ATR(sequence, i - 1, MinLookback);
             if (atr20 == 0) continue;
             var features = FeatureComputations.ParseFeatures(
-                _model.Features,
+                _model.ModelFeatures,
                 new FeatureContext
                 (
                     sequence,

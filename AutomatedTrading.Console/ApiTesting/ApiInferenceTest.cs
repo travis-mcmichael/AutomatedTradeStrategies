@@ -20,10 +20,10 @@ public class ApiInferenceTest
     private readonly IBarRepository _barRepo;
     private readonly AutomatedTradeClient _client;
 
-    private static ModelEntry[] LoadActiveModels() =>
-        (ModelConfig.GetConfig()?.Models ?? [])
-            .Where(m => m.Active && m.Features.Count > 0 && m.Target != "CLASS")
-            .ToArray();
+    // private static ModelConfig[] LoadActiveModels() =>
+    //     (ModelConfig.GetConfig()?.Models ?? [])
+    //         .Where(m => m.Active && m.Features.Count > 0 && m.Target != "CLASS")
+    //         .ToArray();
 
     public ApiInferenceTest(IBarRepository barRepo, AutomatedTradeClient client)
     {
@@ -36,7 +36,7 @@ public class ApiInferenceTest
         var start   = DateTime.ParseExact(startDate, "yyyyMMdd", null);
         var end     = DateTime.ParseExact(endDate,   "yyyyMMdd", null);
         var skipped = 0;
-        var models  = LoadActiveModels();
+        var models  = new List<ModelConfig>(); //LoadActiveModels();
         var results = models.ToDictionary(m => m.ModelName, _ => new List<SessionResult>());
 
         logHeader();

@@ -1,8 +1,8 @@
 using AutomatedTrading.Core.Framework;
-using AutomatedTrading.Core.Framework.Config;
 using AutomatedTrading.Core.Framework.DataLayer.Repositories;
 using AutomatedTrading.Core.Framework.DataLayer.Sqlite;
 using AutomatedTrading.Core.Framework.Utility;
+using AutomatedTrading.Core.Models;
 using AutomatedTrading.Export.Feature.Exporters;
 
 namespace AutomatedTrading.Export.Feature;
@@ -20,18 +20,14 @@ class Program
             return;
         }
 
-        var config = ModelConfig.GetConfig();
-
-        if (config?.Models == null || config.Models.Count == 0)
-        {
-            Console.WriteLine("No models found in config.");
-            return;
-        }
-
         var factory = new SqliteConnectionFactory(AppConstants.SQLITE_CONNECTION);
-        var barRepo = new BarRepository(factory);
 
-        foreach (var model in config.Models.Where(m => m.Active && m.Export))
+        var barRepo = new BarRepository(factory);
+        var modelRepo = new ModelConfigRepository(factory);
+
+        var models = await modelRepo.GetAllAsync();
+
+        foreach (var model in models.Where(m => m.Active && m.Export))
         {
             Console.WriteLine($"\nExporting: {model.ModelName}");
             var path = Operations.NormalizePath(model.FeatureLocation);
@@ -46,6 +42,6 @@ class Program
             await new FeatureExporter(model, outPath, barRepo).GenerateFeatures(start, end);
         }
 
-        Console.WriteLine("\nOutput complete.");
+        Console.WriteLine($"\nOutput complete for {models?.Count ?? 0} predictive models.");
     }
 }
