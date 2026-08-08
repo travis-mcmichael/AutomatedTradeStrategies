@@ -5,7 +5,7 @@ import streamlit as st
 API_BASE_URL = "http://localhost:5244"
 MODELS_ENDPOINT = f"{API_BASE_URL}/models"
 
-st.set_page_config(page_title="Predictive Model Manager")
+st.set_page_config(page_title="Predictive Model Manager", layout="wide")
 st.title("Predictive Model Manager")
 
 tab_home, tab_models = st.tabs(["Home", "Models"])
@@ -22,4 +22,4 @@ with tab_models:
         st.error(f"Failed to load models from {MODELS_ENDPOINT}: {e}")
     else:
         df = pd.DataFrame(models).drop(columns=["modelFeatures"])
-        st.dataframe(df)
+        st.dataframe(df, width="stretch")
