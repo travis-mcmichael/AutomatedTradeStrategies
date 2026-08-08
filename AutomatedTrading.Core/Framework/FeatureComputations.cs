@@ -107,10 +107,10 @@ public static class FeatureComputations
             // ── Range features ────────────────────────────────────────────────
             case "AvgRange":
                 return Computations.AverageRange(bars, ctx.J, p!["period"]);
-            case "RangeVsAvgRange10":
+            case "RangeVsAvgRange":
                 return Operations.SafeDiv(
                     current.High - current.Low,
-                    Computations.AverageRange(bars, ctx.J, 10));
+                    Computations.AverageRange(bars, ctx.J, p["range"]));
             // ── Returns ───────────────────────────────────────────────────────
             case "Return":
                 return Computations.Return(bars, ctx.J, p!["lookback"]);
