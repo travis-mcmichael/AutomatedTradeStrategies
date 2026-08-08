@@ -8,13 +8,12 @@ from datetime import datetime
 from onnxmltools import convert_xgboost
 from onnxmltools.convert.common.data_types import FloatTensorType
 
+from api_config import MODELS_ENDPOINT
+
 # ==============================
 # Configuration
 # ==============================
 TODAY = datetime.today().strftime("%Y%m%d")
-
-API_BASE_URL = "http://localhost:5244"
-MODELS_ENDPOINT = f"{API_BASE_URL}/models"
 
 _response = requests.get(MODELS_ENDPOINT)
 _response.raise_for_status()

@@ -9,5 +9,4 @@ fi
 source ~/streamlit-env/bin/activate
 
 # Navigate to the app folder and run the app
-cd ~/pm-manager
-streamlit run app.py
+streamlit run pm-manager.py

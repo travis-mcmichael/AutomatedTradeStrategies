@@ -1,9 +1,12 @@
+import os
+import sys
+
 import pandas as pd
 import requests
 import streamlit as st
 
-API_BASE_URL = "http://localhost:5244"
-MODELS_ENDPOINT = f"{API_BASE_URL}/models"
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from api_config import MODELS_ENDPOINT
 
 st.set_page_config(page_title="Predictive Model Manager", layout="wide")
 st.title("Predictive Model Manager")

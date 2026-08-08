@@ -12,13 +12,12 @@ from sklearn.metrics import (
     accuracy_score, roc_auc_score, precision_score, recall_score,
 )
 
+from api_config import MODELS_ENDPOINT
+
 # ==============================
 # Configuration
 # ==============================
 TODAY = datetime.today().strftime("%Y%m%d")
-
-API_BASE_URL = "http://localhost:5244"
-MODELS_ENDPOINT = f"{API_BASE_URL}/models"
 
 _response = requests.get(MODELS_ENDPOINT)
 _response.raise_for_status()
