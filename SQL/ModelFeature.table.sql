@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS ModelFeature (
 
     -- Parent model
     ModelConfigId INTEGER NOT NULL REFERENCES ModelConfig (Id) ON DELETE CASCADE,
+    FeatureTypeId INTEGER NOT NULL REFERENCES FeatureType (Id),
 
     -- Feature dispatch
     Source TEXT CHECK (Source IS NULL OR Source IN ('prevMinute', 'currMinute')),

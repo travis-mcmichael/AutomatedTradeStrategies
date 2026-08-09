@@ -16,13 +16,15 @@ public class GetAllModelConfigsQuery : IDbQuery<List<ModelConfig>>
         ORDER BY ModelName";
 
     private const string FeaturesSql = @"
-        SELECT Id, ModelConfigId, Name, Source, SortOrder
-        FROM ModelFeature
-        ORDER BY ModelConfigId, SortOrder";
+        SELECT mf.Id, mf.ModelConfigId, ft.Name, mf.Source, mf.SortOrder
+        FROM ModelFeature mf
+        JOIN FeatureType ft ON ft.Id = mf.FeatureTypeId
+        ORDER BY mf.ModelConfigId, mf.SortOrder";
 
     private const string ParamsSql = @"
-        SELECT Id, ModelFeatureId, ParamKey, ParamValue
-        FROM ModelFeatureParam";
+        SELECT mfp.Id, mfp.ModelFeatureId, ftp.ParameterKey, mfp.ParamValue
+        FROM ModelFeatureParam mfp
+        JOIN FeatureTypeParam ftp ON ftp.Id = mfp.FeatureTypeParamId";
 
     public async Task<List<ModelConfig>> ExecuteAsync(DbConnection connection, CancellationToken ct = default)
     {

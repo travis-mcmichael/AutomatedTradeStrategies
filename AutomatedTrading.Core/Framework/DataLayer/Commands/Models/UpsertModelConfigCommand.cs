@@ -41,14 +41,18 @@ public class UpsertModelConfigCommand : IDbCommand<ModelConfig>
     private const string DeleteFeaturesSql =
         "DELETE FROM ModelFeature WHERE ModelConfigId = @ModelConfigId";
 
+    private const string FeatureTypeIdSql = "SELECT Id FROM FeatureType WHERE Name = @Name";
+
     private const string InsertFeatureSql = @"
-        INSERT INTO ModelFeature (ModelConfigId, Name, Source, SortOrder)
-        VALUES (@ModelConfigId, @Name, @Source, @SortOrder)
+        INSERT INTO ModelFeature (ModelConfigId, FeatureTypeId, Source, SortOrder)
+        VALUES (@ModelConfigId, @FeatureTypeId, @Source, @SortOrder)
         RETURNING Id";
 
     private const string InsertParamSql = @"
-        INSERT INTO ModelFeatureParam (ModelFeatureId, ParamKey, ParamValue)
-        VALUES (@ModelFeatureId, @ParamKey, @ParamValue)";
+        INSERT INTO ModelFeatureParam (ModelFeatureId, FeatureTypeParamId, ParamValue)
+        VALUES (@ModelFeatureId,
+                (SELECT Id FROM FeatureTypeParam WHERE FeatureTypeId = @FeatureTypeId AND ParameterKey = @ParamKey),
+                @ParamValue)";
 
     private readonly ModelConfig request;
 
@@ -69,11 +73,12 @@ public class UpsertModelConfigCommand : IDbCommand<ModelConfig>
         for (var i = 0; i < request.ModelFeatures.Count; i++)
         {
             var feature = request.ModelFeatures[i];
-            var featureId = await insertFeature(connection, transaction, modelConfigId, feature, i, ct);
+            var featureTypeId = await getFeatureTypeId(connection, transaction, feature.Name, ct);
+            var featureId = await insertFeature(connection, transaction, modelConfigId, featureTypeId, feature, i, ct);
 
             var d = new Dictionary<string, int>();
             foreach (var p in feature.ModelFeatureParams) d.Add(p.ParamKey, p.ParamValue);
-            foreach (var entry in d) await insertParam(connection, transaction, featureId, entry.Key, entry.Value, ct);
+            foreach (var entry in d) await insertParam(connection, transaction, featureId, featureTypeId, entry.Key, entry.Value, ct);
 
             feature.Id = featureId;
             features.Add(feature);
@@ -142,14 +147,26 @@ public class UpsertModelConfigCommand : IDbCommand<ModelConfig>
         }
     }
 
+    private static async Task<int> getFeatureTypeId(
+        DbConnection connection, DbTransaction transaction, string name, CancellationToken ct)
+    {
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = FeatureTypeIdSql;
+        cmd.Transaction = transaction;
+        addParameter(cmd, "@Name", name);
+
+        var id = await cmd.ExecuteScalarAsync(ct);
+        return Convert.ToInt32(id);
+    }
+
     private static async Task<int> insertFeature(
-        DbConnection connection, DbTransaction transaction, int modelConfigId, ModelFeature feature, int sortOrder, CancellationToken ct)
+        DbConnection connection, DbTransaction transaction, int modelConfigId, int featureTypeId, ModelFeature feature, int sortOrder, CancellationToken ct)
     {
         using var cmd = connection.CreateCommand();
         cmd.CommandText = InsertFeatureSql;
         cmd.Transaction = transaction;
         addParameter(cmd, "@ModelConfigId", modelConfigId);
-        addParameter(cmd, "@Name", feature.Name);
+        addParameter(cmd, "@FeatureTypeId", featureTypeId);
         addParameter(cmd, "@Source", (object?)feature.Source ?? DBNull.Value);
         addParameter(cmd, "@SortOrder", sortOrder);
 
@@ -158,12 +175,13 @@ public class UpsertModelConfigCommand : IDbCommand<ModelConfig>
     }
 
     private static async Task insertParam(
-        DbConnection connection, DbTransaction transaction, int featureId, string key, int value, CancellationToken ct)
+        DbConnection connection, DbTransaction transaction, int featureId, int featureTypeId, string key, int value, CancellationToken ct)
     {
         using var cmd = connection.CreateCommand();
         cmd.CommandText = InsertParamSql;
         cmd.Transaction = transaction;
         addParameter(cmd, "@ModelFeatureId", featureId);
+        addParameter(cmd, "@FeatureTypeId", featureTypeId);
         addParameter(cmd, "@ParamKey", key);
         addParameter(cmd, "@ParamValue", value);
         await cmd.ExecuteNonQueryAsync(ct);
