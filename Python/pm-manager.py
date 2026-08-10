@@ -34,45 +34,24 @@ def build_features_df(model_features):
     return pd.DataFrame(rows, columns=["Name", "Source"])
 
 
-def build_params_df(model_features):
-    rows = [
-        {"Feature Name": f.get("name", ""), "Param Key": p.get("paramKey", ""), "Param Value": p.get("paramValue", 0)}
-        for f in (model_features or [])
-        for p in (f.get("modelFeatureParams") or [])
-    ]
-    return pd.DataFrame(rows, columns=["Feature Name", "Param Key", "Param Value"])
+def build_model_features_payload(features_df, original_model_features):
+    original_params_by_name = {
+        f.get("name", ""): f.get("modelFeatureParams") or []
+        for f in (original_model_features or [])
+    }
 
-
-def build_model_features_payload(features_df, params_df):
     features = []
-    orphaned_param_names = set()
-    known_names = {row["Name"] for row in features_df.to_dict("records") if row["Name"]}
-
-    params_by_feature = {}
-    for row in params_df.to_dict("records"):
-        feature_name = row["Feature Name"]
-        param_key = row["Param Key"]
-        if not feature_name or not param_key:
-            continue
-        if feature_name not in known_names:
-            orphaned_param_names.add(feature_name)
-            continue
-        params_by_feature.setdefault(feature_name, {})[param_key] = int(row["Param Value"])
-
     for row in features_df.to_dict("records"):
         name = row["Name"]
         if not name:
             continue
-        params = params_by_feature.get(name, {})
         features.append({
             "name": name,
             "source": display_to_source(row["Source"]),
-            "modelFeatureParams": [
-                {"paramKey": key, "paramValue": value} for key, value in params.items()
-            ],
+            "modelFeatureParams": original_params_by_name.get(name, []),
         })
 
-    return features, orphaned_param_names
+    return features
 
 
 @st.dialog("Edit Model", width="large")
@@ -81,7 +60,7 @@ def edit_model_dialog(model):
         st.caption("Changing Model Name creates a new model row instead of renaming this one (save matches on the original name).")
         model_name = st.text_input("Model Name", value=model.get("modelName", ""))
         col1, col2 = st.columns(2)
-        version = col1.text_input("Version", value=model.get("version", ""))
+        version = col1.text_input("Version", value=model.get("version", ""), disabled=True)
         instrument = col2.text_input("Instrument", value=model.get("instrument", ""))
 
         col1, col2 = st.columns(2)
@@ -103,10 +82,6 @@ def edit_model_dialog(model):
         window_end = col2.text_input("Window End (HHmmss)", value=model.get("windowEnd") or "")
 
         col1, col2 = st.columns(2)
-        feature_location = col1.text_input("Feature Location", value=model.get("featureLocation", ""))
-        output_location = col2.text_input("Output Location", value=model.get("outputLocation", ""))
-
-        col1, col2 = st.columns(2)
         export = col1.checkbox("Export", value=bool(model.get("export", False)))
         active = col2.checkbox("Active", value=bool(model.get("active", False)))
 
@@ -121,17 +96,6 @@ def edit_model_dialog(model):
             },
         )
 
-        st.markdown("**Feature Params**")
-        params_df = st.data_editor(
-            build_params_df(model.get("modelFeatures")),
-            num_rows="dynamic",
-            width="stretch",
-            key="params_editor",
-            column_config={
-                "Param Value": st.column_config.NumberColumn("Param Value", step=1),
-            },
-        )
-
         col_save, col_cancel = st.columns(2)
         save_clicked = col_save.form_submit_button("Save", type="primary")
         cancel_clicked = col_cancel.form_submit_button("Cancel")
@@ -141,7 +105,7 @@ def edit_model_dialog(model):
         st.rerun()
 
     if save_clicked:
-        model_features, orphaned = build_model_features_payload(features_df, params_df)
+        model_features = build_model_features_payload(features_df, model.get("modelFeatures"))
         payload = {
             "modelName": model_name,
             "version": version,
@@ -152,8 +116,8 @@ def edit_model_dialog(model):
             "barType": bar_type,
             "windowStart": window_start or None,
             "windowEnd": window_end or None,
-            "featureLocation": feature_location,
-            "outputLocation": output_location,
+            "featureLocation": model.get("featureLocation", ""),
+            "outputLocation": model.get("outputLocation", ""),
             "export": export,
             "active": active,
             "modelFeatures": model_features,
@@ -164,8 +128,6 @@ def edit_model_dialog(model):
         except requests.RequestException as e:
             st.error(f"Failed to save model: {e}")
         else:
-            if orphaned:
-                st.warning(f"Skipped params for unknown feature name(s): {', '.join(sorted(orphaned))}")
             st.session_state["_close_edit_dialog"] = True
             st.rerun()
 
