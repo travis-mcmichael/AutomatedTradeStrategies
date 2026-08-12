@@ -2,7 +2,6 @@ using AutomatedTrading.Console.ApiTesting;
 using AutomatedTrading.Core.Data;
 using AutomatedTrading.Core.Data.Queries;
 using AutomatedTrading.Core.Framework;
-using AutomatedTrading.Core.Framework.DataLayer.Repositories;
 using AutomatedTrading.Core.Framework.DataLayer.Sqlite;
 using AutomatedTrading.Core.Models;
 using AutomatedTrading.Core.Strategies;

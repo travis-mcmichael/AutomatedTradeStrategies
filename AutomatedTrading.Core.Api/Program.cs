@@ -4,10 +4,8 @@ using AutomatedTrading.Core.Api.Models.Predict;
 using AutomatedTrading.Core.Api.Models.Evaluate;
 using AutomatedTrading.Core.Api.Services;
 using AutomatedTrading.Core.Framework.DataLayer;
-using AutomatedTrading.Core.Framework.DataLayer.Repositories;
 using AutomatedTrading.Core.Framework.DataLayer.Sqlite;
 using AutomatedTrading.Core.Data;
-using System.Reflection;
 using AutomatedTrading.Core.Data.Queries;
 using AutomatedTrading.Core.Models;
 
@@ -24,7 +22,6 @@ builder.Services.AddSingleton<IDbConnectionFactory>(_ => connectionFactory);
 builder.Services.AddScoped(typeof(IDefaultRepository<>), typeof(DefaultRepository<>));
 builder.Services.AddScoped(typeof(IDefaultInsertCommand<>), typeof(DefaultInsertCommand<>));
 builder.Services.AddScoped(typeof(IDefaultUpdateCommand<>), typeof(DefaultUpdateCommand<>));
-builder.Services.AddSingleton<IModelConfigRepository, ModelConfigRepository>();
 
 // Auto-register every query/command class so new ones don't need to be listed here.
 var queryAndCommandTypes = typeof(IDatabaseEntity).Assembly.GetTypes()

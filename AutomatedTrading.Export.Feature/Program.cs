@@ -1,7 +1,8 @@
+using AutomatedTrading.Core.Data;
 using AutomatedTrading.Core.Data.Queries;
 using AutomatedTrading.Core.Framework;
-using AutomatedTrading.Core.Framework.DataLayer.Repositories;
 using AutomatedTrading.Core.Framework.DataLayer.Sqlite;
+using AutomatedTrading.Core.Models;
 using AutomatedTrading.Export.Feature.Exporters;
 
 namespace AutomatedTrading.Export.Feature;
@@ -15,9 +16,9 @@ class Program
         var factory = new SqliteConnectionFactory(AppConstants.SQLITE_CONNECTION);
 
         var streamBars = new StreamBarsInRange(factory, null);
-        var modelRepo = new ModelConfigRepository(factory);
+        var modelRepo = new DefaultRepository<ModelConfig>(factory, null);
 
-        var models = await modelRepo.GetAllAsync();
+        var models = await modelRepo.GetDataAsync(new Dictionary<string, object>());
 
         foreach (var model in models.Where(m => m.Active && m.Export))
         {
@@ -34,6 +35,6 @@ class Program
             await new FeatureExporter(model, outPath, streamBars).GenerateFeatures(start, end);
         }
 
-        Console.WriteLine($"\nOutput complete for {models?.Count ?? 0} predictive models.");
+        Console.WriteLine($"\nOutput complete for {models?.Count() ?? 0} predictive models.");
     }
 }

@@ -1,8 +1,6 @@
 using AutomatedTrading.Core.Api.Models.Predict;
-using AutomatedTrading.Core.Data;
 using AutomatedTrading.Core.Data.Queries;
 using AutomatedTrading.Core.Framework;
-using AutomatedTrading.Core.Framework.DataLayer.Repositories;
 using AutomatedTrading.Core.Framework.Enums;
 using AutomatedTrading.Core.Framework.Logging;
 using AutomatedTrading.Core.Models;

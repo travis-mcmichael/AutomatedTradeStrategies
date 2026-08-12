@@ -41,7 +41,7 @@ public class DefaultRepository<T>(IDbConnectionFactory connectionFactory, ILogge
         {
             var paramName = $"@{filter.Key}";
             // SQLite's LIKE is case-insensitive for ASCII by default, matching Postgres' ILIKE closely enough here.
-            where.Add(filter.Value is string s && (s.StartsWith('%') || s.EndsWith('%'))
+            where.Add(filter.Value is string s && (s.StartsWith("%") || s.EndsWith("%"))
                 ? $" {filter.Key} LIKE {paramName} "
                 : $" {filter.Key} = {paramName} ");
             SqlHelper.AddParameter(cmd, paramName, filter.Value);
