@@ -1,6 +1,6 @@
 
+using AutomatedTrading.Core.Framework.DataLayer;
 using AutomatedTrading.Core.Utility;
-using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
 using System.Collections.Generic;
 using System.Linq;
@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace AutomatedTrading.Core.Data;
 
-public class DefaultRepository<T>(string connectionString, ILogger<DefaultRepository<T>> logger) : IDefaultRepository<T> where T : IDatabaseEntity, new()
+public class DefaultRepository<T>(IDbConnectionFactory connectionFactory, ILogger<DefaultRepository<T>> logger) : IDefaultRepository<T> where T : IDatabaseEntity, new()
 {
     public async Task<IEnumerable<T>> GetDataAsync(IDictionary<string, object> filters, string? orderby = null)
     {
@@ -33,7 +33,7 @@ public class DefaultRepository<T>(string connectionString, ILogger<DefaultReposi
             return col == p.Name ? col : $"{col} AS \"{p.Name}\"";
         }));
 
-        using var connection = new SqliteConnection(connectionString);
+        using var connection = connectionFactory.CreateConnection();
         using var cmd = connection.CreateCommand();
 
         var where = new List<string>();

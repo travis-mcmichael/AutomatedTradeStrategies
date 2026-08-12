@@ -1,12 +1,12 @@
 using System.Linq;
 using System.Threading.Tasks;
+using AutomatedTrading.Core.Framework.DataLayer;
 using AutomatedTrading.Core.Utility;
-using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
 
 namespace AutomatedTrading.Core.Data;
 
-public class DefaultUpdateCommand<T>(string connectionString, ILogger<DefaultUpdateCommand<T>> logger) : IDefaultUpdateCommand<T> where T : IDatabaseEntity, new()
+public class DefaultUpdateCommand<T>(IDbConnectionFactory connectionFactory, ILogger<DefaultUpdateCommand<T>> logger) : IDefaultUpdateCommand<T> where T : IDatabaseEntity, new()
 {
     public async Task<int> UpdateAsync(T entity)
     {
@@ -22,7 +22,7 @@ public class DefaultUpdateCommand<T>(string connectionString, ILogger<DefaultUpd
 
         logger.LogInformation($"DefaultUpdateCommand.UpdateAsync() for {table} sql : {sql}");
 
-        using var connection = new SqliteConnection(connectionString);
+        using var connection = connectionFactory.CreateConnection();
         await connection.OpenAsync();
         using var cmd = connection.CreateCommand();
         cmd.CommandText = sql;
@@ -54,7 +54,7 @@ public class DefaultUpdateCommand<T>(string connectionString, ILogger<DefaultUpd
 
         logger.LogInformation($"DefaultUpdateCommand.UpdateAsync() for {table} sql: {sql}");
 
-        using var connection = new SqliteConnection(connectionString);
+        using var connection = connectionFactory.CreateConnection();
         await connection.OpenAsync();
         using var cmd = connection.CreateCommand();
         cmd.CommandText = sql;

@@ -3,13 +3,13 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
+using AutomatedTrading.Core.Framework.DataLayer;
 using AutomatedTrading.Core.Utility;
-using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
 
 namespace AutomatedTrading.Core.Data;
 
-public class DefaultInsertCommand<T>(string connectionString, ILogger<DefaultInsertCommand<T>> logger) : IDefaultInsertCommand<T> where T : IDatabaseEntity, new()
+public class DefaultInsertCommand<T>(IDbConnectionFactory connectionFactory, ILogger<DefaultInsertCommand<T>> logger) : IDefaultInsertCommand<T> where T : IDatabaseEntity, new()
 {
     public async Task<long> InsertAsync(T entity)
     {
@@ -19,7 +19,7 @@ public class DefaultInsertCommand<T>(string connectionString, ILogger<DefaultIns
 
         logger.LogInformation($"DefaultInsertCommand.InsertAsync() for {tableName} sql: {sql}");
 
-        using var connection = new SqliteConnection(connectionString);
+        using var connection = connectionFactory.CreateConnection();
         await connection.OpenAsync();
         using var cmd = connection.CreateCommand();
         cmd.CommandText = sql;
@@ -42,7 +42,7 @@ public class DefaultInsertCommand<T>(string connectionString, ILogger<DefaultIns
 
         logger.LogInformation($"DefaultInsertCommand.InsertAsync() batch for {tableName} sql: {sql}");
 
-        using var connection = new SqliteConnection(connectionString);
+        using var connection = connectionFactory.CreateConnection();
         await connection.OpenAsync();
         using var transaction = connection.BeginTransaction();
         using var cmd = connection.CreateCommand();

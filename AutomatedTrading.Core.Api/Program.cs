@@ -6,6 +6,7 @@ using AutomatedTrading.Core.Api.Services;
 using AutomatedTrading.Core.Framework.DataLayer;
 using AutomatedTrading.Core.Framework.DataLayer.Repositories;
 using AutomatedTrading.Core.Framework.DataLayer.Sqlite;
+using AutomatedTrading.Core.Data;
 
 Logger.Configure();
 
@@ -17,6 +18,10 @@ builder.Services.AddOpenApi();
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")!;
 var connectionFactory = new SqliteConnectionFactory(connectionString);
 builder.Services.AddSingleton<IDbConnectionFactory>(_ => connectionFactory);
+builder.Services.AddScoped(typeof(IDefaultRepository<>), typeof(DefaultRepository<>));
+builder.Services.AddScoped(typeof(IDefaultInsertCommand<>), typeof(DefaultInsertCommand<>));
+builder.Services.AddScoped(typeof(IDefaultUpdateCommand<>), typeof(DefaultUpdateCommand<>));
+
 builder.Services.AddSingleton<IBarRepository, BarRepository>();
 builder.Services.AddSingleton<IModelConfigRepository, ModelConfigRepository>();
 
