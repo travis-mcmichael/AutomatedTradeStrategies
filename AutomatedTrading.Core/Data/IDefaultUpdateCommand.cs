@@ -4,6 +4,6 @@ namespace AutomatedTrading.Core.Data;
 
 public interface IDefaultUpdateCommand<T> where T : IDatabaseEntity
 {
-    Task<int> UpdateAsync(T entity);
-    Task<int> UpdateAsync(object values, object where);
+    Task<int> Execute(T entity);
+    Task<int> Execute(object values, object where);
 }

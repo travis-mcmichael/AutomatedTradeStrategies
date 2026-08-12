@@ -8,7 +8,7 @@ namespace AutomatedTrading.Core.Data;
 
 public class DefaultUpdateCommand<T>(IDbConnectionFactory connectionFactory, ILogger<DefaultUpdateCommand<T>> logger) : IDefaultUpdateCommand<T> where T : IDatabaseEntity, new()
 {
-    public async Task<int> UpdateAsync(T entity)
+    public async Task<int> Execute(T entity)
     {
         var props = typeof(T).GetProperties().Where(p =>
             p.Name != "Id" &&
@@ -33,7 +33,7 @@ public class DefaultUpdateCommand<T>(IDbConnectionFactory connectionFactory, ILo
         return await cmd.ExecuteNonQueryAsync();
     }
 
-    public async Task<int> UpdateAsync(object values, object where)
+    public async Task<int> Execute(object values, object where)
     {
         var entity = new T();
 

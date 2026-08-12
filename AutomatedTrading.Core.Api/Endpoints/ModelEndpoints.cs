@@ -1,5 +1,4 @@
 using AutomatedTrading.Core.Data;
-using AutomatedTrading.Core.Framework.DataLayer.Repositories;
 using AutomatedTrading.Core.Models;
 
 namespace AutomatedTrading.Core.Api.Endpoints;
@@ -23,12 +22,13 @@ public static class ModelEndpoints
         // Features/Params are always replaced wholesale with what's in the request.
         app.MapPost(SAVE_MODEL, async (
             ModelConfig req,
-            IModelConfigRepository repository) =>
+            IDefaultUpdateCommand<ModelConfig> update,
+            IDefaultInsertCommand<ModelConfig> insert) =>
         {
             if (string.IsNullOrWhiteSpace(req.ModelName))
                 return Results.BadRequest("ModelName is required.");
 
-            var saved = await repository.UpsertAsync(req);
+            var saved = req.Id > 0 ? await update.Execute(req) : await insert.Execute(req);
             return Results.Ok(saved);
         });
     }

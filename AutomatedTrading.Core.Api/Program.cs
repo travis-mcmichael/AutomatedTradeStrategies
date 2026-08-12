@@ -9,6 +9,7 @@ using AutomatedTrading.Core.Framework.DataLayer.Sqlite;
 using AutomatedTrading.Core.Data;
 using System.Reflection;
 using AutomatedTrading.Core.Data.Queries;
+using AutomatedTrading.Core.Models;
 
 Logger.Configure();
 
@@ -37,7 +38,7 @@ var queryAndCommandTypes = typeof(IDatabaseEntity).Assembly.GetTypes()
 foreach (var type in queryAndCommandTypes)
     builder.Services.AddScoped(type);
 
-var models = await new ModelConfigRepository(connectionFactory).GetAllAsync();
+var models = await new DefaultRepository<ModelConfig>(connectionFactory, null).GetDataAsync(new Dictionary<string, object>());
 
 foreach (var model in models.Where(m => m.Active && m.ModelFeatures.Count > 0))
 {

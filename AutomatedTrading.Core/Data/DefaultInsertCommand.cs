@@ -11,7 +11,7 @@ namespace AutomatedTrading.Core.Data;
 
 public class DefaultInsertCommand<T>(IDbConnectionFactory connectionFactory, ILogger<DefaultInsertCommand<T>> logger) : IDefaultInsertCommand<T> where T : IDatabaseEntity, new()
 {
-    public async Task<long> InsertAsync(T entity)
+    public async Task<long> Execute(T entity)
     {
         var tableName = SqlHelper.GetTableName(entity);
         var props = insertableProps();
@@ -31,7 +31,7 @@ public class DefaultInsertCommand<T>(IDbConnectionFactory connectionFactory, ILo
         return id;
     }
 
-    public async Task<IEnumerable<T>> InsertAsync(IEnumerable<T> entities)
+    public async Task<IEnumerable<T>> Execute(IEnumerable<T> entities)
     {
         var list = entities.ToList();
         if (list.Count == 0) return list;
