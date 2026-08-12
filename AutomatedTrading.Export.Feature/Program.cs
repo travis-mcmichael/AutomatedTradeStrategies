@@ -1,3 +1,4 @@
+using AutomatedTrading.Core.Data.Queries;
 using AutomatedTrading.Core.Framework;
 using AutomatedTrading.Core.Framework.DataLayer.Repositories;
 using AutomatedTrading.Core.Framework.DataLayer.Sqlite;
@@ -13,7 +14,7 @@ class Program
 
         var factory = new SqliteConnectionFactory(AppConstants.SQLITE_CONNECTION);
 
-        var barRepo = new BarRepository(factory);
+        var streamBars = new StreamBarsInRange(factory, null);
         var modelRepo = new ModelConfigRepository(factory);
 
         var models = await modelRepo.GetAllAsync();
@@ -28,9 +29,9 @@ class Program
             var outPath = Path.Combine(Operations.NormalizePath(model.FeatureLocation), "features.csv");
 
             var start = DateTime.ParseExact(model.TrainingStart, "yyyyMMdd", null);
-            var end = DateTime.ParseExact(model.TrainingEnd,   "yyyyMMdd", null);
+            var end = DateTime.ParseExact(model.TrainingEnd, "yyyyMMdd", null);
 
-            await new FeatureExporter(model, outPath, barRepo).GenerateFeatures(start, end);
+            await new FeatureExporter(model, outPath, streamBars).GenerateFeatures(start, end);
         }
 
         Console.WriteLine($"\nOutput complete for {models?.Count ?? 0} predictive models.");

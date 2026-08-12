@@ -2,11 +2,13 @@ using System;
 using System.Data.Common;
 using System.Threading;
 using System.Threading.Tasks;
+using AutomatedTrading.Core.Framework.DataLayer;
 using AutomatedTrading.Core.Models;
+using Microsoft.Extensions.Logging;
 
-namespace AutomatedTrading.Core.Framework.DataLayer.Commands.Bars;
+namespace AutomatedTrading.Core.Data.Queries;
 
-public class GetBarsInRangeStreamQuery : IDbStreamQuery<BarData>
+public class StreamBarsInRange(IDbConnectionFactory connectionFactory, ILogger<StreamBarsInRange> logger)
 {
     private const string Sql = @"
         SELECT Instrument, Timeframe, Timestamp, SessionDate, SessionTime, Open, High, Low, Close, Volume
@@ -14,21 +16,13 @@ public class GetBarsInRangeStreamQuery : IDbStreamQuery<BarData>
         WHERE Timestamp >= @StartTimestamp AND Timestamp <= @EndTimestamp
         ORDER BY Timestamp ASC";
 
-    private readonly DateTime start;
-    private readonly DateTime end;
-
-    public GetBarsInRangeStreamQuery(DateTime start, DateTime end)
+    public async Task ExecuteAsync(DateTime start, DateTime end, Func<BarData, Task> onItem, CancellationToken ct = default)
     {
-        this.start = start;
-        this.end   = end;
-    }
-
-    public async Task ExecuteAsync(DbConnection connection, Func<BarData, Task> onItem, CancellationToken ct = default)
-    {
+        using var connection = connectionFactory.CreateConnection();
         using var cmd = connection.CreateCommand();
         cmd.CommandText = Sql;
         addParameter(cmd, "@StartTimestamp", new DateTimeOffset(start, TimeSpan.Zero).ToUnixTimeMilliseconds());
-        addParameter(cmd, "@EndTimestamp",   new DateTimeOffset(end,   TimeSpan.Zero).ToUnixTimeMilliseconds());
+        addParameter(cmd, "@EndTimestamp", new DateTimeOffset(end, TimeSpan.Zero).ToUnixTimeMilliseconds());
 
         using var reader = await cmd.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))

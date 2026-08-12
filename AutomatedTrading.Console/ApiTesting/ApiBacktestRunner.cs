@@ -4,6 +4,7 @@ using AutomatedTrading.Core.Framework.Logging;
 using AutomatedTrading.Core.Framework;
 using AutomatedTrading.Core.Models;
 using AutomatedTrading.Core.Strategies;
+using AutomatedTrading.Core.Data.Queries;
 
 namespace AutomatedTrading.Console.ApiTesting;
 
@@ -27,11 +28,11 @@ public record ApiBacktestParams(
 /// </summary>
 public class ApiBacktestRunner
 {
-    private readonly IBarRepository _barRepo;
+    private readonly GetBarsBySessionDate _getBars;
 
-    public ApiBacktestRunner(IBarRepository barRepo)
+    public ApiBacktestRunner(GetBarsBySessionDate getBars)
     {
-        _barRepo = barRepo;
+        _getBars = getBars;
     }
 
     // ── Batch entry point ─────────────────────────────────────────────────────
@@ -58,16 +59,16 @@ public class ApiBacktestRunner
         string endDate,
         ApiBacktestParams p)
     {
-        var run   = new ApiBacktestRun(p.Name);
+        var run = new ApiBacktestRun(p.Name);
         var start = DateTime.ParseExact(startDate, "yyyyMMdd", null);
-        var end   = DateTime.ParseExact(endDate,   "yyyyMMdd", null);
+        var end = DateTime.ParseExact(endDate, "yyyyMMdd", null);
 
         using var client = new AutomatedTradeClient(p.Name, p.Proximity, p.StopLoss, p.TargetProfit, p.Trail);
 
         for (var date = start; date <= end; date = TradingCalendar.GetNextSessionDate(date))
         {
             var sessionDate = date.ToString("yyyyMMdd");
-            var bars = await _barRepo.GetBarsBySessionDateAsync(sessionDate);
+            var bars = await _getBars.Execute(date);
             if (bars.Count == 0) continue;
 
             var ordered = bars.OrderBy(b => b.Timestamp).ToList();
@@ -98,17 +99,17 @@ public class ApiBacktestRunner
                 switch (signal)
                 {
                     case "EnterShort":
-                        run.Position   = PositionSide.Short;
+                        run.Position = PositionSide.Short;
                         run.EntryPrice = bar.Close;
-                        run.EntryTime  = bar.Timestamp;
-                        run.StopPrice  = stopPrice;
+                        run.EntryTime = bar.Timestamp;
+                        run.StopPrice = stopPrice;
                         Logger.Info($"{bar.SessionDate,9}{bar.SessionTime,7} - {signal,10} @{bar.Close,10:f2}, stop @{stopPrice,10:f2}");
                         break;
                     case "EnterLong":
-                        run.Position   = PositionSide.Long;
+                        run.Position = PositionSide.Long;
                         run.EntryPrice = bar.Close;
-                        run.EntryTime  = bar.Timestamp;
-                        run.StopPrice  = stopPrice;
+                        run.EntryTime = bar.Timestamp;
+                        run.StopPrice = stopPrice;
                         Logger.Info($"{bar.SessionDate,9}{bar.SessionTime,7} - {signal,10} @{bar.Close,10:f2}, stop @{stopPrice,10:f2}");
                         break;
                     case "ExitLong" when run.Position == PositionSide.Long:
@@ -145,9 +146,9 @@ public class ApiBacktestRunner
     private static bool isStopTriggered(BarData bar, PositionSide position, double stopPrice) =>
         position switch
         {
-            PositionSide.Long  => bar.Low  <= stopPrice,
+            PositionSide.Long => bar.Low <= stopPrice,
             PositionSide.Short => bar.High >= stopPrice,
-            _                  => false,
+            _ => false,
         };
 
     // ── API call helpers ──────────────────────────────────────────────────────
@@ -155,7 +156,7 @@ public class ApiBacktestRunner
     private async Task<(string Signal, double StopPrice)> evaluateBarAsync(
         AutomatedTradeClient client, BarData bar, PositionSide position, double entryPrice)
     {
-        client.Position   = position;
+        client.Position = position;
         client.EntryPrice = entryPrice > 0 ? entryPrice : null;
         var r = await client.Evaluate(bar);
         return r is null ? ("None", 0) : (r.Signal ?? "None", r.StopPrice);
@@ -173,19 +174,19 @@ public class ApiBacktestRunner
 
         run.RecordTrade(new TradeResult(
             SessionDate: sessionDate,
-            EntryTime:   run.EntryTime,
-            ExitTime:    exitTime,
-            Side:        run.Position,
-            EntryPrice:  run.EntryPrice,
-            ExitPrice:   exitPrice,
-            PnL:         pnl,
-            ExitReason:  reason));
+            EntryTime: run.EntryTime,
+            ExitTime: exitTime,
+            Side: run.Position,
+            EntryPrice: run.EntryPrice,
+            ExitPrice: exitPrice,
+            PnL: pnl,
+            ExitReason: reason));
 
-        run.Position   = PositionSide.Flat;
+        run.Position = PositionSide.Flat;
         run.EntryPrice = 0;
-        run.StopPrice  = double.MaxValue;
+        run.StopPrice = double.MaxValue;
 
-        client.Position   = PositionSide.Flat;
+        client.Position = PositionSide.Flat;
         client.EntryPrice = null;
     }
 

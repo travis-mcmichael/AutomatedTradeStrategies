@@ -7,6 +7,8 @@ using AutomatedTrading.Core.Framework.DataLayer;
 using AutomatedTrading.Core.Framework.DataLayer.Repositories;
 using AutomatedTrading.Core.Framework.DataLayer.Sqlite;
 using AutomatedTrading.Core.Data;
+using System.Reflection;
+using AutomatedTrading.Core.Data.Queries;
 
 Logger.Configure();
 
@@ -21,9 +23,19 @@ builder.Services.AddSingleton<IDbConnectionFactory>(_ => connectionFactory);
 builder.Services.AddScoped(typeof(IDefaultRepository<>), typeof(DefaultRepository<>));
 builder.Services.AddScoped(typeof(IDefaultInsertCommand<>), typeof(DefaultInsertCommand<>));
 builder.Services.AddScoped(typeof(IDefaultUpdateCommand<>), typeof(DefaultUpdateCommand<>));
-
-builder.Services.AddSingleton<IBarRepository, BarRepository>();
 builder.Services.AddSingleton<IModelConfigRepository, ModelConfigRepository>();
+
+// Auto-register every query/command class so new ones don't need to be listed here.
+var queryAndCommandTypes = typeof(IDatabaseEntity).Assembly.GetTypes()
+    .Where(t => t is
+    {
+        IsClass: true,
+        IsAbstract: false,
+        Namespace: "AutomatedTrading.Core.Data.Queries" or "AutomatedTrading.Core.Data.Commands"
+    });
+
+foreach (var type in queryAndCommandTypes)
+    builder.Services.AddScoped(type);
 
 var models = await new ModelConfigRepository(connectionFactory).GetAllAsync();
 
@@ -44,7 +56,7 @@ builder.Services.AddSingleton(sp =>
         .ToDictionary(
             m => m.ModelName,
             m => (sp.GetRequiredKeyedService<IMovementPredictor>(m.ModelName), m));
-    return new StrategyEvaluator(predictors, sp.GetRequiredService<IBarRepository>());
+    return new StrategyEvaluator(predictors, sp.GetRequiredService<GetBarsBySessionDate>());
 });
 
 var app = builder.Build();

@@ -1,3 +1,4 @@
+using AutomatedTrading.Core.Data;
 using AutomatedTrading.Core.Framework.DataLayer.Repositories;
 using AutomatedTrading.Core.Models;
 
@@ -5,16 +6,16 @@ namespace AutomatedTrading.Core.Api.Endpoints;
 
 public static class ModelEndpoints
 {
-    private static readonly string GET_MODELS  = "/models";
-    private static readonly string SAVE_MODEL  = "/models";
+    private static readonly string GET_MODELS = "/models";
+    private static readonly string SAVE_MODEL = "/models";
 
     public static void Map(WebApplication app)
     {
         // Returns every ModelConfig row, with its Features and each feature's Params fully populated.
-        app.MapGet(GET_MODELS, async (
-            IModelConfigRepository repository) =>
+        _ = app.MapGet(GET_MODELS, async (
+            IDefaultRepository<ModelConfig> repository) =>
         {
-            var models = await repository.GetAllAsync();
+            var models = await repository.GetDataAsync(new Dictionary<string, object> { { "1", "1" } });
             return Results.Ok(models);
         });
 

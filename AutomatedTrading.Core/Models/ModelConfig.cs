@@ -1,8 +1,9 @@
 using System.Collections.Generic;
+using AutomatedTrading.Core.Data;
 
 namespace AutomatedTrading.Core.Models;
 
-public class ModelConfig
+public class ModelConfig : IDatabaseEntity
 {
     public string TableName { get; } = "ModelConfig";
     public string SchemaName { get; } = "dbo";
