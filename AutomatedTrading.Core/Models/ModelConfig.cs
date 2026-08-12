@@ -4,7 +4,9 @@ namespace AutomatedTrading.Core.Models;
 
 public class ModelConfig
 {
-    public int Id { get; set; }
+    public string TableName { get; } = "ModelConfig";
+    public string SchemaName { get; } = "dbo";
+    public long Id { get; set; }
     public string ModelName { get; set; } = default!;
     public string Version { get; set; } = default!;
     public string Instrument { get; set; } = default!;

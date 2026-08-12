@@ -1,5 +1,6 @@
 
 using AutomatedTrading.Core.Utility;
+using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
 using System.Collections.Generic;
 using System.Linq;
@@ -13,7 +14,7 @@ public class DefaultRepository<T>(string connectionString, ILogger<DefaultReposi
     public async Task<IEnumerable<T>> GetDataAsync(IDictionary<string, object> filters, string? orderby = null)
     {
         var entity = new T();
-        var tableName = entity.TableName;
+        var tableName = SqlHelper.GetTableName(entity);
 
         if (filters == null || filters.Count == 0)
         {
@@ -24,42 +25,44 @@ public class DefaultRepository<T>(string connectionString, ILogger<DefaultReposi
         logger.LogInformation($"DefaultRepository.GetDataAsync() for table {tableName}");
 
         var entityProps = typeof(T).GetProperties()
-            .Where(p => p.Name != "TableName" && SqlHelper.IsSimpleType(p.PropertyType));
+            .Where(p => p.Name != "TableName" && p.Name != "SchemaName" && SqlHelper.IsSimpleType(p.PropertyType))
+            .ToList();
         var selectList = string.Join(", ", entityProps.Select(p =>
         {
             var col = SqlHelper.GetColumnName(p);
             return col == p.Name ? col : $"{col} AS \"{p.Name}\"";
         }));
 
-        var where = new List<string>();
-        var sql = new StringBuilder($" SELECT {selectList} FROM {tableName} ");
-        var parameters = new DynamicParameters();
+        using var connection = new SqliteConnection(connectionString);
+        using var cmd = connection.CreateCommand();
 
+        var where = new List<string>();
         foreach (var filter in filters)
         {
-            if (filter.Value is string s && (s.StartsWith('%') || s.EndsWith('%')))
-            {
-                where.Add($" {filter.Key} ILIKE @{filter.Key} ");
-            }
-            else
-            {
-                where.Add($" {filter.Key} = @{filter.Key} ");
-            }
-            parameters.Add(filter.Key, filter.Value);
+            var paramName = $"@{filter.Key}";
+            // SQLite's LIKE is case-insensitive for ASCII by default, matching Postgres' ILIKE closely enough here.
+            where.Add(filter.Value is string s && (s.StartsWith('%') || s.EndsWith('%'))
+                ? $" {filter.Key} LIKE {paramName} "
+                : $" {filter.Key} = {paramName} ");
+            SqlHelper.AddParameter(cmd, paramName, filter.Value);
         }
 
+        var sql = new StringBuilder($" SELECT {selectList} FROM {tableName} ");
         sql.Append($" WHERE {string.Join(" AND ", where)}");
         if (orderby is not null or "") sql.Append($" ORDER BY {orderby} ");
         var final = sql.ToString();
+        cmd.CommandText = final;
+
         logger.LogInformation("Executing SQL: {@final}", final);
-        logger.LogInformation("Parameters: {@parameters}", parameters);
+        logger.LogInformation("Parameters: {@parameters}", filters);
 
-        using var connection = new NpgsqlConnection(connectionString);
-        return await connection.QueryAsync<T>(final, parameters);
-    }
+        await connection.OpenAsync();
 
-    public Task<IEnumerable<T>> GetDataAsync(IDictionary<string, object> filter, string? orderby = null)
-    {
-        throw new System.NotImplementedException();
+        var results = new List<T>();
+        using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+            results.Add(SqlHelper.MapEntity<T>(reader, entityProps));
+
+        return results;
     }
 }

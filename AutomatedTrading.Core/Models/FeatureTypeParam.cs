@@ -1,7 +1,12 @@
+using AutomatedTrading.Core.Data;
+
 namespace AutomatedTrading.Core.Models;
-public class FeatureTypeParam
-    {
-        public int Id { get; set; }
-        public FeatureType FeatureType { get; set; }
-        public string ParameterKey { get; set; } = default!;
-    }
+
+public class FeatureTypeParam : IDatabaseEntity
+{
+    public string TableName { get; } = "FeatureTypeParam";
+    public string SchemaName { get; } = "dbo";
+    public long Id { get; set; }
+    public FeatureType FeatureType { get; set; }
+    public string ParameterKey { get; set; } = default!;
+}

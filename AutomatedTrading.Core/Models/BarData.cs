@@ -1,11 +1,15 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using AutomatedTrading.Core.Data;
 
 namespace AutomatedTrading.Core.Models;
 
-public class BarData
+public class BarData : IDatabaseEntity
 {
+    public string TableName { get; } = "BarData";
+    public string SchemaName { get; } = "dbo";
+    public long Id { get; set; }
     public double Open { get; set; }
     public double High { get; set; }
     public double Low { get; set; }
