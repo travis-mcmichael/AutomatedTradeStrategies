@@ -1,4 +1,5 @@
 using AutomatedTrading.Core.Data;
+using AutomatedTrading.Core.Data.Queries;
 using AutomatedTrading.Core.Models;
 
 namespace AutomatedTrading.Core.Api.Endpoints;
@@ -12,9 +13,9 @@ public static class ModelEndpoints
     {
         // Returns every ModelConfig row, with its Features and each feature's Params fully populated.
         _ = app.MapGet(GET_MODELS, async (
-            IDefaultRepository<ModelConfig> repository) =>
+            GetAllModelConfigs getAllModels) =>
         {
-            var models = await repository.GetDataAsync(new Dictionary<string, object> { { "1", "1" } });
+            var models = await getAllModels.Execute();
             return Results.Ok(models);
         });
 

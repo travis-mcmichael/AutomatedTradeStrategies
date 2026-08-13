@@ -18,11 +18,11 @@ public class DefaultRepository<T>(IDbConnectionFactory connectionFactory, ILogge
 
         if (filters == null || filters.Count == 0)
         {
-            logger.LogWarning($"No filter criteria added for {tableName} query.");
+            logger?.LogWarning($"No filter criteria added for {tableName} query.");
             return [];
         }
 
-        logger.LogInformation($"DefaultRepository.GetDataAsync() for table {tableName}");
+        logger?.LogInformation($"DefaultRepository.GetDataAsync() for table {tableName}");
 
         var entityProps = typeof(T).GetProperties()
             .Where(p => p.Name != "TableName" && p.Name != "SchemaName" && SqlHelper.IsSimpleType(p.PropertyType))
@@ -53,8 +53,8 @@ public class DefaultRepository<T>(IDbConnectionFactory connectionFactory, ILogge
         var final = sql.ToString();
         cmd.CommandText = final;
 
-        logger.LogInformation("Executing SQL: {@final}", final);
-        logger.LogInformation("Parameters: {@parameters}", filters);
+        logger?.LogInformation("Executing SQL: {@final}", final);
+        logger?.LogInformation("Parameters: {@parameters}", filters);
 
         await connection.OpenAsync();
 

@@ -35,7 +35,13 @@ var queryAndCommandTypes = typeof(IDatabaseEntity).Assembly.GetTypes()
 foreach (var type in queryAndCommandTypes)
     builder.Services.AddScoped(type);
 
-var models = await new DefaultRepository<ModelConfig>(connectionFactory, null).GetDataAsync(new Dictionary<string, object>());
+var models = await new GetAllModelConfigs(
+    new DefaultRepository<ModelConfig>(connectionFactory, null),
+    new DefaultRepository<ModelFeature>(connectionFactory, null),
+    new DefaultRepository<ModelFeatureParam>(connectionFactory, null),
+    new DefaultRepository<FeatureType>(connectionFactory, null),
+    new DefaultRepository<FeatureTypeParam>(connectionFactory, null)
+).Execute();
 
 foreach (var model in models.Where(m => m.Active && m.ModelFeatures.Count > 0))
 {

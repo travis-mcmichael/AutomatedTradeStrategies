@@ -21,5 +21,5 @@ public class ModelConfig : IDatabaseEntity
     public string OutputLocation { get; set; } = default!;
     public bool Export { get; set; }
     public bool Active { get; set; }
-    public List<ModelFeature> ModelFeatures { get; set; }
+    public List<ModelFeature> ModelFeatures { get; set; } = [];
 }

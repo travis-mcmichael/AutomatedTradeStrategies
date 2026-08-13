@@ -76,11 +76,11 @@ public class FeatureExporter
     // SmaRatio(fast=5,slow=20) → "SmaRatio_5_20".
     private static string columnName(ModelFeature feature)
     {
-        if (feature.ModelFeatureParams is null || feature.ModelFeatureParams.Count == 0)
-            return feature.Name;
+        if (feature.ModelFeatureParams is null || feature.ModelFeatureParams.Count() == 0)
+            return feature.FeatureType?.Name ?? "";
 
-        var suffix = string.Join("_", feature.ModelFeatureParams.OrderBy(kv => kv.ParamKey).Select(kv => kv.ParamValue));
-        return $"{feature.Name}_{suffix}";
+        var suffix = string.Join("_", feature.ModelFeatureParams.OrderBy(kv => kv.FeatureTypeParam?.ParameterKey).Select(kv => kv.ParamValue));
+        return $"{feature.FeatureType?.Name}_{suffix}";
     }
 
     private double getTarget(List<BarData> barData, double open, double atr)
