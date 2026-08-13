@@ -26,27 +26,39 @@ def display_to_source(source):
     return None if source == "daily" else source
 
 
+def format_params(model_feature_params):
+    parts = [
+        f"{(p.get('featureTypeParam') or {}).get('parameterKey', '?')}={p.get('paramValue')}"
+        for p in (model_feature_params or [])
+    ]
+    return ", ".join(parts)
+
+
 def build_features_df(model_features):
     rows = [
-        {"Name": f.get("name", ""), "Source": source_to_display(f.get("source"))}
+        {
+            "Name": (f.get("featureType") or {}).get("name", ""),
+            "Source": source_to_display(f.get("source")),
+            "Params": format_params(f.get("modelFeatureParams")),
+        }
         for f in (model_features or [])
     ]
-    return pd.DataFrame(rows, columns=["Name", "Source"])
+    return pd.DataFrame(rows, columns=["Name", "Source", "Params"])
 
 
-def build_model_features_payload(features_df, original_model_features):
+def build_model_features_payload(features_df, original_model_features, feature_type_id_by_name):
     original_params_by_name = {
-        f.get("name", ""): f.get("modelFeatureParams") or []
+        (f.get("featureType") or {}).get("name", ""): f.get("modelFeatureParams") or []
         for f in (original_model_features or [])
     }
 
     features = []
     for row in features_df.to_dict("records"):
         name = row["Name"]
-        if not name:
+        if not name or name not in feature_type_id_by_name:
             continue
         features.append({
-            "name": name,
+            "featureTypeId": feature_type_id_by_name[name],
             "source": display_to_source(row["Source"]),
             "modelFeatureParams": original_params_by_name.get(name, []),
         })
@@ -55,7 +67,7 @@ def build_model_features_payload(features_df, original_model_features):
 
 
 @st.dialog("Edit Model", width="large")
-def edit_model_dialog(model):
+def edit_model_dialog(model, feature_type_id_by_name):
     with st.form("edit_model_form"):
         st.caption("Changing Model Name creates a new model row instead of renaming this one (save matches on the original name).")
         model_name = st.text_input("Model Name", value=model.get("modelName", ""))
@@ -92,7 +104,9 @@ def edit_model_dialog(model):
             width="stretch",
             key="features_editor",
             column_config={
+                "Name": st.column_config.SelectboxColumn("Name", options=sorted(feature_type_id_by_name), required=True),
                 "Source": st.column_config.SelectboxColumn("Source", options=SOURCE_OPTIONS, required=True),
+                "Params": st.column_config.TextColumn("Params", disabled=True),
             },
         )
 
@@ -105,7 +119,7 @@ def edit_model_dialog(model):
         st.rerun()
 
     if save_clicked:
-        model_features = build_model_features_payload(features_df, model.get("modelFeatures"))
+        model_features = build_model_features_payload(features_df, model.get("modelFeatures"), feature_type_id_by_name)
         payload = {
             "modelName": model_name,
             "version": version,
@@ -168,4 +182,10 @@ with tab_models:
 
         selected_rows = event.selection.rows if event and event.selection else []
         if selected_rows:
-            edit_model_dialog(models[selected_rows[0]])
+            feature_type_id_by_name = {
+                f["featureType"]["name"]: f["featureType"]["id"]
+                for m in models
+                for f in (m.get("modelFeatures") or [])
+                if f.get("featureType")
+            }
+            edit_model_dialog(models[selected_rows[0]], feature_type_id_by_name)
