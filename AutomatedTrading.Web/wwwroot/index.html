@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Automated Trading</title>
+  <style>
+    body {
+      font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      margin: 0;
+      padding: 2rem;
+      color: #1a1a1a;
+      background: #ffffff;
+    }
+    h1 {
+      font-size: 1.5rem;
+      margin: 0 0 1.5rem;
+    }
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid #d0d0d0;
+      margin-bottom: 1.5rem;
+    }
+    .tab-button {
+      appearance: none;
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      padding: 0.6rem 1.1rem;
+      font-size: 0.95rem;
+      cursor: pointer;
+      color: #555;
+    }
+    .tab-button:hover {
+      color: #111;
+    }
+    .tab-button.active {
+      color: #111;
+      border-bottom-color: #d6772f;
+      font-weight: 600;
+    }
+    .tab-panel {
+      display: none;
+    }
+    .tab-panel.active {
+      display: block;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      font-size: 0.9rem;
+    }
+    th, td {
+      text-align: left;
+      padding: 0.5rem 0.75rem;
+      border-bottom: 1px solid #eaeaea;
+      white-space: nowrap;
+    }
+    th {
+      color: #555;
+      font-weight: 600;
+      border-bottom: 1px solid #d0d0d0;
+    }
+    tbody tr:hover {
+      background: #f7f7f7;
+    }
+    .status {
+      color: #888;
+      font-size: 0.9rem;
+    }
+    .status.error {
+      color: #b00020;
+    }
+  </style>
+</head>
+<body>
+  <h1>Automated Trading</h1>
+
+  <div class="tabs" role="tablist">
+    <button class="tab-button active" data-tab="home" role="tab" aria-selected="true">Home</button>
+    <button class="tab-button" data-tab="models" role="tab" aria-selected="false">Models</button>
+  </div>
+
+  <div class="tab-panel active" id="tab-home" role="tabpanel"></div>
+
+  <div class="tab-panel" id="tab-models" role="tabpanel">
+    <div id="models-status" class="status">Loading models...</div>
+    <table id="models-table" hidden>
+      <thead>
+        <tr>
+          <th>Model Name</th>
+          <th>Version</th>
+          <th>Instrument</th>
+          <th>Target</th>
+          <th>Bar Type</th>
+          <th>Export</th>
+          <th>Active</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <script>
+    const tabButtons = document.querySelectorAll(".tab-button");
+    const tabPanels = document.querySelectorAll(".tab-panel");
+
+    tabButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        tabButtons.forEach((b) => {
+          b.classList.remove("active");
+          b.setAttribute("aria-selected", "false");
+        });
+        tabPanels.forEach((p) => p.classList.remove("active"));
+
+        button.classList.add("active");
+        button.setAttribute("aria-selected", "true");
+        document.getElementById(`tab-${button.dataset.tab}`).classList.add("active");
+      });
+    });
+
+    async function loadModels() {
+      const status = document.getElementById("models-status");
+      const table = document.getElementById("models-table");
+      const tbody = table.querySelector("tbody");
+
+      try {
+        const response = await fetch("/api/models");
+        if (!response.ok) {
+          throw new Error(`Request failed: ${response.status}`);
+        }
+        const models = await response.json();
+
+        tbody.innerHTML = "";
+        for (const model of models) {
+          const row = document.createElement("tr");
+          const cells = [
+            model.modelName ?? "",
+            model.version ?? "",
+            model.instrument ?? "",
+            model.target ?? "",
+            model.barType ?? "",
+            model.export ? "Yes" : "No",
+            model.active ? "Yes" : "No",
+          ];
+          for (const value of cells) {
+            const cell = document.createElement("td");
+            cell.textContent = value;
+            row.appendChild(cell);
+          }
+          tbody.appendChild(row);
+        }
+
+        status.hidden = true;
+        table.hidden = false;
+      } catch (err) {
+        status.textContent = `Failed to load models: ${err.message}`;
+        status.classList.add("error");
+      }
+    }
+
+    loadModels();
+  </script>
+</body>
+</html>

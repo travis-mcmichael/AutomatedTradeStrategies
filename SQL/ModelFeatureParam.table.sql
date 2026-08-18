@@ -4,10 +4,7 @@ CREATE TABLE IF NOT EXISTS ModelFeatureParam (
 
     -- Parent feature
     ModelFeatureId INTEGER NOT NULL REFERENCES ModelFeature (Id) ON DELETE CASCADE,
-
+    FeatureTypeParamId INTEGER NOT NULL REFERENCES FeatureTypeParam (Id),
     -- Param key/value (e.g. 'period', 'lookback', 'fast', 'slow')
-    ParamKey TEXT NOT NULL,
-    ParamValue INTEGER NOT NULL,
-
-    UNIQUE (ModelFeatureId, ParamKey)
+    ParamValue INTEGER NOT NULL
 );

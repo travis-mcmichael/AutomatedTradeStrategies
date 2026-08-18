@@ -1,5 +1,5 @@
 import os
-import sqlite3
+import requests
 import pandas as pd
 import numpy as np
 import xgboost as xgb
@@ -12,24 +12,25 @@ from sklearn.metrics import (
     accuracy_score, roc_auc_score, precision_score, recall_score,
 )
 
+from api_config import MODELS_ENDPOINT
+
 # ==============================
 # Configuration
 # ==============================
 TODAY = datetime.today().strftime("%Y%m%d")
 
-SQLITE_DB_PATH = "/mnt/c/dev/data/SQLite/home.db"
-with sqlite3.connect(SQLITE_DB_PATH) as _conn:
-    _rows = _conn.execute(
-        "SELECT ModelName, FeatureLocation, Target FROM ModelConfig WHERE Active = 1 AND Export = 1"
-    ).fetchall()
+_response = requests.get(MODELS_ENDPOINT)
+_response.raise_for_status()
+_models = _response.json()
 
 EXECUTION_CONFIGS = [
     {
-        "name":              model_name,
-        "csv":               os.path.join(feature_location, "features.csv"),
-        "is_classification": target == "CLASS",
+        "name":              model["modelName"],
+        "csv":               os.path.join(model["featureLocation"], "features.csv"),
+        "is_classification": model["target"] == "CLASS",
     }
-    for model_name, feature_location, target in _rows
+    for model in _models
+    if model["active"] and model["export"]
 ]
 
 TRAIN_SPLIT = 0.70

@@ -1,7 +1,7 @@
-using AutomatedTrading.Core.Framework.DataLayer.Repositories;
 using AutomatedTrading.Core.Framework.Logging;
 using AutomatedTrading.Core.Framework;
 using AutomatedTrading.Core.Models;
+using AutomatedTrading.Core.Data.Queries;
 
 namespace AutomatedTrading.Export.Feature.Exporters;
 
@@ -23,13 +23,13 @@ public class FeatureExporter
     private const int MinLookback = 20;
     private readonly ModelConfig _model;
     private readonly string _outputPath;
-    private readonly IBarRepository _barRepository;
+    private readonly StreamBarsInRange _streamBars;
 
-    public FeatureExporter(ModelConfig model, string outputPath, IBarRepository barRepository)
+    public FeatureExporter(ModelConfig model, string outputPath, StreamBarsInRange streamBars)
     {
         _model = model;
         _outputPath = outputPath;
-        _barRepository = barRepository;
+        _streamBars = streamBars;
     }
 
     public async Task GenerateFeatures(DateTime start, DateTime end)
@@ -76,11 +76,11 @@ public class FeatureExporter
     // SmaRatio(fast=5,slow=20) → "SmaRatio_5_20".
     private static string columnName(ModelFeature feature)
     {
-        if (feature.ModelFeatureParams is null || feature.ModelFeatureParams.Count == 0)
-            return feature.Name;
+        if (feature.ModelFeatureParams is null || feature.ModelFeatureParams.Count() == 0)
+            return feature.FeatureType?.Name ?? "";
 
-        var suffix = string.Join("_", feature.ModelFeatureParams.OrderBy(kv => kv.ParamKey).Select(kv => kv.ParamValue));
-        return $"{feature.Name}_{suffix}";
+        var suffix = string.Join("_", feature.ModelFeatureParams.OrderBy(kv => kv.FeatureTypeParam?.ParameterKey).Select(kv => kv.ParamValue));
+        return $"{feature.FeatureType?.Name}_{suffix}";
     }
 
     private double getTarget(List<BarData> barData, double open, double atr)
@@ -103,8 +103,8 @@ public class FeatureExporter
         start <= end ? time >= start && time < end
                      : time >= start || time < end;
 
-    private async Task<int> buildWindowFeatures(Dictionary<string, List<BarData>> minuteBarsBySession, 
-        List<string> sessionDates, 
+    private async Task<int> buildWindowFeatures(Dictionary<string, List<BarData>> minuteBarsBySession,
+        List<string> sessionDates,
         int written,
         StreamWriter writer)
     {
@@ -129,29 +129,29 @@ public class FeatureExporter
             var atr20 = Computations.ATR(sequence!, i - 1, MinLookback);
             if (atr20 == 0 || sequence[i] is null) continue;
             var target = getTarget(minuteBarsBySession[sequence[i]?.SessionDate ?? ""], sequence[i]?.Open ?? 0, atr20);
-             var featureValues = FeatureComputations.ParseFeatures(
-                _model.ModelFeatures,
-                new FeatureContext
-                (
-                    sequence!,
-                    i - 1,
-                    atr20,
-                    sessionDates[i],
-                    minuteBarsBySession
-                ));
+            var featureValues = FeatureComputations.ParseFeatures(
+               _model.ModelFeatures,
+               new FeatureContext
+               (
+                   sequence!,
+                   i - 1,
+                   atr20,
+                   sessionDates[i],
+                   minuteBarsBySession
+               ));
             if (featureValues != null)
             {
                 await writer.WriteLineAsync($"{string.Join(",", featureValues.Select(f => f.ToString("G6")))},{target:G6}");
                 written++;
             }
             if (written % 100 == 0)
-                    Console.WriteLine($"  {written} rows written...");   
+                Console.WriteLine($"  {written} rows written...");
         }
-        return written; 
+        return written;
     }
 
-    private async Task<int> buildMinuteFeatures(Dictionary<string, List<BarData>> minuteBarsBySession, 
-        List<string> sessionDates, 
+    private async Task<int> buildMinuteFeatures(Dictionary<string, List<BarData>> minuteBarsBySession,
+        List<string> sessionDates,
         int written,
         StreamWriter writer)
     {
@@ -180,8 +180,8 @@ public class FeatureExporter
         return written;
     }
 
-    private async Task<int> buildSessionFeatures(Dictionary<string, List<BarData>> minuteBarsBySession, 
-        List<string> sessionDates, 
+    private async Task<int> buildSessionFeatures(Dictionary<string, List<BarData>> minuteBarsBySession,
+        List<string> sessionDates,
         int written,
         StreamWriter writer)
     {
@@ -215,7 +215,7 @@ public class FeatureExporter
 
     private async Task GetBarsBySession(DateTime start, DateTime end, Dictionary<string, List<BarData>?> minuteBarsBySession)
     {
-        await _barRepository.StreamBarsAsync(start, end, bar =>
+        await _streamBars.ExecuteAsync(start, end, bar =>
         {
             if (bar.SessionDate == null) return Task.CompletedTask;
             if (!minuteBarsBySession.TryGetValue(bar.SessionDate, out var list))

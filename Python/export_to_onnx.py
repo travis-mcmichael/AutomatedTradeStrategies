@@ -1,6 +1,6 @@
 import os
 import json
-import sqlite3
+import requests
 import xgboost as xgb
 import onnx
 import joblib
@@ -8,24 +8,25 @@ from datetime import datetime
 from onnxmltools import convert_xgboost
 from onnxmltools.convert.common.data_types import FloatTensorType
 
+from api_config import MODELS_ENDPOINT
+
 # ==============================
 # Configuration
 # ==============================
 TODAY = datetime.today().strftime("%Y%m%d")
 
-SQLITE_DB_PATH = "/mnt/c/dev/data/SQLite/home.db"
-with sqlite3.connect(SQLITE_DB_PATH) as _conn:
-    _rows = _conn.execute(
-        "SELECT ModelName, FeatureLocation, Target FROM ModelConfig WHERE Active = 1 AND Export = 1"
-    ).fetchall()
+_response = requests.get(MODELS_ENDPOINT)
+_response.raise_for_status()
+_models = _response.json()
 
 EXECUTION_CONFIGS = [
     {
-        "name":              model_name,
-        "dir":               os.path.join(feature_location, TODAY),
-        "is_classification": target == "CLASS",
+        "name":              model["modelName"],
+        "dir":               os.path.join(model["featureLocation"], TODAY),
+        "is_classification": model["target"] == "CLASS",
     }
-    for model_name, feature_location, target in _rows
+    for model in _models
+    if model["active"] and model["export"]
 ]
 
 # ==============================

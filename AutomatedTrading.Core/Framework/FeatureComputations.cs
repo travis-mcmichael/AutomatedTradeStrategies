@@ -22,7 +22,7 @@ public class FeatureContext
         J = j;
         ATR = atr;
         MinuteBars = minuteBars;
-        SessionDate = sessionDate; 
+        SessionDate = sessionDate;
     }
 }
 
@@ -44,7 +44,8 @@ public static class FeatureComputations
         Dictionary<string, int> p = new Dictionary<string, int>();
         foreach (var param in feature.ModelFeatureParams)
         {
-            p.Add(param.ParamKey, param.ParamValue);
+            if (param.FeatureTypeParam != null)
+                p.Add(param.FeatureTypeParam.ParameterKey, param.ParamValue);
         }
         var source = feature.Source;
         var bars = new List<BarData>();
@@ -77,7 +78,7 @@ public static class FeatureComputations
 
         var current = ctx.Sequence[ctx.J];
 
-        switch (feature.Name)
+        switch (feature.FeatureType?.Name)
         {
             // ── Prev daily bar vs session open ────────────────────────────────
             case "PrevHighVsOpen":
@@ -107,10 +108,10 @@ public static class FeatureComputations
             // ── Range features ────────────────────────────────────────────────
             case "AvgRange":
                 return Computations.AverageRange(bars, ctx.J, p!["period"]);
-            case "RangeVsAvgRange10":
+            case "RangeVsAvgRange":
                 return Operations.SafeDiv(
                     current.High - current.Low,
-                    Computations.AverageRange(bars, ctx.J, 10));
+                    Computations.AverageRange(bars, ctx.J, p["range"]));
             // ── Returns ───────────────────────────────────────────────────────
             case "Return":
                 return Computations.Return(bars, ctx.J, p!["lookback"]);
@@ -172,7 +173,7 @@ public static class FeatureComputations
             case "HighTimeRatio":
                 return Computations.HighTimeRatio(bars);
             case "LowTimeRatio":
-                return Computations.LowTimeRatio(bars); 
+                return Computations.LowTimeRatio(bars);
             case "OpenToHighRatio":
                 return Computations.OpenToHighRatio(bars, ctx.ATR);
             case "OpenToLowRatio":
@@ -212,7 +213,7 @@ public static class FeatureComputations
                 if (currMinuteBars.Count == 0) return double.NaN;
                 return Computations.PreMarketVolumeRatio(currMinuteBars);
             default:
-                throw new ArgumentException($"Unknown feature name: '{feature.Name}'");
+                throw new ArgumentException($"Unknown/null feature name: '{feature?.FeatureType?.Name}'");
         }
     }
 }

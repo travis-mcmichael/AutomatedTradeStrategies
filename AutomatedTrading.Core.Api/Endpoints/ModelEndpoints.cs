@@ -1,20 +1,21 @@
-using AutomatedTrading.Core.Framework.DataLayer.Repositories;
+using AutomatedTrading.Core.Data;
+using AutomatedTrading.Core.Data.Queries;
 using AutomatedTrading.Core.Models;
 
 namespace AutomatedTrading.Core.Api.Endpoints;
 
 public static class ModelEndpoints
 {
-    private static readonly string GET_MODELS  = "/models";
-    private static readonly string SAVE_MODEL  = "/models";
+    private static readonly string GET_MODELS = "/models";
+    private static readonly string SAVE_MODEL = "/models";
 
     public static void Map(WebApplication app)
     {
         // Returns every ModelConfig row, with its Features and each feature's Params fully populated.
-        app.MapGet(GET_MODELS, async (
-            IModelConfigRepository repository) =>
+        _ = app.MapGet(GET_MODELS, async (
+            GetAllModelConfigs getAllModels) =>
         {
-            var models = await repository.GetAllAsync();
+            var models = await getAllModels.Execute();
             return Results.Ok(models);
         });
 
@@ -22,12 +23,13 @@ public static class ModelEndpoints
         // Features/Params are always replaced wholesale with what's in the request.
         app.MapPost(SAVE_MODEL, async (
             ModelConfig req,
-            IModelConfigRepository repository) =>
+            IDefaultUpdateCommand<ModelConfig> update,
+            IDefaultInsertCommand<ModelConfig> insert) =>
         {
             if (string.IsNullOrWhiteSpace(req.ModelName))
                 return Results.BadRequest("ModelName is required.");
 
-            var saved = await repository.UpsertAsync(req);
+            var saved = req.Id > 0 ? await update.Execute(req) : await insert.Execute(req);
             return Results.Ok(saved);
         });
     }

@@ -1,39 +1,35 @@
 using System;
-using System.Collections.Generic;
 using System.Data.Common;
 using System.Threading;
 using System.Threading.Tasks;
+using AutomatedTrading.Core.Framework.DataLayer;
 using AutomatedTrading.Core.Models;
+using Microsoft.Extensions.Logging;
 
-namespace AutomatedTrading.Core.Framework.DataLayer.Commands.Bars;
+namespace AutomatedTrading.Core.Data.Queries;
 
-public class GetBarsBySessionDateQuery : IDbQuery<List<BarData>>
+public class StreamBarsInRange(IDbConnectionFactory connectionFactory, ILogger<StreamBarsInRange> logger)
 {
     private const string Sql = @"
         SELECT Instrument, Timeframe, Timestamp, SessionDate, SessionTime, Open, High, Low, Close, Volume
         FROM BarData
-        WHERE SessionDate = @SessionDate
+        WHERE Timestamp >= @StartTimestamp AND Timestamp <= @EndTimestamp
         ORDER BY Timestamp ASC";
 
-    private readonly string sessionDate;
-
-    public GetBarsBySessionDateQuery(string sessionDate)
+    public async Task ExecuteAsync(DateTime start, DateTime end, Func<BarData, Task> onItem, CancellationToken ct = default)
     {
-        this.sessionDate = sessionDate;
-    }
-
-    public async Task<List<BarData>> ExecuteAsync(DbConnection connection, CancellationToken ct = default)
-    {
+        using var connection = connectionFactory.CreateConnection();
         using var cmd = connection.CreateCommand();
         cmd.CommandText = Sql;
-        addParameter(cmd, "@SessionDate", sessionDate);
+        addParameter(cmd, "@StartTimestamp", new DateTimeOffset(start, TimeSpan.Zero).ToUnixTimeMilliseconds());
+        addParameter(cmd, "@EndTimestamp", new DateTimeOffset(end, TimeSpan.Zero).ToUnixTimeMilliseconds());
 
-        var results = new List<BarData>();
         using var reader = await cmd.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
-            results.Add(mapBar(reader));
-
-        return results;
+        {
+            ct.ThrowIfCancellationRequested();
+            await onItem(mapBar(reader));
+        }
     }
 
     private static void addParameter(DbCommand cmd, string name, object value)
@@ -48,7 +44,7 @@ public class GetBarsBySessionDateQuery : IDbQuery<List<BarData>>
     {
         Instrument = r.GetString(0),
         Timeframe = r.GetString(1),
-        Timestamp = DateTimeOffset.FromUnixTimeMilliseconds(r.GetInt64(2)).LocalDateTime,
+        Timestamp = DateTimeOffset.FromUnixTimeMilliseconds(r.GetInt64(2)).UtcDateTime,
         SessionDate = r.IsDBNull(3) ? null : r.GetString(3),
         SessionTime = r.IsDBNull(4) ? null : r.GetString(4),
         Open = r.GetDouble(5),
