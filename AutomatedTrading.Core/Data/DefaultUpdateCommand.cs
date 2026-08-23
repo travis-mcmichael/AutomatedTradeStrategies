@@ -20,7 +20,7 @@ public class DefaultUpdateCommand<T>(IDbConnectionFactory connectionFactory, ILo
 
         var sql = $"UPDATE {table} SET {setClause} WHERE Id=@Id";
 
-        logger.LogInformation($"DefaultUpdateCommand.UpdateAsync() for {table} sql : {sql}");
+        logger.LogInformation($"UPDATE for {table} sql : {sql}");
 
         using var connection = connectionFactory.CreateConnection();
         await connection.OpenAsync();
@@ -42,7 +42,7 @@ public class DefaultUpdateCommand<T>(IDbConnectionFactory connectionFactory, ILo
 
         if (setProps.Length is 0 || whereProps.Length is 0)
         {
-            logger.LogWarning($"UpdateAsync() for {entity.TableName} exited: SET or WHERE empty");
+            logger.LogWarning($"UPDATE for {entity.TableName} exited: SET or WHERE empty");
             return 0;
         }
 
@@ -52,7 +52,7 @@ public class DefaultUpdateCommand<T>(IDbConnectionFactory connectionFactory, ILo
 
         var sql = $"UPDATE {table} SET {setClause} WHERE {whereClause}";
 
-        logger.LogInformation($"DefaultUpdateCommand.UpdateAsync() for {table} sql: {sql}");
+        logger.LogInformation($"UPDATE for {table} sql: {sql}");
 
         using var connection = connectionFactory.CreateConnection();
         await connection.OpenAsync();

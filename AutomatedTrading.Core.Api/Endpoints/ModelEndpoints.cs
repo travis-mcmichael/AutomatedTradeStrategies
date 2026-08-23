@@ -8,6 +8,7 @@ public static class ModelEndpoints
 {
     private static readonly string GET_MODELS = "/models";
     private static readonly string SAVE_MODEL = "/models";
+    private static readonly string SAVE_PARAMETERS = "/models/parameters";
 
     public static void Map(WebApplication app)
     {

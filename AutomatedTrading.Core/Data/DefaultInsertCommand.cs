@@ -17,7 +17,7 @@ public class DefaultInsertCommand<T>(IDbConnectionFactory connectionFactory, ILo
         var props = insertableProps();
         var sql = buildInsertSql(tableName, props);
 
-        logger.LogInformation($"DefaultInsertCommand.InsertAsync() for {tableName} sql: {sql}");
+        logger.LogInformation($"INSERT for {tableName} sql: {sql}");
 
         using var connection = connectionFactory.CreateConnection();
         await connection.OpenAsync();
@@ -40,7 +40,7 @@ public class DefaultInsertCommand<T>(IDbConnectionFactory connectionFactory, ILo
         var props = insertableProps();
         var sql = buildInsertSql(tableName, props);
 
-        logger.LogInformation($"DefaultInsertCommand.InsertAsync() batch for {tableName} sql: {sql}");
+        logger.LogInformation($"INSERT batch for {tableName} sql: {sql}");
 
         using var connection = connectionFactory.CreateConnection();
         await connection.OpenAsync();
