@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Model Config</title>
+  <link rel="stylesheet" href="css/site.css" />
+  <style>
+    .back-link {
+      display: inline-block;
+      margin-bottom: 1rem;
+      font-size: 0.9rem;
+    }
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+    }
+    .field.checkbox {
+      flex-direction: row;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    label {
+      font-size: 0.85rem;
+      color: #555;
+    }
+    input[type="text"], select {
+      font-family: inherit;
+      font-size: 0.9rem;
+      padding: 0.45rem 0.6rem;
+      border: 1px solid #d0d0d0;
+      border-radius: 4px;
+    }
+    .actions {
+      display: flex;
+      gap: 0.75rem;
+      margin-top: 1.5rem;
+    }
+  </style>
+</head>
+<body>
+  <a class="back-link" href="index.html">&larr; Back to Models</a>
+  <h1 id="page-title">Add Model</h1>
+
+  <div id="form-status" class="status" hidden></div>
+
+  <form id="model-form">
+    <div class="form-row">
+      <div class="field">
+        <label for="modelName">Model Name</label>
+        <input type="text" id="modelName" required />
+      </div>
+      <div class="field">
+        <label for="version">Version</label>
+        <input type="text" id="version" required />
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="field">
+        <label for="instrument">Instrument</label>
+        <input type="text" id="instrument" required />
+      </div>
+      <div class="field">
+        <label for="target">Target</label>
+        <select id="target" required>
+          <option value="HIGH">HIGH</option>
+          <option value="LOW">LOW</option>
+          <option value="CLASS">CLASS</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="field">
+        <label for="trainingStart">Training Start (YYYYMMDD)</label>
+        <input type="text" id="trainingStart" required />
+      </div>
+      <div class="field">
+        <label for="trainingEnd">Training End (YYYYMMDD)</label>
+        <input type="text" id="trainingEnd" required />
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="field">
+        <label for="barType">Bar Type</label>
+        <select id="barType" required>
+          <option value="session">session</option>
+          <option value="window">window</option>
+          <option value="minute">minute</option>
+        </select>
+      </div>
+      <div></div>
+    </div>
+
+    <div class="form-row">
+      <div class="field">
+        <label for="windowStart">Window Start (HHmmss)</label>
+        <input type="text" id="windowStart" />
+      </div>
+      <div class="field">
+        <label for="windowEnd">Window End (HHmmss)</label>
+        <input type="text" id="windowEnd" />
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="field">
+        <label for="featureLocation">Feature Location</label>
+        <input type="text" id="featureLocation" required />
+      </div>
+      <div class="field">
+        <label for="outputLocation">Output Location</label>
+        <input type="text" id="outputLocation" required />
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="field checkbox">
+        <input type="checkbox" id="export" />
+        <label for="export">Export</label>
+      </div>
+      <div class="field checkbox">
+        <input type="checkbox" id="active" />
+        <label for="active">Active</label>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button type="submit" class="btn btn-primary">Save</button>
+      <a class="btn" href="index.html">Cancel</a>
+    </div>
+  </form>
+
+  <script>
+    const params = new URLSearchParams(location.search);
+    const modelId = params.get("id");
+    let existingModelFeatures = [];
+
+    const form = document.getElementById("model-form");
+    const status = document.getElementById("form-status");
+
+    function showStatus(message, isError) {
+      status.textContent = message;
+      status.classList.toggle("error", !!isError);
+      status.hidden = false;
+    }
+
+    function populateForm(model) {
+      document.getElementById("modelName").value = model.modelName ?? "";
+      document.getElementById("version").value = model.version ?? "";
+      document.getElementById("instrument").value = model.instrument ?? "";
+      document.getElementById("target").value = model.target ?? "HIGH";
+      document.getElementById("trainingStart").value = model.trainingStart ?? "";
+      document.getElementById("trainingEnd").value = model.trainingEnd ?? "";
+      document.getElementById("barType").value = model.barType ?? "session";
+      document.getElementById("windowStart").value = model.windowStart ?? "";
+      document.getElementById("windowEnd").value = model.windowEnd ?? "";
+      document.getElementById("featureLocation").value = model.featureLocation ?? "";
+      document.getElementById("outputLocation").value = model.outputLocation ?? "";
+      document.getElementById("export").checked = !!model.export;
+      document.getElementById("active").checked = !!model.active;
+      existingModelFeatures = model.modelFeatures ?? [];
+    }
+
+    async function loadExistingModel() {
+      if (!modelId) return;
+
+      document.getElementById("page-title").textContent = "Edit Model";
+      try {
+        const response = await fetch("/api/models");
+        if (!response.ok) {
+          throw new Error(`Request failed: ${response.status}`);
+        }
+        const models = await response.json();
+        const model = models.find((m) => String(m.id) === modelId);
+        if (!model) {
+          showStatus(`Model with id ${modelId} was not found.`, true);
+          return;
+        }
+        populateForm(model);
+      } catch (err) {
+        showStatus(`Failed to load model: ${err.message}`, true);
+      }
+    }
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      status.hidden = true;
+
+      const payload = {
+        id: modelId ? Number(modelId) : 0,
+        modelName: document.getElementById("modelName").value,
+        version: document.getElementById("version").value,
+        instrument: document.getElementById("instrument").value,
+        trainingStart: document.getElementById("trainingStart").value,
+        trainingEnd: document.getElementById("trainingEnd").value,
+        target: document.getElementById("target").value,
+        barType: document.getElementById("barType").value,
+        windowStart: document.getElementById("windowStart").value || null,
+        windowEnd: document.getElementById("windowEnd").value || null,
+        featureLocation: document.getElementById("featureLocation").value,
+        outputLocation: document.getElementById("outputLocation").value,
+        export: document.getElementById("export").checked,
+        active: document.getElementById("active").checked,
+        modelFeatures: existingModelFeatures,
+      };
+
+      try {
+        const response = await fetch("/api/models", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(text || `Request failed: ${response.status}`);
+        }
+        location.href = "index.html?tab=models";
+      } catch (err) {
+        showStatus(`Failed to save model: ${err.message}`, true);
+      }
+    });
+
+    loadExistingModel();
+  </script>
+</body>
+</html>

@@ -9,7 +9,7 @@ public static class ModelEndpoints
 {
     private static readonly string GET_MODELS = "/models";
     private static readonly string SAVE_MODEL = "/models";
-    private static readonly string SAVE_PARAMETERS = "/models/parameters";
+    private static readonly string SAVE_PERFORMANCE = "/models/perf";
 
     public static void Map(WebApplication app)
     {
@@ -30,6 +30,22 @@ public static class ModelEndpoints
             if (string.IsNullOrWhiteSpace(req.ModelName))
                 return Results.BadRequest("ModelName is required.");
             return Results.Ok(await updateModelConfig.Execute(req));
+        });
+
+        app.MapPost(SAVE_PERFORMANCE, async (
+            ModelPerformance req,
+            IDefaultInsertCommand<ModelPerformance> insert,
+            IDefaultUpdateCommand<ModelPerformance> update
+        ) =>
+        {
+            if (req.Id is 0)
+            {
+                await insert.Execute(req);
+            }
+            else
+            {
+                await update.Execute(req);
+            }
         });
     }
 }

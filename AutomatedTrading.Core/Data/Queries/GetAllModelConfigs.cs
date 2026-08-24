@@ -8,6 +8,7 @@ namespace AutomatedTrading.Core.Data.Queries;
 public class GetAllModelConfigs(IDefaultRepository<ModelConfig> modelConfigs,
     IDefaultRepository<ModelFeature> modelFeatures,
     IDefaultRepository<ModelFeatureParam> modelFeatureParams,
+    IDefaultRepository<ModelPerformance> modelPerformance,
     IDefaultRepository<FeatureType> featureTypes,
     IDefaultRepository<FeatureTypeParam> featureTypeParams)
 {
@@ -18,6 +19,7 @@ public class GetAllModelConfigs(IDefaultRepository<ModelConfig> modelConfigs,
         var models = await modelConfigs.GetDataAsync(new Dictionary<string, object> { { "1", 1 } });
         var fTypes = await featureTypes.GetDataAsync(new Dictionary<string, object> { { "1", 1 } });
         var fTypeParams = await featureTypeParams.GetDataAsync(new Dictionary<string, object> { { "1", 1 } });
+        var modelPerformances = await modelPerformance.GetDataAsync(new Dictionary<string, object> { { "1", 1 } });
 
         foreach (var parameter in parameters)
         {
@@ -35,6 +37,7 @@ public class GetAllModelConfigs(IDefaultRepository<ModelConfig> modelConfigs,
                 feature.FeatureType = fTypes.FirstOrDefault(x => x.Id == feature.FeatureTypeId);
             }
             model.ModelFeatures = [.. features.Where(x => x.ModelConfigId == model.Id)];
+            model.ModelPerformance = modelPerformances.FirstOrDefault(x => x.ModelConfigId == model.Id);
         }
         return [.. models];
     }

@@ -40,6 +40,7 @@ var models = await new GetAllModelConfigs(
     new DefaultRepository<ModelConfig>(connectionFactory, null),
     new DefaultRepository<ModelFeature>(connectionFactory, null),
     new DefaultRepository<ModelFeatureParam>(connectionFactory, null),
+    new DefaultRepository<ModelPerformance>(connectionFactory, null),
     new DefaultRepository<FeatureType>(connectionFactory, null),
     new DefaultRepository<FeatureTypeParam>(connectionFactory, null)
 ).Execute();
