@@ -9,6 +9,7 @@ public static class ModelEndpoints
 {
     private static readonly string GET_MODELS = "/models";
     private static readonly string SAVE_MODEL = "/models";
+    private static readonly string GET_FEATURES = "/features";
     private static readonly string SAVE_PERFORMANCE = "/models/perf";
 
     public static void Map(WebApplication app)
@@ -18,6 +19,13 @@ public static class ModelEndpoints
             GetAllModelConfigs getAllModels) =>
         {
             var models = await getAllModels.Execute();
+            return Results.Ok(models);
+        });
+
+        _ = app.MapGet(GET_FEATURES, async (
+            GetFeatureTypes getFeatureTypes) =>
+        {
+            var models = await getFeatureTypes.Execute();
             return Results.Ok(models);
         });
 
@@ -38,14 +46,16 @@ public static class ModelEndpoints
             IDefaultUpdateCommand<ModelPerformance> update
         ) =>
         {
+            var res = 0L;
             if (req.Id is 0)
             {
-                await insert.Execute(req);
+                res = await insert.Execute(req);
             }
             else
             {
-                await update.Execute(req);
+                res = await update.Execute(req);
             }
+            return Results.Ok(res);
         });
     }
 }
