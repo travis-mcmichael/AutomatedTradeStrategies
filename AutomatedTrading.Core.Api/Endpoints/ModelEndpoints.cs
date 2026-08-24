@@ -1,4 +1,5 @@
 using AutomatedTrading.Core.Data;
+using AutomatedTrading.Core.Data.Commands;
 using AutomatedTrading.Core.Data.Queries;
 using AutomatedTrading.Core.Models;
 
@@ -24,14 +25,11 @@ public static class ModelEndpoints
         // Features/Params are always replaced wholesale with what's in the request.
         app.MapPost(SAVE_MODEL, async (
             ModelConfig req,
-            IDefaultUpdateCommand<ModelConfig> update,
-            IDefaultInsertCommand<ModelConfig> insert) =>
+            UpdateModelConfig updateModelConfig) =>
         {
             if (string.IsNullOrWhiteSpace(req.ModelName))
                 return Results.BadRequest("ModelName is required.");
-
-            var saved = req.Id > 0 ? await update.Execute(req) : await insert.Execute(req);
-            return Results.Ok(saved);
+            return Results.Ok(await updateModelConfig.Execute(req));
         });
     }
 }
