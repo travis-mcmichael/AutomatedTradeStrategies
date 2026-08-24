@@ -54,6 +54,61 @@
       font-size: 0.8rem;
       margin-bottom: 0.4rem;
     }
+    #features-table tbody tr {
+      cursor: pointer;
+    }
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+    }
+    .modal {
+      background: #ffffff;
+      border-radius: 6px;
+      padding: 1.25rem 1.5rem;
+      min-width: 320px;
+      max-width: 90vw;
+      max-height: 80vh;
+      overflow-y: auto;
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
+    }
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.75rem;
+    }
+    .modal-header h3 {
+      margin: 0;
+      font-size: 1rem;
+    }
+    .modal-close {
+      appearance: none;
+      border: none;
+      background: none;
+      font-size: 1.3rem;
+      line-height: 1;
+      cursor: pointer;
+      color: #555;
+      padding: 0;
+    }
+    .modal input[type="number"] {
+      font-family: inherit;
+      font-size: 0.9rem;
+      padding: 0.35rem 0.5rem;
+      border: 1px solid #d0d0d0;
+      border-radius: 4px;
+      width: 8rem;
+    }
+    .modal-actions {
+      display: flex;
+      gap: 0.75rem;
+      margin-top: 1rem;
+    }
   </style>
 </head>
 <body>
@@ -153,17 +208,58 @@
     </div>
   </form>
 
+  <div class="modal-overlay" id="param-modal-overlay" hidden>
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="param-modal-title">Feature Parameters</h3>
+        <button type="button" class="modal-close" id="param-modal-close" aria-label="Close">&times;</button>
+      </div>
+      <table id="param-modal-table">
+        <thead>
+          <tr>
+            <th>Parameter</th>
+            <th>Value</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-primary" id="param-modal-save">Save</button>
+        <button type="button" class="btn" id="param-modal-cancel">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="lib/jquery/jquery.min.js"></script>
   <script>
     const params = new URLSearchParams(location.search);
     const modelId = params.get("id");
     let existingModelFeatures = [];
     let existingFeatureLocation = "";
     let existingOutputLocation = "";
+    let featureTypesById = {};
+    let activeParamFeature = null;
 
     const form = document.getElementById("model-form");
     const status = document.getElementById("form-status");
     const barTypeSelect = document.getElementById("barType");
     const windowFieldsRow = document.getElementById("window-fields-row");
+    const paramModalOverlay = document.getElementById("param-modal-overlay");
+    const paramModalTitle = document.getElementById("param-modal-title");
+    const paramModalBody = document.querySelector("#param-modal-table tbody");
+
+    async function loadFeatureTypes() {
+      try {
+        const response = await fetch("/api/features");
+        if (!response.ok) {
+          throw new Error(`Request failed: ${response.status}`);
+        }
+        const featureTypes = await response.json();
+        featureTypesById = Object.fromEntries(featureTypes.map((f) => [f.id, f]));
+      } catch (err) {
+        showStatus(`Failed to load feature types: ${err.message}`, true);
+      }
+    }
 
     function showStatus(message, isError) {
       status.textContent = message;
@@ -181,9 +277,14 @@
       return source === "prevMinute" || source === "currMinute" ? source : "daily";
     }
 
-    function formatParams(modelFeatureParams) {
-      return (modelFeatureParams ?? [])
-        .map((p) => `${p.featureTypeParam?.parameterKey ?? "?"}=${p.paramValue}`)
+    function paramDefsFor(feature) {
+      return featureTypesById[feature.featureTypeId]?.featureTypeParams ?? [];
+    }
+
+    function formatParams(feature) {
+      const keyById = Object.fromEntries(paramDefsFor(feature).map((p) => [p.id, p.parameterKey]));
+      return (feature.modelFeatureParams ?? [])
+        .map((p) => `${keyById[p.featureTypeParamId] ?? "?"}=${p.paramValue}`)
         .join(", ");
     }
 
@@ -198,19 +299,76 @@
         const cells = [
           feature.featureType?.name ?? "",
           sourceToDisplay(feature.source),
-          formatParams(feature.modelFeatureParams),
+          formatParams(feature),
         ];
         for (const value of cells) {
           const cell = document.createElement("td");
           cell.textContent = value;
           row.appendChild(cell);
         }
+        row.addEventListener("click", () => openParamModal(feature));
         tbody.appendChild(row);
       }
 
       featuresStatus.hidden = existingModelFeatures.length > 0;
       featuresTable.hidden = existingModelFeatures.length === 0;
     }
+
+    function openParamModal(feature) {
+      activeParamFeature = feature;
+      paramModalTitle.textContent = feature.featureType?.name ?? "Feature Parameters";
+
+      const paramDefs = paramDefsFor(feature);
+      const valueById = Object.fromEntries(
+        (feature.modelFeatureParams ?? []).map((p) => [p.featureTypeParamId, p.paramValue]),
+      );
+
+      paramModalBody.innerHTML = "";
+      for (const paramDef of paramDefs) {
+        const row = document.createElement("tr");
+
+        const nameCell = document.createElement("td");
+        nameCell.textContent = paramDef.parameterKey;
+        row.appendChild(nameCell);
+
+        const valueCell = document.createElement("td");
+        const input = document.createElement("input");
+        input.type = "number";
+        input.step = "1";
+        input.dataset.featureTypeParamId = paramDef.id;
+        input.value = valueById[paramDef.id] ?? 0;
+        valueCell.appendChild(input);
+        row.appendChild(valueCell);
+
+        paramModalBody.appendChild(row);
+      }
+
+      paramModalOverlay.hidden = false;
+    }
+
+    function closeParamModal() {
+      paramModalOverlay.hidden = true;
+      activeParamFeature = null;
+    }
+
+    document.getElementById("param-modal-close").addEventListener("click", closeParamModal);
+    document.getElementById("param-modal-cancel").addEventListener("click", closeParamModal);
+    paramModalOverlay.addEventListener("click", (event) => {
+      if (event.target === paramModalOverlay) closeParamModal();
+    });
+
+    document.getElementById("param-modal-save").addEventListener("click", () => {
+      if (!activeParamFeature) return;
+
+      const inputs = paramModalBody.querySelectorAll("input[data-feature-type-param-id]");
+      activeParamFeature.modelFeatureParams = Array.from(inputs).map((input) => ({
+        featureTypeParamId: Number(input.dataset.featureTypeParamId),
+        paramValue: parseInt(input.value, 10) || 0,
+      }));
+
+      closeParamModal();
+      renderFeatures();
+    });
 
     function populateForm(model) {
       document.getElementById("modelName").value = model.modelName ?? "";
@@ -290,9 +448,14 @@
       }
     });
 
-    updateWindowFieldsVisibility();
-    renderFeatures();
-    loadExistingModel();
+    async function init() {
+      updateWindowFieldsVisibility();
+      await loadFeatureTypes();
+      renderFeatures();
+      await loadExistingModel();
+    }
+
+    init();
   </script>
 </body>
 </html>
