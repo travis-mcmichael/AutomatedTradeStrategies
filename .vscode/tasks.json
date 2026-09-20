@@ -44,6 +44,16 @@
 				"${workspaceFolder}/AutomatedTrading.Web/AutomatedTrading.Web.csproj"
 			],
 			"problemMatcher": "$msCompile"
+		},
+		{
+			"label": "build: AutomatedTradeStrategies.Management.Web",
+			"command": "dotnet",
+			"type": "process",
+			"args": [
+				"build",
+				"${workspaceFolder}/AutomatedTradeStrategies.Management.Web/AutomatedTradeStrategies.Management.Web.csproj"
+			],
+			"problemMatcher": "$msCompile"
 		}
 	]
 }

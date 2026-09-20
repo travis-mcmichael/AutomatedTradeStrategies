@@ -5,4 +5,5 @@
   <Project Path="AutomatedTrading.Export.Feature/AutomatedTrading.Export.Feature.csproj" />
   <Project Path="AutomatedTrading.Console/AutomatedTrading.Console.csproj" />
   <Project Path="AutomatedTrading.Web/AutomatedTrading.Web.csproj" />
+  <Project Path="AutomatedTradeStrategies.Management.Web/AutomatedTradeStrategies.Management.Web.csproj" />
 </Solution>

@@ -77,7 +77,15 @@
   <script src="lib/jquery/jquery.min.js"></script>
   <script>
     const tabButtons = document.querySelectorAll(".tab-button");
+    const tabs = $('.tab-button');
+    const panels = $('.tab-panel');
+    // console.log("js, jq", { tabButtons, tabButtons2});
     const tabPanels = document.querySelectorAll(".tab-panel");
+
+  for (var i = 0; i < tabButtons2.length; i++)
+  {
+    console.log(tabButtons2.get(i));
+  }
 
     tabButtons.forEach((button) => {
       button.addEventListener("click", () => {

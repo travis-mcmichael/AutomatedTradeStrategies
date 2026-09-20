@@ -23,7 +23,7 @@ public static class Endpoints
         app.MapPost("api/models", async (HttpRequest request, IHttpClientFactory httpClientFactory) =>
         {
             using var reader = new StreamReader(request.Body);
-            var body = await reader.ReadToEndAsync(;
+            var body = await reader.ReadToEndAsync();
             var client = httpClientFactory.CreateClient("Api");
             var response = await client.PostAsync("/models", new StringContent(body, Encoding.UTF8, "application/json"));
             var json = await response.Content.ReadAsStringAsync();

@@ -1,0 +1,21 @@
+﻿@{
+    ViewData["Title"] = "Home Page";
+}
+
+<h2>Models</h2>
+<div id="models-table"></div>
+@section Scripts
+{
+    <script>
+        const columns = [
+            { title: 'Model', field: 'modelName' },
+            { title: 'Version', field: 'version' },
+            { title: 'Instrument', field: 'instrument' },
+            { title: 'Target', field: 'target' },
+            { title: 'Bar Type', field: 'barType' },
+            { title: 'Active', field: 'active', formatter: 'tickCross' },
+            { title: 'Export', field: 'export', formatter: 'tickCross' }
+        ];
+        const table = Defaults.grid.buildGrid('#models-table', columns, '/Home/Models');
+    </script>
+}
