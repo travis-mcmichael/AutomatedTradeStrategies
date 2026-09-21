@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using AutomatedTrading.Core.Data;
+using AutomatedTrading.Core.Data.Commands;
 using AutomatedTrading.Core.Framework;
 using AutomatedTrading.Core.Models;
 
@@ -12,10 +13,23 @@ namespace AutomatedTrading.Core.Import;
 
 public class BarImporter
 {
-    public static async Task<int> ImportBarData(string file, string instrument, IDefaultInsertCommand<BarData> barRepository)
+    private const string FILE_SUFFIX = ".Last.txt";
+
+    // fileName is the original name, formatted "[instrument] [mm-yy].Last.txt" (e.g. "MES 03-26.Last.txt");
+    // `file` is the path actually read, which may be a temp copy with a different name.
+    public static async Task<int> ImportBarData(
+        string file,
+        string fileName,
+        GetOrCreateInstrument getOrCreateInstrument,
+        GetOrCreateInstrumentVersion getOrCreateInstrumentVersion,
+        IDefaultInsertCommand<BarData> barRepository)
     {
         if (!File.Exists(file))
             return 0;
+
+        var (instrument, version) = parseFileName(fileName);
+        var instrumentId = await getOrCreateInstrument.Execute(instrument);
+        var versionId = await getOrCreateInstrumentVersion.Execute(instrumentId, version);
 
         var bars = new List<BarData>();
         using var reader = new StreamReader(file);
@@ -23,7 +37,7 @@ public class BarImporter
         while ((line = await reader.ReadLineAsync()) != null)
         {
             if (string.IsNullOrWhiteSpace(line)) continue;
-            var bar = parseBarData(line, instrument);
+            var bar = parseBarData(line, instrument, (int)instrumentId, (int)versionId);
             if (bar != null) bars.Add(bar);
         }
 
@@ -43,7 +57,20 @@ public class BarImporter
         return 0;
     }
 
-    private static BarData? parseBarData(string line, string instrument)
+    private static (string Instrument, string Version) parseFileName(string fileName)
+    {
+        var name = Path.GetFileName(fileName);
+        if (!name.EndsWith(FILE_SUFFIX, StringComparison.OrdinalIgnoreCase))
+            throw new FormatException($"'{fileName}' does not match '[instrument] [mm-yy]{FILE_SUFFIX}'.");
+
+        var parts = name[..^FILE_SUFFIX.Length].Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length != 2 || !DateTime.TryParseExact(parts[1], "MM-yy", CultureInfo.InvariantCulture, DateTimeStyles.None, out _))
+            throw new FormatException($"'{fileName}' does not match '[instrument] [mm-yy]{FILE_SUFFIX}'.");
+
+        return (parts[0], parts[1]);
+    }
+
+    private static BarData? parseBarData(string line, string instrument, int instrumentId, int versionId)
     {
         var parts = line.Split(';');
         var timestamp = DateTimeConverter.UtcStringToLocal(parts[0].Replace(" ", ""));
@@ -54,6 +81,8 @@ public class BarImporter
         return new BarData
         {
             Instrument = instrument,
+            InstrumentId = instrumentId,
+            VersionId = versionId,
             Timeframe = "1m",
             Timestamp = timestamp,
             Open = double.Parse(parts[1], CultureInfo.InvariantCulture),

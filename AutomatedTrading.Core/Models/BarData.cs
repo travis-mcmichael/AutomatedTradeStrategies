@@ -20,6 +20,8 @@ public class BarData : IDatabaseEntity
     public string? Timeframe { get; set; }
     public string? SessionDate { get; set; }
     public string? SessionTime { get; set; }
+    public int? InstrumentId { get; set; }
+    public int? VersionId { get; set; }
 
     public BarData() { }
     public BarData(BarData bar)
@@ -33,6 +35,8 @@ public class BarData : IDatabaseEntity
         Timeframe = bar.Timeframe;
         Timestamp = bar.Timestamp;
         SessionDate = bar.SessionDate;
+        InstrumentId = bar.InstrumentId;
+        VersionId = bar.VersionId;
     }
     public virtual string ToLog()
     {

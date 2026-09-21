@@ -121,16 +121,9 @@
             const files = e.dataTransfer.files;
             if (!files.length) return;
 
-            const instrument = instrumentSelect.value;
-            if (!instrument) {
-                dropzoneStatus.textContent = 'Select an instrument before importing files.';
-                return;
-            }
-
             dropzoneStatus.textContent = `Importing ${files.length} file(s)...`;
 
             const formData = new FormData();
-            formData.append('instrument', instrument);
             for (const file of files) formData.append('files', file);
 
             try {
@@ -139,7 +132,9 @@
 
                 const results = await res.json();
                 const total = results.reduce((sum, r) => sum + r.imported, 0);
-                dropzoneStatus.textContent = `Imported ${total} bar record(s) from ${results.length} file(s).`;
+                const errors = results.filter(r => r.error).map(r => r.error);
+                dropzoneStatus.textContent = `Imported ${total} bar record(s) from ${results.length} file(s).` +
+                    (errors.length ? ` Skipped: ${errors.join(' ')}` : '');
 
                 if (barDataTable) barDataTable.setData('/Home/BarDataCounts');
             } catch (err) {
