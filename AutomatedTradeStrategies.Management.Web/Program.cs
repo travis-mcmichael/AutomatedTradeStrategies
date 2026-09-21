@@ -1,6 +1,8 @@
 using AutomatedTrading.Core.Data;
+using AutomatedTrading.Core.Data.Commands;
 using AutomatedTrading.Core.Framework.DataLayer;
 using AutomatedTrading.Core.Framework.DataLayer.Sqlite;
+using AutomatedTrading.Core.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -17,12 +19,17 @@ builder.Services.AddScoped(typeof(IDefaultInsertCommand<>), typeof(DefaultInsert
 builder.Services.AddScoped(typeof(IDefaultUpdateCommand<>), typeof(DefaultUpdateCommand<>));
 builder.Services.AddScoped(typeof(IDefaultDeleteCommand<>), typeof(DefaultDeleteCommand<>));
 
+// Overrides the generic DefaultInsertCommand<BarData> registered above: batches inserts and
+// replaces existing rows on (Instrument, Timestamp) conflicts instead of a plain INSERT.
+builder.Services.AddScoped<IDefaultInsertCommand<BarData>, BarDataInsertCommand>();
+
 // Auto-register every query/command class so new ones don't need to be listed here.
 var queryAndCommandTypes = typeof(IDatabaseEntity).Assembly.GetTypes()
     .Where(t => t is
     {
         IsClass: true,
         IsAbstract: false,
+        IsNested: false, // skips compiler-generated iterator/closure classes
         Namespace: "AutomatedTrading.Core.Data.Queries" or "AutomatedTrading.Core.Data.Commands"
     });
 

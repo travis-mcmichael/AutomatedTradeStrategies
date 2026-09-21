@@ -1,13 +1,18 @@
+using System;
+using System.Collections.Generic;
 using System.Globalization;
-using AutomatedTrading.Core.Framework.DataLayer.Repositories;
-using AutomatedTrading.Core.Framework.Utility;
+using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
+using AutomatedTrading.Core.Data;
+using AutomatedTrading.Core.Framework;
 using AutomatedTrading.Core.Models;
 
-namespace AutomatedTrading.Import.Importers;
+namespace AutomatedTrading.Core.Import;
 
 public class BarImporter
 {
-    public static async Task<int> ImportBarData(string file, IBarRepository barRepository, int batchSize)
+    public static async Task<int> ImportBarData(string file, string instrument, IDefaultInsertCommand<BarData> barRepository)
     {
         if (!File.Exists(file))
             return 0;
@@ -18,14 +23,17 @@ public class BarImporter
         while ((line = await reader.ReadLineAsync()) != null)
         {
             if (string.IsNullOrWhiteSpace(line)) continue;
-            var bar = parseBarData(line);
+            var bar = parseBarData(line, instrument);
             if (bar != null) bars.Add(bar);
         }
 
         try
         {
             if (bars.Count > 0)
-                return await barRepository.InsertBatchAsync(bars, batchSize);
+            {
+                var inserted = await barRepository.Execute(bars);
+                return inserted.Count();
+            }
         }
         catch (Exception ex)
         {
@@ -35,17 +43,17 @@ public class BarImporter
         return 0;
     }
 
-    private static BarData? parseBarData(string line)
+    private static BarData? parseBarData(string line, string instrument)
     {
-        var parts        = line.Split(';');
-        var timestamp    = DateTimeConverter.UtcStringToLocal(parts[0].Replace(" ", ""));
-        var sessionDate  = timestamp.Date;
+        var parts = line.Split(';');
+        var timestamp = DateTimeConverter.UtcStringToLocal(parts[0].Replace(" ", ""));
+        var sessionDate = timestamp.Date;
         if (timestamp.Hour > 16)
             sessionDate = TradingCalendar.GetNextSessionDate(timestamp.Date);
 
         return new BarData
         {
-            Instrument = "MES",
+            Instrument = instrument,
             Timeframe = "1m",
             Timestamp = timestamp,
             Open = double.Parse(parts[1], CultureInfo.InvariantCulture),

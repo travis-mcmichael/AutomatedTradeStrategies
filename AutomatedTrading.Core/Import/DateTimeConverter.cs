@@ -1,6 +1,7 @@
+using System;
 using System.Globalization;
 
-namespace AutomatedTrading.Import;
+namespace AutomatedTrading.Core.Import;
 
 public static class DateTimeConverter
 {

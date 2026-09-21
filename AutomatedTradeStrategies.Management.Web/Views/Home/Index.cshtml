@@ -1,9 +1,46 @@
-﻿@{
+@{
     ViewData["Title"] = "Home Page";
 }
 
-<h2>Models</h2>
-<div id="models-table"></div>
+<ul class="nav nav-tabs mb-3" id="homeTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="home-tab" data-bs-toggle="tab" data-bs-target="#home-pane" type="button" role="tab" aria-controls="home-pane" aria-selected="true">Home</button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="trade-data-tab" data-bs-toggle="tab" data-bs-target="#trade-data-pane" type="button" role="tab" aria-controls="trade-data-pane" aria-selected="false">Trade Data</button>
+    </li>
+</ul>
+<div class="tab-content" id="homeTabsContent">
+    <div class="tab-pane fade show active" id="home-pane" role="tabpanel" aria-labelledby="home-tab" tabindex="0">
+        <h2>Models</h2>
+        <div id="models-table"></div>
+    </div>
+    <div class="tab-pane fade" id="trade-data-pane" role="tabpanel" aria-labelledby="trade-data-tab" tabindex="0">
+        <div class="mb-3">
+            <label for="bar-data-instrument" class="form-label">Instrument</label>
+            <select id="bar-data-instrument" class="form-select" style="max-width: 240px;"></select>
+        </div>
+        <div id="bar-data-dropzone" class="bar-data-dropzone text-center text-muted p-4 mb-3 rounded">
+            Drag and drop NinjaTrader bar export files here to import
+            <div id="bar-data-dropzone-status" class="mt-2 small"></div>
+        </div>
+        <h2>BarData — Last 30 Trading Days</h2>
+        <div id="bar-data-table"></div>
+    </div>
+</div>
+
+<style>
+    .bar-data-dropzone {
+        border: 2px dashed #adb5bd;
+        transition: background-color 0.15s ease, border-color 0.15s ease;
+    }
+
+    .bar-data-dropzone.bar-data-dropzone-active {
+        background-color: #eef6ff;
+        border-color: #0d6efd;
+    }
+</style>
+
 @section Scripts
 {
     <script>
@@ -17,5 +54,97 @@
             { title: 'Export', field: 'export', formatter: 'tickCross' }
         ];
         const table = Defaults.grid.buildGrid('#models-table', columns, '/Home/Models');
+
+        const barDataColumns = [
+            {
+                title: 'Session Date', field: 'sessionDate',
+                formatter: (cell) => {
+                    const v = cell.getValue();
+                    return v ? `${v.slice(0, 4)}-${v.slice(4, 6)}-${v.slice(6, 8)}` : '';
+                }
+            },
+            { title: 'Bar Count', field: 'barCount', hozAlign: 'right' }
+        ];
+
+        // Built lazily on first show: Tabulator's fitColumns layout can't measure
+        // a container that's still display:none inside the inactive tab pane.
+        let barDataTable = null;
+        let instrumentsLoaded = false;
+        const instrumentSelect = document.getElementById('bar-data-instrument');
+
+        document.getElementById('trade-data-tab').addEventListener('shown.bs.tab', async () => {
+            if (!barDataTable) {
+                barDataTable = Defaults.grid.buildGrid('#bar-data-table', barDataColumns, '/Home/BarDataCounts');
+            } else {
+                barDataTable.redraw(true);
+            }
+
+            if (!instrumentsLoaded) {
+                instrumentsLoaded = true;
+                try {
+                    const res = await fetch('/Home/Instruments');
+                    if (!res.ok) throw new Error(`request failed with status ${res.status}`);
+                    const instruments = await res.json();
+
+                    instrumentSelect.innerHTML = '';
+                    for (const instrument of instruments) {
+                        const option = document.createElement('option');
+                        option.value = instrument;
+                        option.textContent = instrument;
+                        instrumentSelect.appendChild(option);
+                    }
+                } catch (err) {
+                    instrumentSelect.innerHTML = '<option value="">Failed to load instruments</option>';
+                }
+            }
+        });
+
+        // Keep a stray drop outside the dropzone from navigating the browser to the file.
+        window.addEventListener('dragover', (e) => e.preventDefault());
+        window.addEventListener('drop', (e) => e.preventDefault());
+
+        const dropzone = document.getElementById('bar-data-dropzone');
+        const dropzoneStatus = document.getElementById('bar-data-dropzone-status');
+
+        ['dragenter', 'dragover'].forEach((evt) => dropzone.addEventListener(evt, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dropzone.classList.add('bar-data-dropzone-active');
+        }));
+        ['dragleave', 'drop'].forEach((evt) => dropzone.addEventListener(evt, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dropzone.classList.remove('bar-data-dropzone-active');
+        }));
+
+        dropzone.addEventListener('drop', async (e) => {
+            const files = e.dataTransfer.files;
+            if (!files.length) return;
+
+            const instrument = instrumentSelect.value;
+            if (!instrument) {
+                dropzoneStatus.textContent = 'Select an instrument before importing files.';
+                return;
+            }
+
+            dropzoneStatus.textContent = `Importing ${files.length} file(s)...`;
+
+            const formData = new FormData();
+            formData.append('instrument', instrument);
+            for (const file of files) formData.append('files', file);
+
+            try {
+                const res = await fetch('/Home/ImportBarData', { method: 'POST', body: formData });
+                if (!res.ok) throw new Error(`request failed with status ${res.status}`);
+
+                const results = await res.json();
+                const total = results.reduce((sum, r) => sum + r.imported, 0);
+                dropzoneStatus.textContent = `Imported ${total} bar record(s) from ${results.length} file(s).`;
+
+                if (barDataTable) barDataTable.setData('/Home/BarDataCounts');
+            } catch (err) {
+                dropzoneStatus.textContent = `Import failed: ${err.message}`;
+            }
+        });
     </script>
 }

@@ -1,14 +1,20 @@
+using System;
+using System.Collections.Generic;
 using System.Globalization;
-using AutomatedTrading.Core.Framework.DataLayer.Repositories;
+using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
+using AutomatedTrading.Core.Data;
 using AutomatedTrading.Core.Models;
 
-namespace AutomatedTrading.Import.Importers;
+namespace AutomatedTrading.Core.Import;
 
 public class TickImporter
 {
     private const string Instrument = "MES";
 
-    public static async Task<int> ImportTickData(string file, ITickRepository tickRepository, int batchSize)
+    /*
+    public static async Task<int> ImportTickData(string file, IDefaultInsertCommand<TickData> tickInsert, int batchSize)
     {
         if (!File.Exists(file))
             return 0;
@@ -23,10 +29,14 @@ public class TickImporter
         }
 
         if (ticks.Count > 0)
-            return await tickRepository.InsertBatchAsync(ticks, batchSize);
+        {
+            var inserted = await tickInsert.Execute(ticks);
+            return inserted.Count();
+        }
 
         return 0;
     }
+    */
 
     private static TickData? parseTickData(string line)
     {
@@ -49,9 +59,9 @@ public class TickImporter
             float lastPrice = float.Parse(parts[1], CultureInfo.InvariantCulture);
             float bid = float.Parse(parts[2], CultureInfo.InvariantCulture);
             float ask = float.Parse(parts[3], CultureInfo.InvariantCulture);
-            var   vol = parts[4].Split(['.'], StringSplitOptions.RemoveEmptyEntries)[0];
-            int   volume = int.Parse(vol);
-            long  tickTime = new DateTimeOffset(dt).ToUnixTimeMilliseconds();
+            var vol = parts[4].Split(['.'], StringSplitOptions.RemoveEmptyEntries)[0];
+            int volume = int.Parse(vol);
+            long tickTime = new DateTimeOffset(dt).ToUnixTimeMilliseconds();
 
             return new TickData
             {

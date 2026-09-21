@@ -1,7 +1,7 @@
 using AutomatedTrading.Core.Framework;
 using AutomatedTrading.Core.Framework.DataLayer.Repositories;
 using AutomatedTrading.Core.Framework.DataLayer.Sqlite;
-using AutomatedTrading.Import.Importers;
+using AutomatedTrading.Core.Import;
 
 namespace AutomatedTrading.Import;
 
