@@ -10,18 +10,23 @@ using Microsoft.Extensions.Logging;
 namespace AutomatedTrading.Core.Data.Commands;
 
 // Replaces every ModelFeatureParam on the given ModelConfig's features with the supplied set, sets the
-// supplied ModelFeature names and deletes the given ModelFeatures, in one transaction. Each param must pair
-// one of that model's ModelFeatures with a FeatureTypeParam of the feature's FeatureType, at most once; each
-// named or deleted feature must belong to the model, and nothing may be set on a deleted feature. Otherwise
+// supplied ModelFeature names, inserts the new ModelFeatures (appended after the existing SortOrder) and
+// deletes the given ModelFeatures, in one transaction. Each param must pair one of that model's ModelFeatures
+// (or a new feature's TempId) with a FeatureTypeParam of the feature's FeatureType, at most once; each named
+// or deleted feature must belong to the model, and nothing may be set on a deleted feature. Otherwise
 // nothing is changed and ArgumentException is thrown.
 public class ReplaceModelFeatureParams(IDbConnectionFactory connectionFactory, ILogger<ReplaceModelFeatureParams> logger)
 {
+    private static readonly HashSet<string?> validSources = [null, "prevMinute", "currMinute"];
+
     public async Task<int> Execute(long modelConfigId, IEnumerable<ModelFeatureParam> parameters,
-        IReadOnlyDictionary<long, string?>? featureNames = null, IReadOnlyCollection<long>? deletedFeatureIds = null)
+        IReadOnlyDictionary<long, string?>? featureNames = null, IReadOnlyCollection<long>? deletedFeatureIds = null,
+        IReadOnlyList<NewModelFeature>? newFeatures = null)
     {
         var list = parameters.ToList();
         featureNames ??= new Dictionary<long, string?>();
         var deleted = (deletedFeatureIds ?? []).ToHashSet();
+        newFeatures ??= [];
 
         using var connection = connectionFactory.CreateConnection();
         await connection.OpenAsync();
@@ -65,6 +70,37 @@ public class ReplaceModelFeatureParams(IDbConnectionFactory connectionFactory, I
                 throw new ArgumentException($"ModelFeature {featureId} is being deleted, so its name or params can't also be set.");
         }
 
+        if (newFeatures.Count > 0)
+        {
+            var typeParamIds = new Dictionary<long, List<long>>();
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.Transaction = transaction;
+                cmd.CommandText = "SELECT ft.Id, ftp.Id FROM FeatureType ft LEFT JOIN FeatureTypeParam ftp ON ftp.FeatureTypeId = ft.Id";
+                using var reader = await cmd.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    if (!typeParamIds.TryGetValue(reader.GetInt64(0), out var ids))
+                        typeParamIds[reader.GetInt64(0)] = ids = [];
+                    if (!reader.IsDBNull(1))
+                        ids.Add(reader.GetInt64(1));
+                }
+            }
+
+            var tempIds = new HashSet<long>();
+            foreach (var feature in newFeatures)
+            {
+                if (feature.TempId >= 0 || !tempIds.Add(feature.TempId))
+                    throw new ArgumentException($"New feature TempId {feature.TempId} must be negative and unique.");
+                if (!typeParamIds.TryGetValue(feature.FeatureTypeId, out var ids))
+                    throw new ArgumentException($"FeatureType {feature.FeatureTypeId} does not exist.");
+                if (!validSources.Contains(feature.Source))
+                    throw new ArgumentException($"Source '{feature.Source}' is not valid; use prevMinute, currMinute or none (daily).");
+                foreach (var id in ids)
+                    allowed.Add((feature.TempId, id));
+            }
+        }
+
         var seen = new HashSet<(long, long)>();
         foreach (var p in list)
         {
@@ -85,6 +121,33 @@ public class ReplaceModelFeatureParams(IDbConnectionFactory connectionFactory, I
             await cmd.ExecuteNonQueryAsync();
         }
 
+        var insertedIds = new Dictionary<long, long>();
+        if (newFeatures.Count > 0)
+        {
+            using var cmd = connection.CreateCommand();
+            cmd.Transaction = transaction;
+            cmd.CommandText = "SELECT COALESCE(MAX(SortOrder), -1) FROM ModelFeature WHERE ModelConfigId = @ModelConfigId";
+            SqlHelper.AddParameter(cmd, "@ModelConfigId", modelConfigId);
+            var sortOrder = Convert.ToInt32(await cmd.ExecuteScalarAsync());
+
+            cmd.CommandText = @"
+                INSERT INTO ModelFeature (ModelConfigId, FeatureTypeId, Source, SortOrder, ModelFeatureName)
+                VALUES (@ModelConfigId, @FeatureTypeId, @Source, @SortOrder, @ModelFeatureName)
+                RETURNING Id";
+            SqlHelper.AddParameter(cmd, "@FeatureTypeId", null);
+            SqlHelper.AddParameter(cmd, "@Source", null);
+            SqlHelper.AddParameter(cmd, "@SortOrder", null);
+            SqlHelper.AddParameter(cmd, "@ModelFeatureName", null);
+            foreach (var feature in newFeatures)
+            {
+                cmd.Parameters["@FeatureTypeId"].Value = feature.FeatureTypeId;
+                cmd.Parameters["@Source"].Value = (object?)feature.Source ?? DBNull.Value;
+                cmd.Parameters["@SortOrder"].Value = ++sortOrder;
+                cmd.Parameters["@ModelFeatureName"].Value = string.IsNullOrWhiteSpace(feature.ModelFeatureName) ? DBNull.Value : feature.ModelFeatureName.Trim();
+                insertedIds[feature.TempId] = Convert.ToInt64(await cmd.ExecuteScalarAsync());
+            }
+        }
+
         using (var cmd = connection.CreateCommand())
         {
             cmd.Transaction = transaction;
@@ -96,7 +159,7 @@ public class ReplaceModelFeatureParams(IDbConnectionFactory connectionFactory, I
             SqlHelper.AddParameter(cmd, "@ParamValue", null);
             foreach (var p in list)
             {
-                cmd.Parameters["@ModelFeatureId"].Value = p.ModelFeatureId;
+                cmd.Parameters["@ModelFeatureId"].Value = p.ModelFeatureId < 0 ? insertedIds[p.ModelFeatureId] : p.ModelFeatureId;
                 cmd.Parameters["@FeatureTypeParamId"].Value = p.FeatureTypeParamId;
                 cmd.Parameters["@ParamValue"].Value = p.ParamValue;
                 await cmd.ExecuteNonQueryAsync();

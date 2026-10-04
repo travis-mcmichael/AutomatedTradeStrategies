@@ -113,6 +113,9 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
+                <div class="d-flex justify-content-end mb-2">
+                    <button type="button" class="btn btn-sm btn-outline-primary" id="features-add"><i class="bi bi-plus-lg"></i> Add Feature</button>
+                </div>
                 <table class="table table-sm align-middle">
                     <thead>
                         <tr>
@@ -298,133 +301,218 @@
         featuresEditModalEl.addEventListener('hidden.bs.modal', () => modelEditModal.show());
 
         const featuresEditPending = document.getElementById('features-edit-pending');
+        const featuresAddButton = document.getElementById('features-add');
         // Features removed in the editor; only deleted from the database when the editor is saved.
         let removedFeatureIds = new Set();
+        // New rows get negative temp ids, which their param inputs reference until the server assigns real ids.
+        let nextTempFeatureId = -1;
+        let featureTypesPromise = null;
+        const FEATURE_SOURCES = [['', 'daily'], ['prevMinute', 'prevMinute'], ['currMinute', 'currMinute']];
+
+        function loadFeatureTypes() {
+            featureTypesPromise ??= fetch('/Home/FeatureTypes').then(async res => {
+                if (!res.ok) throw new Error((await res.text()) || `request failed with status ${res.status}`);
+                return (await res.json()).sort((a, b) => a.name.localeCompare(b.name));
+            });
+            featureTypesPromise.catch(() => featureTypesPromise = null);
+            return featureTypesPromise;
+        }
 
         function openFeaturesEditor(model) {
             document.getElementById('features-edit-title').textContent = `Edit Features: ${model.modelName}`;
             featuresEditRows.replaceChildren();
             removedFeatureIds = new Set();
+            nextTempFeatureId = -1;
 
             const features = [...(model.modelFeatures ?? [])].sort((a, b) => a.sortOrder - b.sortOrder);
             if (!features.length) {
                 const row = featuresEditRows.insertRow();
+                row.className = 'features-empty-row';
                 const cell = row.insertCell();
                 cell.colSpan = 6;
                 cell.className = 'text-muted';
                 cell.textContent = 'This model has no features.';
             }
-
-            features.forEach((feature, i) => {
-                const row = featuresEditRows.insertRow();
-                row.insertCell().textContent = i + 1;
-                const nameCell = row.insertCell();
-                nameCell.textContent = feature.featureType?.name ?? `FeatureType ${feature.featureTypeId}`;
-                const marker = document.createElement('span');
-                marker.className = 'text-danger fw-bold ms-1 missing-param-marker d-none';
-                marker.title = 'Missing parameter values';
-                marker.textContent = '*';
-                nameCell.appendChild(marker);
-
-                // Optional, so it isn't part of the missing-value check (which only looks at data-model-feature-id inputs).
-                const featureNameInput = document.createElement('input');
-                featureNameInput.type = 'text';
-                featureNameInput.className = 'form-control form-control-sm model-feature-name';
-                featureNameInput.placeholder = 'optional';
-                featureNameInput.setAttribute('aria-label', `${feature.featureType?.name ?? 'Feature'} ${i + 1} name`);
-                featureNameInput.dataset.featureId = feature.id;
-                featureNameInput.value = feature.modelFeatureName ?? '';
-                row.insertCell().appendChild(featureNameInput);
-
-                row.insertCell().textContent = feature.source ?? 'daily';
-
-                const paramsCell = row.insertCell();
-
-                const removeButton = document.createElement('button');
-                removeButton.type = 'button';
-                removeButton.className = 'btn btn-sm btn-link text-danger p-0';
-                removeButton.title = 'Remove feature';
-                removeButton.setAttribute('aria-label', `Remove ${feature.featureType?.name ?? 'feature'} ${i + 1}`);
-                removeButton.innerHTML = "<i class='bi bi-x-lg'></i>";
-                removeButton.addEventListener('click', () => removeFeatureRow(row, feature.id));
-                const removeCell = row.insertCell();
-                removeCell.className = 'text-center';
-                removeCell.appendChild(removeButton);
-
-                const typeParams = [...(feature.featureType?.featureTypeParams ?? [])]
-                    .sort((a, b) => a.parameterKey.localeCompare(b.parameterKey));
-                if (!typeParams.length) {
-                    paramsCell.className = 'text-muted';
-                    paramsCell.textContent = 'None';
-                    return;
-                }
-
-                const group = document.createElement('div');
-                group.className = 'd-flex flex-wrap gap-2';
-                for (const typeParam of typeParams) {
-                    const existing = (feature.modelFeatureParams ?? []).find(p => p.featureTypeParamId === typeParam.id);
-                    const inputId = `feature-param-${feature.id}-${typeParam.id}`;
-
-                    const wrapper = document.createElement('div');
-                    wrapper.className = 'input-group input-group-sm';
-                    wrapper.style.width = '11rem';
-
-                    const label = document.createElement('label');
-                    label.className = 'input-group-text';
-                    label.htmlFor = inputId;
-                    label.textContent = typeParam.parameterKey;
-
-                    const input = document.createElement('input');
-                    input.type = 'number';
-                    input.step = '1';
-                    input.className = 'form-control';
-                    input.id = inputId;
-                    input.placeholder = 'not set';
-                    input.dataset.modelFeatureId = feature.id;
-                    input.dataset.featureTypeParamId = typeParam.id;
-                    input.value = existing?.paramValue ?? '';
-
-                    wrapper.append(label, input);
-                    group.appendChild(wrapper);
-                }
-                paramsCell.appendChild(group);
-            });
+            features.forEach(feature => addFeatureRow(feature));
 
             featuresEditForm.classList.remove('was-validated');
             featuresEditError.classList.add('d-none');
-            refreshMissingParams();
-            refreshPendingRemovals();
+            refreshFeatureRows();
             featuresEditModal.show();
         }
 
-        function removeFeatureRow(row, featureId) {
-            removedFeatureIds.add(featureId);
-            row.remove();
-            [...featuresEditRows.rows].forEach((r, i) => r.cells[0].textContent = i + 1);
-            refreshMissingParams();
-            refreshPendingRemovals();
+        // Builds a table row for an existing feature, or (with no feature) an editable new one.
+        function addFeatureRow(feature = null) {
+            featuresEditRows.querySelector('.features-empty-row')?.remove();
+            const isNew = feature === null;
+            const featureId = isNew ? nextTempFeatureId-- : feature.id;
+            const label = () => isNew
+                ? (typeSelect.selectedOptions[0]?.value ? typeSelect.selectedOptions[0].textContent : 'new feature')
+                : (feature.featureType?.name ?? `FeatureType ${feature.featureTypeId}`);
+
+            const row = featuresEditRows.insertRow();
+            row.dataset.featureId = featureId;
+            if (isNew) row.dataset.isNew = 'true';
+            row.insertCell();
+
+            const featureCell = row.insertCell();
+            let typeSelect = null;
+            if (isNew) {
+                typeSelect = document.createElement('select');
+                typeSelect.className = 'form-select form-select-sm d-inline-block w-auto feature-type-select';
+                typeSelect.required = true;
+                typeSelect.setAttribute('aria-label', 'Feature type');
+                typeSelect.add(new Option('Select a feature type...', ''));
+                featureCell.appendChild(typeSelect);
+            } else {
+                featureCell.textContent = label();
+            }
+            const marker = document.createElement('span');
+            marker.className = 'text-danger fw-bold ms-1 missing-param-marker d-none';
+            marker.title = 'Missing parameter values';
+            marker.textContent = '*';
+            featureCell.appendChild(marker);
+
+            // Optional, so it isn't part of the missing-value check (which only looks at data-model-feature-id inputs).
+            const featureNameInput = document.createElement('input');
+            featureNameInput.type = 'text';
+            featureNameInput.className = 'form-control form-control-sm model-feature-name';
+            featureNameInput.placeholder = 'optional';
+            featureNameInput.setAttribute('aria-label', 'Feature name');
+            featureNameInput.value = feature?.modelFeatureName ?? '';
+            row.insertCell().appendChild(featureNameInput);
+
+            const sourceCell = row.insertCell();
+            if (isNew) {
+                const sourceSelect = document.createElement('select');
+                sourceSelect.className = 'form-select form-select-sm w-auto feature-source-select';
+                sourceSelect.setAttribute('aria-label', 'Feature source');
+                for (const [value, text] of FEATURE_SOURCES) sourceSelect.add(new Option(text, value));
+                sourceCell.appendChild(sourceSelect);
+            } else {
+                sourceCell.textContent = feature.source ?? 'daily';
+            }
+
+            const paramsCell = row.insertCell();
+
+            const removeButton = document.createElement('button');
+            removeButton.type = 'button';
+            removeButton.className = 'btn btn-sm btn-link text-danger p-0';
+            removeButton.title = 'Remove feature';
+            removeButton.setAttribute('aria-label', 'Remove feature');
+            removeButton.innerHTML = "<i class='bi bi-x-lg'></i>";
+            removeButton.addEventListener('click', () => removeFeatureRow(row, isNew ? null : featureId));
+            const removeCell = row.insertCell();
+            removeCell.className = 'text-center';
+            removeCell.appendChild(removeButton);
+
+            if (isNew) {
+                paramsCell.className = 'text-muted';
+                paramsCell.textContent = 'Select a feature type';
+                loadFeatureTypes().then(types => {
+                    for (const type of types) {
+                        const option = new Option(type.name, type.id);
+                        option.featureType = type;
+                        typeSelect.add(option);
+                    }
+                }).catch(err => {
+                    paramsCell.className = 'text-danger';
+                    paramsCell.textContent = `Failed to load feature types: ${err.message}`;
+                });
+                typeSelect.addEventListener('change', () => {
+                    renderParamInputs(paramsCell, featureId, typeSelect.selectedOptions[0]?.featureType ?? null, []);
+                    refreshFeatureRows();
+                });
+                typeSelect.focus();
+            } else {
+                renderParamInputs(paramsCell, featureId, feature.featureType, feature.modelFeatureParams ?? []);
+            }
+            return row;
         }
 
-        function refreshPendingRemovals() {
+        function renderParamInputs(paramsCell, featureId, featureType, existingParams) {
+            paramsCell.replaceChildren();
+            paramsCell.className = '';
+            if (!featureType) {
+                paramsCell.className = 'text-muted';
+                paramsCell.textContent = 'Select a feature type';
+                return;
+            }
+
+            const typeParams = [...(featureType.featureTypeParams ?? [])]
+                .sort((a, b) => a.parameterKey.localeCompare(b.parameterKey));
+            if (!typeParams.length) {
+                paramsCell.className = 'text-muted';
+                paramsCell.textContent = 'None';
+                return;
+            }
+
+            const group = document.createElement('div');
+            group.className = 'd-flex flex-wrap gap-2';
+            for (const typeParam of typeParams) {
+                const existing = existingParams.find(p => p.featureTypeParamId === typeParam.id);
+                const inputId = `feature-param-${featureId}-${typeParam.id}`;
+
+                const wrapper = document.createElement('div');
+                wrapper.className = 'input-group input-group-sm';
+                wrapper.style.width = '11rem';
+
+                const label = document.createElement('label');
+                label.className = 'input-group-text';
+                label.htmlFor = inputId;
+                label.textContent = typeParam.parameterKey;
+
+                const input = document.createElement('input');
+                input.type = 'number';
+                input.step = '1';
+                input.className = 'form-control';
+                input.id = inputId;
+                input.placeholder = 'not set';
+                input.dataset.modelFeatureId = featureId;
+                input.dataset.featureTypeParamId = typeParam.id;
+                input.value = existing?.paramValue ?? '';
+
+                wrapper.append(label, input);
+                group.appendChild(wrapper);
+            }
+            paramsCell.appendChild(group);
+        }
+
+        featuresAddButton.addEventListener('click', () => {
+            addFeatureRow().scrollIntoView({ block: 'nearest' });
+            refreshFeatureRows();
+        });
+
+        // featureId is null for a new (unsaved) row, which just disappears.
+        function removeFeatureRow(row, featureId) {
+            if (featureId !== null) removedFeatureIds.add(featureId);
+            row.remove();
+            refreshFeatureRows();
+        }
+
+        // Renumbers the rows, marks each feature with a missing type or blank param input, only enables Save
+        // once nothing is missing, and summarises pending removals.
+        function refreshFeatureRows() {
+            let anyMissing = false;
+            [...featuresEditRows.rows].forEach((row, i) => {
+                const marker = row.querySelector('.missing-param-marker');
+                if (!marker) return;
+                row.cells[0].textContent = i + 1;
+                const typeSelect = row.querySelector('.feature-type-select');
+                const missing = (typeSelect && !typeSelect.value)
+                    || [...row.querySelectorAll('input[data-model-feature-id]')].some(input => input.value.trim() === '');
+                marker.classList.toggle('d-none', !missing);
+                marker.title = typeSelect && !typeSelect.value ? 'Select a feature type' : 'Missing parameter values';
+                anyMissing ||= missing;
+            });
+            featuresEditSave.disabled = anyMissing;
+
             const count = removedFeatureIds.size;
             featuresEditPending.classList.toggle('d-none', count === 0);
             featuresEditPending.textContent = `${count} feature${count === 1 ? '' : 's'} will be deleted on Save.`;
         }
 
-        // Marks each feature that has a blank param input, and only enables Save once none are blank.
-        function refreshMissingParams() {
-            let anyMissing = false;
-            for (const row of featuresEditRows.rows) {
-                const marker = row.querySelector('.missing-param-marker');
-                if (!marker) continue;
-                const missing = [...row.querySelectorAll('input[data-model-feature-id]')].some(input => input.value.trim() === '');
-                marker.classList.toggle('d-none', !missing);
-                anyMissing ||= missing;
-            }
-            featuresEditSave.disabled = anyMissing;
-        }
-
-        featuresEditRows.addEventListener('input', refreshMissingParams);
+        featuresEditRows.addEventListener('input', refreshFeatureRows);
 
         featuresEditForm.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -438,11 +526,18 @@
                     paramValue: Number(input.value)
                 }));
 
-            const features = [...featuresEditRows.querySelectorAll('input.model-feature-name')]
-                .map(input => ({
-                    modelFeatureId: Number(input.dataset.featureId),
-                    modelFeatureName: input.value.trim() || null
-                }));
+            const rows = [...featuresEditRows.rows].filter(row => row.dataset.featureId);
+            const nameOf = row => row.querySelector('input.model-feature-name').value.trim() || null;
+            const features = rows.filter(row => !row.dataset.isNew).map(row => ({
+                modelFeatureId: Number(row.dataset.featureId),
+                modelFeatureName: nameOf(row)
+            }));
+            const newFeatures = rows.filter(row => row.dataset.isNew).map(row => ({
+                tempId: Number(row.dataset.featureId),
+                featureTypeId: Number(row.querySelector('.feature-type-select').value),
+                source: row.querySelector('.feature-source-select').value || null,
+                modelFeatureName: nameOf(row)
+            }));
 
             featuresEditSave.disabled = true;
             featuresEditError.classList.add('d-none');
@@ -450,7 +545,7 @@
                 const res = await fetch('/Home/UpdateFeatureParams', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ modelConfigId: currentModel.id, params, features, deletedFeatureIds: [...removedFeatureIds] })
+                    body: JSON.stringify({ modelConfigId: currentModel.id, params, features, newFeatures, deletedFeatureIds: [...removedFeatureIds] })
                 });
                 if (!res.ok) throw new Error((await res.text()) || `request failed with status ${res.status}`);
 
@@ -461,7 +556,7 @@
                 featuresEditError.textContent = `Save failed: ${err.message}`;
                 featuresEditError.classList.remove('d-none');
             } finally {
-                refreshMissingParams();
+                refreshFeatureRows();
             }
         });
 

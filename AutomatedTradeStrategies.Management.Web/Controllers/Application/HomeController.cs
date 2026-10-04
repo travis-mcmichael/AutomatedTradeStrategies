@@ -15,6 +15,7 @@ namespace AutomatedTradeStrategies.Management.Web.Controllers.Application;
 public class HomeController(
     ILogger<HomeController> logger,
     GetAllModelConfigs allModelConfigs,
+    GetFeatureTypes featureTypes,
     IDefaultUpdateCommand<ModelConfig> updateModelConfig,
     ReplaceModelFeatureParams replaceModelFeatureParams,
     FeatureExportJobs featureExportJobs,
@@ -74,8 +75,8 @@ public class HomeController(
         return updated == 0 ? NotFound($"Model {model.Id} was not found.") : Ok();
     }
 
-    // Replaces all of a model's feature param values with the posted set, saves the feature names and
-    // deletes any removed features.
+    // Replaces all of a model's feature param values with the posted set, saves the feature names, adds any
+    // new features and deletes any removed ones.
     [HttpPost]
     public async Task<IActionResult> UpdateFeatureParams([FromBody] ModelFeatureParamsUpdate request)
     {
@@ -89,7 +90,8 @@ public class HomeController(
 
             await replaceModelFeatureParams.Execute(request.ModelConfigId, request.Params,
                 request.Features.ToDictionary(f => f.ModelFeatureId, f => f.ModelFeatureName),
-                request.DeletedFeatureIds);
+                request.DeletedFeatureIds,
+                request.NewFeatures);
             return Ok();
         }
         catch (ArgumentException ex)
@@ -111,6 +113,12 @@ public class HomeController(
     {
         var status = featureExportJobs.GetStatus(id);
         return status is null ? NotFound($"No feature export has been started for model {id}.") : Ok(status);
+    }
+
+    public async Task<IActionResult> FeatureTypes()
+    {
+        var result = await featureTypes.Execute();
+        return Ok(result);
     }
 
     public async Task<IActionResult> BarDataCounts()
