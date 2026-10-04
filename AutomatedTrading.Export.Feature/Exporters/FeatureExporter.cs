@@ -2,7 +2,6 @@ using AutomatedTrading.Core.Framework.Logging;
 using AutomatedTrading.Core.Framework;
 using AutomatedTrading.Core.Models;
 using AutomatedTrading.Core.Data.Queries;
-using AutomatedTrading.Core.Data.Commands;
 
 namespace AutomatedTrading.Export.Feature.Exporters;
 
@@ -49,15 +48,10 @@ public class FeatureExporter
         if (!minuteBarsBySession.Any()) return;
 
         var orderedSessions = minuteBarsBySession.Keys.Order().ToList();
-        var changeovers = await _getChangeovers.Execute(orderedSessions.Last(), start, end);
+        var changeovers = await _getChangeovers.Execute(_model.Instrument, start, end);
         if (changeovers.Any())
         {
-            var runningAdjustment = 0L;
-            for (var i = orderedSessions.Count() - 1; i >= 0; i--)
-            {
-                var current = orderedSessions[i];
-
-            }
+            HandleChangeoverAdjustment(changeovers, orderedSessions, minuteBarsBySession);
         }
 
         Logger.Info($"  Loaded {minuteBarsBySession.Count} sessions. Building features...");
@@ -220,7 +214,7 @@ public class FeatureExporter
                 ));
             if (features != null)
             {
-                var target = getTarget(minuteBarsBySession[sessionDates[i]], sequence.First().Open, atr20);
+                var target = getTarget(minuteBarsBySession[sessionDates[i]], sequence[i].Open, atr20);
                 await writer.WriteLineAsync(
                     $"{string.Join(",", features.Select(f => f.ToString("G6")))},{target:G6}");
                 written++;
@@ -233,7 +227,7 @@ public class FeatureExporter
 
     private async Task GetBarsBySession(DateTime start, DateTime end, Dictionary<string, List<BarData>?> minuteBarsBySession)
     {
-        await _streamBars.ExecuteAsync(start, end, bar =>
+        await _streamBars.ExecuteAsync(_model.Instrument, start, end, bar =>
         {
             if (bar.SessionDate == null) return Task.CompletedTask;
             if (!minuteBarsBySession.TryGetValue(bar.SessionDate, out var list))
@@ -244,5 +238,35 @@ public class FeatureExporter
             list?.Add(bar);
             return Task.CompletedTask;
         });
+    }
+
+    // Builds a back-adjusted continuous series: each session keeps only its active contract's bars
+    // (the old version before a roll date, the new version from it onward), shifted by the sum of every
+    // roll after it so prices line up with the newest contract. Sessions left with no bars are dropped.
+    private static void HandleChangeoverAdjustment(IList<VersionChangeover> changeovers, IList<string> orderedSessions, Dictionary<string, List<BarData>> minuteBarsBySession)
+    {
+        var rolls = changeovers.OrderBy(c => c.SessionDate, StringComparer.Ordinal).ToList();
+        foreach (var session in orderedSessions)
+        {
+            var activeVersion = rolls.LastOrDefault(c => string.CompareOrdinal(c.SessionDate, session) <= 0)?.NewVersion
+                                ?? rolls[0].OldVersion;
+            var adjustment = rolls.Where(c => string.CompareOrdinal(c.SessionDate, session) > 0).Sum(c => c.Adjustment);
+
+            var bars = minuteBarsBySession[session].Where(b => b.InstrumentVersion == activeVersion).ToList();
+            if (bars.Count == 0)
+            {
+                minuteBarsBySession.Remove(session);
+                continue;
+            }
+
+            foreach (var bar in bars)
+            {
+                bar.Open += adjustment;
+                bar.High += adjustment;
+                bar.Low += adjustment;
+                bar.Close += adjustment;
+            }
+            minuteBarsBySession[session] = bars;
+        }
     }
 }

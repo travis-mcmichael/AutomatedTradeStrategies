@@ -16,6 +16,7 @@ class Program
         var factory = new SqliteConnectionFactory(AppConstants.SQLITE_CONNECTION);
 
         var streamBars = new StreamBarsInRange(factory, null);
+        var getChangeovers = new GetVersionChangeovers(factory);
         var modelRepo = new DefaultRepository<ModelConfig>(factory, null);
 
         var models = await modelRepo.GetDataAsync(new Dictionary<string, object>());
@@ -32,7 +33,7 @@ class Program
             var start = DateTime.ParseExact(model.TrainingStart, "yyyyMMdd", null);
             var end = DateTime.ParseExact(model.TrainingEnd, "yyyyMMdd", null);
 
-            await new FeatureExporter(model, outPath, streamBars).GenerateFeatures(start, end);
+            await new FeatureExporter(model, outPath, streamBars, getChangeovers).GenerateFeatures(start, end);
         }
 
         Console.WriteLine($"\nOutput complete for {models?.Count() ?? 0} predictive models.");

@@ -24,17 +24,20 @@ public class StreamBarsInRange(IDbConnectionFactory connectionFactory, ILogger<S
             Instrument,
             InstrumentVersion
         FROM BarData b
-        WHERE Timestamp >= @StartTimestamp AND Timestamp <= @EndTimestamp
+        WHERE Instrument = @Instrument
+          AND Timestamp >= @StartTimestamp AND Timestamp <= @EndTimestamp
         ORDER BY Timestamp ASC";
 
-    public async Task ExecuteAsync(DateTime start, DateTime end, Func<BarData, Task> onItem, CancellationToken ct = default)
+    public async Task ExecuteAsync(string instrument, DateTime start, DateTime end, Func<BarData, Task> onItem, CancellationToken ct = default)
     {
         using var connection = connectionFactory.CreateConnection();
         using var cmd = connection.CreateCommand();
         cmd.CommandText = Sql;
+        addParameter(cmd, "@Instrument", instrument);
         addParameter(cmd, "@StartTimestamp", new DateTimeOffset(start, TimeSpan.Zero).ToUnixTimeMilliseconds());
         addParameter(cmd, "@EndTimestamp", new DateTimeOffset(end, TimeSpan.Zero).ToUnixTimeMilliseconds());
 
+        await connection.OpenAsync(ct);
         using var reader = await cmd.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
         {
@@ -63,6 +66,6 @@ public class StreamBarsInRange(IDbConnectionFactory connectionFactory, ILogger<S
         Close = r.GetDouble(7),
         Volume = r.GetDouble(8),
         Instrument = r.GetString(9),
-        InstrumentVersion = r.GetString(11),
+        InstrumentVersion = r.GetString(10),
     };
 }

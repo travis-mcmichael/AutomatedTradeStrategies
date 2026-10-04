@@ -12,8 +12,9 @@ namespace AutomatedTrading.Core.Data.Queries;
 
 // Finds contract rolls within a date range. For each pair of consecutive versions (ordered by their
 // "MM-yy" expiry), the changeover is the first session date on which the newer version's total volume
-// exceeds the older version's. The adjustment is the difference between the two versions' first Open
-// on that date.
+// exceeds the older version's. The adjustment is the difference between the two versions' Open at the
+// first minute on that date where both traded, falling back to each version's first Open of the day
+// if they never share a minute.
 public class GetVersionChangeovers(IDbConnectionFactory connectionFactory)
 {
     private const string VERSION_FORMAT = "MM-yy";
@@ -23,7 +24,6 @@ public class GetVersionChangeovers(IDbConnectionFactory connectionFactory)
         public string SessionDate = default!;
         public string Version = default!;
         public double Volume;
-        public double FirstOpen;
     }
 
     public async Task<IList<VersionChangeover>> Execute(string instrument, DateTime start, DateTime end)
@@ -61,7 +61,7 @@ public class GetVersionChangeovers(IDbConnectionFactory connectionFactory)
                 SessionDate = changeoverDate,
                 OldVersion = versions[i - 1],
                 NewVersion = versions[i],
-                Adjustment = newDays[changeoverDate].FirstOpen - oldDays[changeoverDate].FirstOpen
+                Adjustment = await loadAdjustment(instrument, versions[i - 1], versions[i], changeoverDate)
             });
         }
 
@@ -75,14 +75,7 @@ public class GetVersionChangeovers(IDbConnectionFactory connectionFactory)
         cmd.CommandText = @"
             SELECT b.SessionDate,
                    b.InstrumentVersion,
-                   SUM(b.Volume) AS TotalVolume,
-                   (SELECT f.Open
-                      FROM BarData f
-                     WHERE f.Instrument = b.Instrument
-                       AND f.InstrumentVersion = b.InstrumentVersion
-                       AND f.SessionDate = b.SessionDate
-                     ORDER BY f.Timestamp
-                     LIMIT 1) AS FirstOpen
+                   SUM(b.Volume) AS TotalVolume
               FROM BarData b
              WHERE b.Instrument = @Instrument
                AND b.SessionDate BETWEEN @Start AND @End
@@ -102,12 +95,50 @@ public class GetVersionChangeovers(IDbConnectionFactory connectionFactory)
             {
                 SessionDate = reader.GetString(0),
                 Version = reader.GetString(1),
-                Volume = reader.GetDouble(2),
-                FirstOpen = reader.GetDouble(3)
+                Volume = reader.GetDouble(2)
             });
         }
 
         return rows;
+    }
+
+    // New version's Open minus old version's Open at the earliest minute on sessionDate where both have a bar.
+    private async Task<double> loadAdjustment(string instrument, string oldVersion, string newVersion, string sessionDate)
+    {
+        using var connection = connectionFactory.CreateConnection();
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = @"
+            SELECT n.Open - o.Open
+              FROM BarData o
+              JOIN BarData n
+                ON n.Instrument = o.Instrument
+               AND n.Timestamp = o.Timestamp
+             WHERE o.Instrument = @Instrument
+               AND o.SessionDate = @SessionDate
+               AND o.InstrumentVersion = @OldVersion
+               AND n.InstrumentVersion = @NewVersion
+             ORDER BY o.Timestamp
+             LIMIT 1";
+
+        SqlHelper.AddParameter(cmd, "@Instrument", instrument);
+        SqlHelper.AddParameter(cmd, "@SessionDate", sessionDate);
+        SqlHelper.AddParameter(cmd, "@OldVersion", oldVersion);
+        SqlHelper.AddParameter(cmd, "@NewVersion", newVersion);
+
+        await connection.OpenAsync();
+
+        var shared = await cmd.ExecuteScalarAsync();
+        if (shared is not null && shared is not DBNull)
+            return Convert.ToDouble(shared);
+
+        cmd.CommandText = @"
+            SELECT (SELECT Open FROM BarData
+                     WHERE Instrument = @Instrument AND SessionDate = @SessionDate AND InstrumentVersion = @NewVersion
+                     ORDER BY Timestamp LIMIT 1)
+                 - (SELECT Open FROM BarData
+                     WHERE Instrument = @Instrument AND SessionDate = @SessionDate AND InstrumentVersion = @OldVersion
+                     ORDER BY Timestamp LIMIT 1)";
+        return Convert.ToDouble(await cmd.ExecuteScalarAsync());
     }
 
     private static DateTime parseVersion(string version) =>
