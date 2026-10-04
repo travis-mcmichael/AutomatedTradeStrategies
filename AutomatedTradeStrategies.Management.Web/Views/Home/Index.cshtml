@@ -28,7 +28,11 @@
             Drag and drop NinjaTrader bar export files here to import
             <div id="bar-data-dropzone-status" class="mt-2 small"></div>
         </div>
-        <h2>BarData — Last 30 Trading Days</h2>
+        <div class="d-flex align-items-center gap-2 mb-2">
+            <h2 class="mb-0 me-auto">BarData — <span id="bar-data-month"></span></h2>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="bar-data-prev" title="Previous month" aria-label="Previous month"><i class="bi bi-chevron-left"></i></button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="bar-data-next" title="Next month" aria-label="Next month"><i class="bi bi-chevron-right"></i></button>
+        </div>
         <div id="bar-data-table"></div>
     </div>
 </div>
@@ -724,12 +728,36 @@
         // Built lazily on first show: Tabulator's fitColumns layout can't measure
         // a container that's still display:none inside the inactive tab pane.
         let barDataTable = null;
+        // The month shown in the trade data grid; starts at the current month and can't go past it.
+        const today = new Date();
+        let barDataMonth = { year: today.getFullYear(), month: today.getMonth() + 1 };
+        const barDataUrl = () => `/Home/BarDataCounts?year=${barDataMonth.year}&month=${barDataMonth.month}`;
+        const isCurrentMonth = () => barDataMonth.year === today.getFullYear() && barDataMonth.month === today.getMonth() + 1;
+
+        function showBarDataMonth() {
+            document.getElementById('bar-data-month').textContent =
+                new Date(barDataMonth.year, barDataMonth.month - 1, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+            document.getElementById('bar-data-next').disabled = isCurrentMonth();
+        }
+
+        function moveBarDataMonth(delta) {
+            const d = new Date(barDataMonth.year, barDataMonth.month - 1 + delta, 1);
+            barDataMonth = { year: d.getFullYear(), month: d.getMonth() + 1 };
+            showBarDataMonth();
+            barDataTable?.setData(barDataUrl());
+        }
+
+        document.getElementById('bar-data-prev').addEventListener('click', () => moveBarDataMonth(-1));
+        document.getElementById('bar-data-next').addEventListener('click', () => { if (!isCurrentMonth()) moveBarDataMonth(1); });
+        showBarDataMonth();
         let instrumentsLoaded = false;
         const instrumentSelect = document.getElementById('bar-data-instrument');
 
         document.getElementById('trade-data-tab').addEventListener('shown.bs.tab', async () => {
             if (!barDataTable) {
-                barDataTable = Defaults.grid.buildGrid('#bar-data-table', barDataColumns, '/Home/BarDataCounts');
+                // One month per page, so the grid itself isn't paginated.
+                barDataTable = Defaults.grid.buildGrid('#bar-data-table', barDataColumns, barDataUrl(), { pagination: false, height: false });
+                showBarDataMonth();
             } else {
                 barDataTable.redraw(true);
             }
@@ -791,7 +819,7 @@
                 dropzoneStatus.textContent = `Imported ${total} bar record(s) from ${results.length} file(s).` +
                     (errors.length ? ` Skipped: ${errors.join(' ')}` : '');
 
-                if (barDataTable) barDataTable.setData('/Home/BarDataCounts');
+                if (barDataTable) barDataTable.setData(barDataUrl());
             } catch (err) {
                 dropzoneStatus.textContent = `Import failed: ${err.message}`;
             }

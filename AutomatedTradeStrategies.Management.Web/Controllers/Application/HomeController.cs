@@ -161,9 +161,15 @@ public class HomeController(
         return Ok(result);
     }
 
-    public async Task<IActionResult> BarDataCounts()
+    // Defaults to the current month.
+    public async Task<IActionResult> BarDataCounts(int? year, int? month)
     {
-        var result = await barDataCountsByDate.Execute();
+        var y = year ?? DateTime.Today.Year;
+        var m = month ?? DateTime.Today.Month;
+        if (m is < 1 or > 12 || y is < 1900 or > 9999)
+            return BadRequest("Month must be 1-12 and year a four-digit year.");
+
+        var result = await barDataCountsByDate.Execute(y, m);
         return Ok(result);
     }
 

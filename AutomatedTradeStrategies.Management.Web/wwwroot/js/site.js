@@ -8,7 +8,8 @@ const Defaults = {
         layout: 'fitColumns',
         editColumnWidth: 60,
         editColumnElement: `<i class='bi bi-pencil'></i>`,
-        buildGrid: (sel, c, url) => {
+        // options are merged over the defaults (e.g. { pagination: false }).
+        buildGrid: (sel, c, url, options = {}) => {
             return new Tabulator(sel, {
                 layout: Defaults.grid.layout,
                 height: Defaults.grid.defaultGridHeight,
@@ -16,7 +17,8 @@ const Defaults = {
                 ajaxURL: url,
                 pagination: true,
                 paginationSize: Defaults.grid.defaultPageSize,
-                columns: c
+                columns: c,
+                ...options
             });
         },
         // dest is either a URL prefix (navigates to dest/{value}) or a function called with the row's data.

@@ -9,13 +9,14 @@ using AutomatedTrading.Core.Models;
 
 namespace AutomatedTrading.Core.Data.Queries;
 
+// Bar counts per session date for one calendar month: every trading day in the month (up to today for the
+// current month, none for a future month), most recent first, with 0 for days that have no bars.
 public class GetBarDataCountsByDate(IDbConnectionFactory connectionFactory)
 {
-    private const int TRADING_DAYS = 30;
-
-    public async Task<IList<BarDataDateCount>> Execute()
+    public async Task<IList<BarDataDateCount>> Execute(int year, int month)
     {
-        var sessionDates = getRecentTradingDays(TRADING_DAYS);
+        var sessionDates = getTradingDaysInMonth(year, month);
+        if (sessionDates.Count == 0) return [];
         var paramNames = sessionDates.Select((_, i) => $"@d{i}").ToList();
 
         using var connection = connectionFactory.CreateConnection();
@@ -45,19 +46,19 @@ public class GetBarDataCountsByDate(IDbConnectionFactory connectionFactory)
         })];
     }
 
-    // Most-recent-first: today (if a trading day) walking back through the last
-    // TRADING_DAYS sessions, skipping weekends/holidays via TradingCalendar.
-    private static List<DateTime> getRecentTradingDays(int count)
+    // Most-recent-first trading days (weekdays that aren't market holidays, via TradingCalendar) in the month,
+    // stopping at today.
+    private static List<DateTime> getTradingDaysInMonth(int year, int month)
     {
-        var cursor = DateTime.Today;
-        if (!TradingCalendar.IsTradingDay(cursor))
-            cursor = TradingCalendar.GetPreviousSessionDate(cursor);
+        var first = new DateTime(year, month, 1);
+        var last = first.AddMonths(1).AddDays(-1);
+        if (last > DateTime.Today) last = DateTime.Today;
 
-        var dates = new List<DateTime>(count);
-        for (var i = 0; i < count; i++)
+        var dates = new List<DateTime>();
+        for (var day = last; day >= first; day = day.AddDays(-1))
         {
-            dates.Add(cursor);
-            cursor = TradingCalendar.GetPreviousSessionDate(cursor);
+            if (TradingCalendar.IsTradingDay(day))
+                dates.Add(day);
         }
         return dates;
     }
