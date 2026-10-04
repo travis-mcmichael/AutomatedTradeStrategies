@@ -59,7 +59,7 @@ public class BarImporter
         if (!name.EndsWith(FILE_SUFFIX, StringComparison.OrdinalIgnoreCase))
             throw new FormatException($"'{fileName}' does not match '[instrument] [mm-yy]{FILE_SUFFIX}'.");
 
-        var parts = name[..^FILE_SUFFIX.Length].Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var parts = name[..^FILE_SUFFIX.Length].Split(' ', (char)StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length != 2 || !DateTime.TryParseExact(parts[1], "MM-yy", CultureInfo.InvariantCulture, DateTimeStyles.None, out _))
             throw new FormatException($"'{fileName}' does not match '[instrument] [mm-yy]{FILE_SUFFIX}'.");
 

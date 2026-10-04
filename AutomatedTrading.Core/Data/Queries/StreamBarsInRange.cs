@@ -22,7 +22,6 @@ public class StreamBarsInRange(IDbConnectionFactory connectionFactory, ILogger<S
             Close, 
             Volume,
             Instrument,
-            InstrumentId,
             InstrumentVersion
         FROM BarData b
         WHERE Timestamp >= @StartTimestamp AND Timestamp <= @EndTimestamp

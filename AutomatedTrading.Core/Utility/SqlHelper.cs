@@ -40,14 +40,14 @@ public class SqlHelper
     {
         var p = cmd.CreateParameter();
         p.ParameterName = name;
-        p.Value = toDbValue(value);
+        p.Value = ToDbValue(value);
         cmd.Parameters.Add(p);
     }
 
     // DateTime columns in this schema (e.g. BarData.Timestamp) are stored as Unix epoch
     // milliseconds, matching InsertBarBatchCommand/GetBarsBySessionDateQuery — not SQLite's
     // own datetime string handling.
-    private static object toDbValue(object? value) => value switch
+    public static object ToDbValue(object? value) => value switch
     {
         null => DBNull.Value,
         DateTime dt => new DateTimeOffset(dt.ToUniversalTime()).ToUnixTimeMilliseconds(),
