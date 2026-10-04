@@ -3,7 +3,6 @@ using AutomatedTrading.Core.Data.Queries;
 using AutomatedTrading.Core.Framework;
 using AutomatedTrading.Core.Framework.DataLayer.Sqlite;
 using AutomatedTrading.Core.Models;
-using AutomatedTrading.Export.Feature.Exporters;
 
 namespace AutomatedTrading.Export.Feature;
 
