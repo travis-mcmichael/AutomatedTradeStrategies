@@ -99,11 +99,12 @@ public class Computations
     /// <summary>
     /// Average True Range: a simple (unsmoothed) mean of <see cref="TrueRange"/> over the last
     /// <paramref name="lookback"/> bars ending at <paramref name="i"/>. A typical-move-size measure used to
-    /// normalise most other features. Returns 0 when <paramref name="i"/> &lt; <paramref name="lookback"/>.
+    /// normalise most other features. Returns 0 when there are fewer than <paramref name="lookback"/> bars
+    /// up to <paramref name="i"/>.
     /// </summary>
     public static double ATR(List<BarData> bars, int i, int lookback) 
     {
-        if (i < lookback) return 0;
+        if (lookback <= 0 || i < lookback - 1) return 0;
 
         double atr = 0;
         for (var j = i - lookback + 1; j <= i; j++)
@@ -118,15 +119,15 @@ public class Computations
     /// <summary>
     /// Exponential moving average of <paramref name="selector"/> at bar <paramref name="i"/>, with smoothing factor
     /// k = 2 / (lookback + 1): value[i] * k + EMA[i - 1] * (1 - k), seeded with bar 0's value.
-    /// Computed recursively all the way back to bar 0, so each call costs O(i) and recursion depth grows with i.
+    /// Walks forward from bar 0 each call, so it costs O(i).
     /// </summary>
     public static double EMA(List<BarData> bars, int i, int lookback, Func<BarData, double> selector) 
     {
         var k = 2.0 / (lookback + 1);
-        if (i == 0)
-            return selector(bars[0]);
-            
-        return selector(bars[i]) * k + EMA(bars, i - 1, lookback, selector) * (1 - k);
+        var ema = selector(bars[0]);
+        for (var j = 1; j <= i; j++)
+            ema = selector(bars[j]) * k + ema * (1 - k);
+        return ema;
     }
 
     /// <summary>
@@ -200,12 +201,12 @@ public class Computations
 
     /// <summary>
     /// Simple moving average of <paramref name="selector"/> (e.g. close or volume) over the last
-    /// <paramref name="lookback"/> bars ending at <paramref name="i"/>. Returns 0 when <paramref name="i"/> &lt;
-    /// <paramref name="lookback"/> or <paramref name="lookback"/> is 0.
+    /// <paramref name="lookback"/> bars ending at <paramref name="i"/>. Returns 0 when there are fewer than
+    /// <paramref name="lookback"/> bars up to <paramref name="i"/>, or <paramref name="lookback"/> is 0.
     /// </summary>
     public static double SMA(List<BarData> bars, int i, int lookback, Func<BarData, double> selector) 
     {
-        if (i < lookback || lookback == 0) return 0;
+        if (lookback <= 0 || i < lookback - 1) return 0;
 
         double sum = 0.0;
         for (var j = i - lookback + 1; j <= i; j++)
@@ -218,16 +219,16 @@ public class Computations
     /// <summary>
     /// Population standard deviation of <paramref name="selector"/> over the last <paramref name="lookback"/> bars
     /// ending at <paramref name="i"/>: how spread out the values are around their <see cref="SMA"/>.
-    /// Has no guard for too-few bars; then <see cref="SMA"/> returns 0 and the result is measured around 0.
+    /// Returns 0 when there are fewer than <paramref name="lookback"/> bars up to <paramref name="i"/>.
     /// </summary>
     public static double StandardDeviation(List<BarData> bars, int i, int lookback, Func<BarData, double> selector) 
     {
+        if (lookback <= 0 || i < lookback - 1) return 0;
         var mean = SMA(bars, i, lookback, selector);
-        var slice = bars.Skip(i - lookback + 1).Take(lookback);
         double sum = 0.0;
-        foreach (var bar in slice)
+        for (var j = i - lookback + 1; j <= i; j++)
         {
-            sum += Math.Pow(selector(bar) - mean, 2);
+            sum += Math.Pow(selector(bars[j]) - mean, 2);
         }
         var variance = sum / lookback;
         return Math.Sqrt(variance);
@@ -312,15 +313,15 @@ public class Computations
 
     /// <summary>
     /// Running volume-weighted average price. Adds this bar's typical price × volume and its volume to the
-    /// caller's running totals (updated in place) and returns the VWAP so far.
-    /// Divides by zero (NaN) if no volume has accumulated yet.
+    /// caller's running totals (updated in place) and returns the VWAP so far. Falls back to the bar's close
+    /// while no volume has accumulated, like <see cref="SessionVWAP"/>.
     /// </summary>
     public static double VWAP(BarData bar, ref double cumulativePv, ref double cumulativeVol)
     {
         cumulativePv += (bar.High + bar.Low + bar.Close) / 3.0 * bar.Volume;
         cumulativeVol += bar.Volume;
 
-        return cumulativePv / cumulativeVol;
+        return cumulativeVol == 0 ? bar.Close : cumulativePv / cumulativeVol;
     }
 
     /// <summary>
@@ -401,7 +402,7 @@ public class Computations
     /// High-low range of the overnight bars (from the 16:00 session open until the 08:30 RTH start), in ATR units.
     /// Returns NaN when there are no overnight bars.
     /// Window membership is decided by <c>Timestamp.TimeOfDay</c> against the Central-time constants in
-    /// <see cref="AppConstants"/>, so it assumes the bars' timestamps are in Central time.
+    /// <see cref="AppConstants"/>; bar timestamps are loaded as Central time (see <see cref="MarketTime"/>).
     /// </summary>
     public static double OvernightRange(List<BarData> bars, double atr)
     {
@@ -416,7 +417,7 @@ public class Computations
     /// High-low range of the regular trading hours bars (08:30 to 15:15), in ATR units.
     /// Returns NaN when there are no RTH bars.
     /// Window membership is decided by <c>Timestamp.TimeOfDay</c> against the Central-time constants in
-    /// <see cref="AppConstants"/>, so it assumes the bars' timestamps are in Central time.
+    /// <see cref="AppConstants"/>; bar timestamps are loaded as Central time (see <see cref="MarketTime"/>).
     /// </summary>
     public static double RegularHoursRange(List<BarData> bars, double atr)
     {
@@ -431,7 +432,7 @@ public class Computations
     /// Share of the session's total volume that traded overnight (16:00 to 08:30), from 0 to 1.
     /// Returns NaN when there are no overnight bars.
     /// Window membership is decided by <c>Timestamp.TimeOfDay</c> against the Central-time constants in
-    /// <see cref="AppConstants"/>, so it assumes the bars' timestamps are in Central time.
+    /// <see cref="AppConstants"/>; bar timestamps are loaded as Central time (see <see cref="MarketTime"/>).
     /// </summary>
     public static double OvernightVolumeRatio(List<BarData> bars)
     {
@@ -447,7 +448,7 @@ public class Computations
     /// How far the overnight low fell below the session's opening price, in ATR units (0 when it never went below).
     /// Uses the first bar's open as the session open.
     /// Window membership is decided by <c>Timestamp.TimeOfDay</c> against the Central-time constants in
-    /// <see cref="AppConstants"/>, so it assumes the bars' timestamps are in Central time.
+    /// <see cref="AppConstants"/>; bar timestamps are loaded as Central time (see <see cref="MarketTime"/>).
     /// </summary>
     public static double OvernightDropRatio(List<BarData> bars, double atr)
     {
@@ -465,7 +466,7 @@ public class Computations
     /// High-low range of the first hour of regular trading (08:30 to 09:30), in ATR units.
     /// Returns 0 when there are no bars in that hour.
     /// Window membership is decided by <c>Timestamp.TimeOfDay</c> against the Central-time constants in
-    /// <see cref="AppConstants"/>, so it assumes the bars' timestamps are in Central time.
+    /// <see cref="AppConstants"/>; bar timestamps are loaded as Central time (see <see cref="MarketTime"/>).
     /// </summary>
     public static double FirstRthHourRange(List<BarData> bars, double atr)
     {
@@ -480,7 +481,7 @@ public class Computations
     /// High-low range of the last hour of regular trading (14:15 to 15:15), in ATR units.
     /// Returns 0 when there are no bars in that hour.
     /// Window membership is decided by <c>Timestamp.TimeOfDay</c> against the Central-time constants in
-    /// <see cref="AppConstants"/>, so it assumes the bars' timestamps are in Central time.
+    /// <see cref="AppConstants"/>; bar timestamps are loaded as Central time (see <see cref="MarketTime"/>).
     /// </summary>
     public static double LastRthHourRange(List<BarData> bars, double atr)
     {
@@ -544,7 +545,7 @@ public class Computations
     /// (at its high). Shows whether the day finished strong or weak. Returns 0.5 when the hour had no range and NaN
     /// when there are no bars in it.
     /// Window membership is decided by <c>Timestamp.TimeOfDay</c> against the Central-time constants in
-    /// <see cref="AppConstants"/>, so it assumes the bars' timestamps are in Central time.
+    /// <see cref="AppConstants"/>; bar timestamps are loaded as Central time (see <see cref="MarketTime"/>).
     /// </summary>
     public static double LastRthHourClosePosition(List<BarData> bars)
     {
@@ -570,7 +571,7 @@ public class Computations
     /// <see cref="RegularHoursRange"/> it doesn't sort first, which doesn't matter for a high-low range.
     /// Returns NaN when there are no RTH bars.
     /// Window membership is decided by <c>Timestamp.TimeOfDay</c> against the Central-time constants in
-    /// <see cref="AppConstants"/>, so it assumes the bars' timestamps are in Central time.
+    /// <see cref="AppConstants"/>; bar timestamps are loaded as Central time (see <see cref="MarketTime"/>).
     /// </summary>
     public static double RthRange(List<BarData> bars, double atr)
     {
@@ -584,7 +585,7 @@ public class Computations
     /// High-low range of the first 30 minutes of regular trading (08:30 to 09:00), in ATR units.
     /// Returns NaN when there are no bars in that window.
     /// Window membership is decided by <c>Timestamp.TimeOfDay</c> against the Central-time constants in
-    /// <see cref="AppConstants"/>, so it assumes the bars' timestamps are in Central time.
+    /// <see cref="AppConstants"/>; bar timestamps are loaded as Central time (see <see cref="MarketTime"/>).
     /// </summary>
     public static double FirstHalfRthHourRange(List<BarData> bars, double atr)
     {
@@ -600,7 +601,7 @@ public class Computations
     /// Like <see cref="HighTimeRatio"/> but limited to 08:30–15:15. Returns NaN when there are no RTH bars and
     /// 0.5 for a single bar.
     /// Window membership is decided by <c>Timestamp.TimeOfDay</c> against the Central-time constants in
-    /// <see cref="AppConstants"/>, so it assumes the bars' timestamps are in Central time.
+    /// <see cref="AppConstants"/>; bar timestamps are loaded as Central time (see <see cref="MarketTime"/>).
     /// </summary>
     public static double RthHighTimeRatio(List<BarData> bars)
     {
@@ -620,7 +621,7 @@ public class Computations
     /// Like <see cref="LowTimeRatio"/> but limited to 08:30–15:15. Returns NaN when there are no RTH bars and
     /// 0.5 for a single bar.
     /// Window membership is decided by <c>Timestamp.TimeOfDay</c> against the Central-time constants in
-    /// <see cref="AppConstants"/>, so it assumes the bars' timestamps are in Central time.
+    /// <see cref="AppConstants"/>; bar timestamps are loaded as Central time (see <see cref="MarketTime"/>).
     /// </summary>
     public static double RthLowTimeRatio(List<BarData> bars)
     {
@@ -639,7 +640,7 @@ public class Computations
     /// How far the RTH high rose above the RTH open (the first bar at or after 08:30), in ATR units.
     /// Returns NaN when there are no RTH bars.
     /// Window membership is decided by <c>Timestamp.TimeOfDay</c> against the Central-time constants in
-    /// <see cref="AppConstants"/>, so it assumes the bars' timestamps are in Central time.
+    /// <see cref="AppConstants"/>; bar timestamps are loaded as Central time (see <see cref="MarketTime"/>).
     /// </summary>
     public static double RthOpenToHighRatio(List<BarData> bars, double atr)
     {
@@ -657,7 +658,7 @@ public class Computations
     /// How far the RTH low fell below the RTH open (the first bar at or after 08:30), in ATR units, as a positive
     /// number. Returns NaN when there are no RTH bars.
     /// Window membership is decided by <c>Timestamp.TimeOfDay</c> against the Central-time constants in
-    /// <see cref="AppConstants"/>, so it assumes the bars' timestamps are in Central time.
+    /// <see cref="AppConstants"/>; bar timestamps are loaded as Central time (see <see cref="MarketTime"/>).
     /// </summary>
     public static double RthOpenToLowRatio(List<BarData> bars, double atr)
     {
@@ -678,7 +679,7 @@ public class Computations
     /// Known before the RTH open, so it's usable for trade-day predictions. Returns NaN when there are no
     /// pre-market bars.
     /// Window membership is decided by <c>Timestamp.TimeOfDay</c> against the Central-time constants in
-    /// <see cref="AppConstants"/>, so it assumes the bars' timestamps are in Central time.
+    /// <see cref="AppConstants"/>; bar timestamps are loaded as Central time (see <see cref="MarketTime"/>).
     /// </summary>
     public static double PreMarketRange(List<BarData> bars, double atr)
     {
@@ -693,7 +694,7 @@ public class Computations
     /// Takes the RTH open from the first RTH bar in <paramref name="bars"/>, so those bars must be included.
     /// Returns NaN when there are no RTH or no pre-market bars.
     /// Window membership is decided by <c>Timestamp.TimeOfDay</c> against the Central-time constants in
-    /// <see cref="AppConstants"/>, so it assumes the bars' timestamps are in Central time.
+    /// <see cref="AppConstants"/>; bar timestamps are loaded as Central time (see <see cref="MarketTime"/>).
     /// </summary>
     public static double PreMarketHighVsOpen(List<BarData> bars, double atr)
     {
@@ -710,12 +711,12 @@ public class Computations
     }
 
     /// <summary>
-    /// Pre-market low minus the RTH open, in ATR units. This is usually negative (the pre-market low is normally
-    /// below the open), unlike <see cref="OpenToLowRatio"/> and <see cref="RthOpenToLowRatio"/>, which return the
-    /// drop as a positive number. Takes the RTH open from the first RTH bar in <paramref name="bars"/>.
+    /// How far the pre-market low was below the RTH open (RTH open minus pre-market low), in ATR units, as a
+    /// positive number like <see cref="OpenToLowRatio"/> and <see cref="RthOpenToLowRatio"/>; negative only if the
+    /// whole pre-market traded above the open. Takes the RTH open from the first RTH bar in <paramref name="bars"/>.
     /// Returns NaN when there are no RTH or no pre-market bars.
     /// Window membership is decided by <c>Timestamp.TimeOfDay</c> against the Central-time constants in
-    /// <see cref="AppConstants"/>, so it assumes the bars' timestamps are in Central time.
+    /// <see cref="AppConstants"/>; bar timestamps are loaded as Central time (see <see cref="MarketTime"/>).
     /// </summary>
     public static double PreMarketLowVsOpen(List<BarData> bars, double atr)
     {
@@ -728,14 +729,14 @@ public class Computations
             b.Timestamp.TimeOfDay <  AppConstants.RTH_START_TIME).ToList();
         if (rthBars.Count == 0 || pm.Count == 0) return double.NaN;
         var rth = BarData.Aggregate(rthBars);
-        return Operations.SafeDiv(pm.Min(b => b.Low) - rth.Open, atr);
+        return Operations.SafeDiv(rth.Open - pm.Min(b => b.Low), atr);
     }
 
     /// <summary>
     /// Opening gap: the RTH open minus <paramref name="prevClose"/> (the previous session's close), in ATR units.
     /// Positive for a gap up, negative for a gap down. Returns NaN when there are no RTH bars.
     /// Window membership is decided by <c>Timestamp.TimeOfDay</c> against the Central-time constants in
-    /// <see cref="AppConstants"/>, so it assumes the bars' timestamps are in Central time.
+    /// <see cref="AppConstants"/>; bar timestamps are loaded as Central time (see <see cref="MarketTime"/>).
     /// </summary>
     public static double GapToRthOpen(List<BarData> bars, double prevClose, double atr)
     {
@@ -752,7 +753,7 @@ public class Computations
     /// Share of the supplied bars' total volume that traded pre-market (16:00 to 08:30), from 0 to 1.
     /// Returns NaN when there are no pre-market bars.
     /// Window membership is decided by <c>Timestamp.TimeOfDay</c> against the Central-time constants in
-    /// <see cref="AppConstants"/>, so it assumes the bars' timestamps are in Central time.
+    /// <see cref="AppConstants"/>; bar timestamps are loaded as Central time (see <see cref="MarketTime"/>).
     /// </summary>
     public static double PreMarketVolumeRatio(List<BarData> bars)
     {
@@ -779,8 +780,8 @@ public class Computations
     }
 
     /// <summary>
-    /// Simple return of the bid/ask midpoint from the previous tick to this one. A missing bid or ask counts as 0,
-    /// so a missing quote on the previous tick divides by zero.
+    /// Simple return of the bid/ask midpoint from the previous tick to this one. A missing bid or ask counts as 0;
+    /// returns 0 when the previous midpoint is 0 (no quote).
     /// </summary>
     public static double MidReturn(List<TickData> ticks, int i)
     {
@@ -792,6 +793,7 @@ public class Computations
 
         var mid = (bid + ask) / 2.0;
         var prevMid = (lastBid + lastAsk) / 2.0;
+        if (prevMid == 0) return 0;
         return (mid - prevMid) / prevMid;
     }
 

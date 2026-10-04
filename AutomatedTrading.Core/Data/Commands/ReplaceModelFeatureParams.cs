@@ -143,7 +143,7 @@ public class ReplaceModelFeatureParams(IDbConnectionFactory connectionFactory, I
                 cmd.Parameters["@FeatureTypeId"].Value = feature.FeatureTypeId;
                 cmd.Parameters["@Source"].Value = (object?)feature.Source ?? DBNull.Value;
                 cmd.Parameters["@SortOrder"].Value = ++sortOrder;
-                cmd.Parameters["@ModelFeatureName"].Value = string.IsNullOrWhiteSpace(feature.ModelFeatureName) ? DBNull.Value : feature.ModelFeatureName.Trim();
+                cmd.Parameters["@ModelFeatureName"].Value = string.IsNullOrWhiteSpace(feature.ModelFeatureName) ? DBNull.Value : feature.ModelFeatureName!.Trim();
                 insertedIds[feature.TempId] = Convert.ToInt64(await cmd.ExecuteScalarAsync());
             }
         }
@@ -172,10 +172,10 @@ public class ReplaceModelFeatureParams(IDbConnectionFactory connectionFactory, I
             cmd.CommandText = "UPDATE ModelFeature SET ModelFeatureName = @ModelFeatureName WHERE Id = @Id";
             SqlHelper.AddParameter(cmd, "@ModelFeatureName", null);
             SqlHelper.AddParameter(cmd, "@Id", null);
-            foreach (var (featureId, name) in featureNames)
+            foreach (var entry in featureNames)
             {
-                cmd.Parameters["@ModelFeatureName"].Value = string.IsNullOrWhiteSpace(name) ? DBNull.Value : name.Trim();
-                cmd.Parameters["@Id"].Value = featureId;
+                cmd.Parameters["@ModelFeatureName"].Value = string.IsNullOrWhiteSpace(entry.Value) ? DBNull.Value : entry.Value!.Trim();
+                cmd.Parameters["@Id"].Value = entry.Key;
                 await cmd.ExecuteNonQueryAsync();
             }
         }

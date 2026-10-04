@@ -2,6 +2,7 @@ using System;
 using System.Data.Common;
 using System.Threading;
 using System.Threading.Tasks;
+using AutomatedTrading.Core.Framework;
 using AutomatedTrading.Core.Framework.DataLayer;
 using AutomatedTrading.Core.Models;
 using Microsoft.Extensions.Logging;
@@ -57,7 +58,8 @@ public class StreamBarsInRange(IDbConnectionFactory connectionFactory, ILogger<S
     private static BarData mapBar(DbDataReader r) => new BarData
     {
         Timeframe = r.GetString(0),
-        Timestamp = DateTimeOffset.FromUnixTimeMilliseconds(r.GetInt64(1)).UtcDateTime,
+        // Central time, matching the repository-based queries the API uses (see MarketTime).
+        Timestamp = MarketTime.FromUnixMilliseconds(r.GetInt64(1)),
         SessionDate = r.IsDBNull(2) ? null : r.GetString(2),
         SessionTime = r.IsDBNull(3) ? null : r.GetString(3),
         Open = r.GetDouble(4),

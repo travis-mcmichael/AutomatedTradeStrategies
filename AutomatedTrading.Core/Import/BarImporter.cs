@@ -59,7 +59,7 @@ public class BarImporter
         if (!name.EndsWith(FILE_SUFFIX, StringComparison.OrdinalIgnoreCase))
             throw new FormatException($"'{fileName}' does not match '[instrument] [mm-yy]{FILE_SUFFIX}'.");
 
-        var parts = name[..^FILE_SUFFIX.Length].Split(' ', (char)StringSplitOptions.RemoveEmptyEntries);
+        var parts = name.Substring(0, name.Length - FILE_SUFFIX.Length).Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length != 2 || !DateTime.TryParseExact(parts[1], "MM-yy", CultureInfo.InvariantCulture, DateTimeStyles.None, out _))
             throw new FormatException($"'{fileName}' does not match '[instrument] [mm-yy]{FILE_SUFFIX}'.");
 
@@ -69,7 +69,7 @@ public class BarImporter
     private static BarData? parseBarData(string line, string instrument, string version)
     {
         var parts = line.Split(';');
-        var timestamp = DateTimeConverter.UtcStringToLocal(parts[0].Replace(" ", ""));
+        var timestamp = DateTimeConverter.UtcStringToCentral(parts[0].Replace(" ", ""));
         var sessionDate = timestamp.Date;
         if (timestamp.Hour > 16)
             sessionDate = TradingCalendar.GetNextSessionDate(timestamp.Date);
