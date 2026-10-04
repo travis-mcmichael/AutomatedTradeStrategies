@@ -65,6 +65,8 @@ public class FeatureExportJobs(IServiceScopeFactory scopeFactory, ILogger<Featur
                 ?? throw new InvalidOperationException($"Model {job.ModelConfigId} was not found.");
             if (string.IsNullOrWhiteSpace(model.FeatureLocation))
                 throw new InvalidOperationException($"{model.ModelName} has no Feature Location.");
+            if (model.ModelFeatures.Count == 0)
+                throw new InvalidOperationException($"{model.ModelName} has no features. Add them via Edit Features before exporting.");
             var missing = await services.GetRequiredService<GetMissingModelConfigParams>().Execute(model.Id);
             if (missing.Count > 0)
                 throw new InvalidOperationException(

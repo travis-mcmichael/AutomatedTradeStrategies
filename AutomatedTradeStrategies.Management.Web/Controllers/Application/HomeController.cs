@@ -15,8 +15,10 @@ namespace AutomatedTradeStrategies.Management.Web.Controllers.Application;
 public class HomeController(
     ILogger<HomeController> logger,
     GetAllModelConfigs allModelConfigs,
+    IDefaultRepository<ModelConfig> models,
     GetFeatureTypes featureTypes,
     IDefaultUpdateCommand<ModelConfig> updateModelConfig,
+    IDefaultInsertCommand<ModelConfig> insertModelConfig,
     ReplaceModelFeatureParams replaceModelFeatureParams,
     FeatureExportJobs featureExportJobs,
     GetBarDataCountsByDate barDataCountsByDate,
@@ -57,6 +59,9 @@ public class HomeController(
         if (!ModelState.IsValid)
             return BadRequest(string.Join(" ", ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage)));
 
+        if (await isDuplicateName(model))
+            return BadRequest($"A model named '{model.ModelName}' already exists.");
+
         var updated = await updateModelConfig.Execute(new
         {
             model.ModelName,
@@ -74,6 +79,28 @@ public class HomeController(
         }, new { model.Id });
         return updated == 0 ? NotFound($"Model {model.Id} was not found.") : Ok();
     }
+
+    // Creates a model with no features. Version starts empty and is set by its first successful feature export.
+    [HttpPost]
+    public async Task<IActionResult> CreateModel([FromBody] ModelConfig model)
+    {
+        ModelState.Remove(nameof(ModelConfig.Version));
+        if (!ModelState.IsValid)
+            return BadRequest(string.Join(" ", ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage)));
+
+        model.Id = 0;
+        model.Version = "";
+        if (await isDuplicateName(model))
+            return BadRequest($"A model named '{model.ModelName}' already exists.");
+
+        var id = await insertModelConfig.Execute(model);
+        return Ok(new { id });
+    }
+
+    // ModelName is UNIQUE in ModelConfig; checked up front for a readable error instead of a constraint failure.
+    private async Task<bool> isDuplicateName(ModelConfig model) =>
+        (await models.GetDataAsync(new Dictionary<string, object> { { nameof(ModelConfig.ModelName), model.ModelName } }))
+            .Any(m => m.Id != model.Id);
 
     // Replaces all of a model's feature param values with the posted set, saves the feature names, adds any
     // new features and deletes any removed ones.

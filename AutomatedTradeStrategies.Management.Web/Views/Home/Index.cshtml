@@ -13,7 +13,10 @@
 </ul>
 <div class="tab-content" id="homeTabsContent">
     <div class="tab-pane fade show active" id="home-pane" role="tabpanel" aria-labelledby="home-tab" tabindex="0">
-        <h2>Models</h2>
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <h2 class="mb-0">Models</h2>
+            <button type="button" class="btn btn-sm btn-outline-primary" id="models-add"><i class="bi bi-plus-lg"></i> Add Model</button>
+        </div>
         <div id="models-table"></div>
     </div>
     <div class="tab-pane fade" id="trade-data-pane" role="tabpanel" aria-labelledby="trade-data-tab" tabindex="0">
@@ -54,6 +57,7 @@
                     <div class="col-md-3">
                         <label for="model-edit-target" class="form-label">Target</label>
                         <select class="form-select" id="model-edit-target" name="target" required>
+                            <option value="" disabled hidden>Select...</option>
                             <option value="HIGH">HIGH</option>
                             <option value="LOW">LOW</option>
                             <option value="CLASS">CLASS</option>
@@ -62,6 +66,7 @@
                     <div class="col-md-3">
                         <label for="model-edit-barType" class="form-label">Bar Type</label>
                         <select class="form-select" id="model-edit-barType" name="barType" required>
+                            <option value="" disabled hidden>Select...</option>
                             <option value="session">session</option>
                             <option value="window">window</option>
                             <option value="minute">minute</option>
@@ -202,8 +207,12 @@
                     if (cell.getValue())
                         return "<i class='bi bi-check-lg text-success fs-5' title='features.csv is present'></i>";
                     // Disabled buttons don't show tooltips, so the explanation goes on a wrapping span.
-                    return hasMissingParams(cell.getRow().getData())
-                        ? "<span class='d-inline-block' tabindex='0' title='Set all feature parameter values (Edit > Edit Features) before exporting'><button type='button' class='btn btn-sm btn-outline-primary' disabled style='pointer-events: none;'>Export</button></span>"
+                    const model = cell.getRow().getData();
+                    const reason = !(model.modelFeatures?.length) ? 'Add features (Edit > Edit Features) before exporting'
+                        : hasMissingParams(model) ? 'Set all feature parameter values (Edit > Edit Features) before exporting'
+                        : null;
+                    return reason
+                        ? `<span class='d-inline-block' tabindex='0' title='${reason}'><button type='button' class='btn btn-sm btn-outline-primary' disabled style='pointer-events: none;'>Export</button></span>`
                         : "<button type='button' class='btn btn-sm btn-outline-primary'>Export</button>";
                 },
                 cellClick: (e, cell) => {
@@ -213,6 +222,8 @@
             Defaults.grid.buildEditColumn('id', (data) => openModelEditor(data))
         ];
         const table = Defaults.grid.buildGrid('#models-table', columns, '/Home/Models');
+
+        document.getElementById('models-add').addEventListener('click', () => openModelEditor(null));
 
         // True if any of the model's features lacks a value for one of its feature type's params.
         function hasMissingParams(model) {
@@ -238,14 +249,18 @@
         // Row data for the model open in the editor; refreshed after feature params are saved.
         let currentModel = null;
 
+        // data is null when adding a new model; it's created on Save, after which features can be added.
         function openModelEditor(data) {
             currentModel = data;
             for (const el of modelEditForm.elements) {
                 if (!el.name) continue;
-                if (el.type === 'checkbox') el.checked = !!data[el.name];
-                else el.value = data[el.name] ?? '';
+                if (el.type === 'checkbox') el.checked = !!data?.[el.name];
+                else el.value = data?.[el.name] ?? '';
             }
-            document.getElementById('model-edit-title').textContent = `Edit Model: ${data.modelName}`;
+            document.getElementById('model-edit-title').textContent = data ? `Edit Model: ${data.modelName}` : 'New Model';
+            const editFeatures = document.getElementById('model-edit-features');
+            editFeatures.disabled = !data;
+            editFeatures.title = data ? '' : 'Save the new model before adding features';
             modelEditForm.classList.remove('was-validated');
             modelEditError.classList.add('d-none');
             modelEditModal.show();
@@ -268,7 +283,7 @@
             modelEditSave.disabled = true;
             modelEditError.classList.add('d-none');
             try {
-                const res = await fetch('/Home/UpdateModel', {
+                const res = await fetch(payload.id ? '/Home/UpdateModel' : '/Home/CreateModel', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
