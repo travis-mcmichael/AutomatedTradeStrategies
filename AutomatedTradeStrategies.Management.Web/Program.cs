@@ -20,7 +20,7 @@ builder.Services.AddScoped(typeof(IDefaultUpdateCommand<>), typeof(DefaultUpdate
 builder.Services.AddScoped(typeof(IDefaultDeleteCommand<>), typeof(DefaultDeleteCommand<>));
 
 // Overrides the generic DefaultInsertCommand<BarData> registered above: batches inserts and
-// replaces existing rows on (Instrument, Timestamp) conflicts instead of a plain INSERT.
+// updates existing rows matching (SessionDate, SessionTime, Instrument, InstrumentVersion) instead of a plain INSERT.
 builder.Services.AddScoped<IDefaultInsertCommand<BarData>, BarDataInsertCommand>();
 
 // Auto-register every query/command class so new ones don't need to be listed here.

@@ -50,6 +50,7 @@
             { title: 'Instrument', field: 'instrument' },
             { title: 'Target', field: 'target' },
             { title: 'Bar Type', field: 'barType' },
+            { title: 'Features', field: 'featureCount', hozAlign: 'right', mutator: (value, data) => data.modelFeatures?.length ?? 0 },
             { title: 'Active', field: 'active', formatter: 'tickCross' },
             { title: 'Export', field: 'export', formatter: 'tickCross' }
         ];
