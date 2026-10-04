@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using AutomatedTradeStrategies.Management.Web.Models;
 using AutomatedTrading.Core.Data;
+using AutomatedTrading.Core.Data.Commands;
 using AutomatedTrading.Core.Data.Queries;
 using AutomatedTrading.Core.Import;
 using AutomatedTrading.Core.Models;
@@ -12,6 +13,7 @@ public class HomeController(
     ILogger<HomeController> logger,
     GetAllModelConfigs allModelConfigs,
     IDefaultUpdateCommand<ModelConfig> updateModelConfig,
+    ReplaceModelFeatureParams replaceModelFeatureParams,
     GetBarDataCountsByDate barDataCountsByDate,
     GetDistinctBarDataInstruments distinctBarDataInstruments,
     IDefaultInsertCommand<BarData> barInsertCommand) : Controller
@@ -55,6 +57,24 @@ public class HomeController(
             model.Export
         }, new { model.Id });
         return updated == 0 ? NotFound($"Model {model.Id} was not found.") : Ok();
+    }
+
+    // Replaces all of a model's feature param values with the posted set.
+    [HttpPost]
+    public async Task<IActionResult> UpdateFeatureParams([FromBody] ModelFeatureParamsUpdate request)
+    {
+        if (request.ModelConfigId <= 0)
+            return BadRequest("A model Id is required.");
+
+        try
+        {
+            await replaceModelFeatureParams.Execute(request.ModelConfigId, request.Params);
+            return Ok();
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ex.Message);
+        }
     }
 
     public async Task<IActionResult> BarDataCounts()

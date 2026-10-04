@@ -101,8 +101,38 @@
                 <div id="model-edit-error" class="alert alert-danger mt-3 mb-0 d-none" role="alert"></div>
             </div>
             <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary me-auto" id="model-edit-features">Edit Features</button>
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                 <button type="submit" class="btn btn-primary" id="model-edit-save">Save</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="modal fade" id="features-edit-modal" tabindex="-1" aria-labelledby="features-edit-title" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <form class="modal-content" id="features-edit-form" novalidate>
+            <div class="modal-header">
+                <h5 class="modal-title" id="features-edit-title">Edit Features</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <table class="table table-sm align-middle">
+                    <thead>
+                        <tr>
+                            <th style="width: 3rem;">#</th>
+                            <th>Feature</th>
+                            <th>Source</th>
+                            <th>Parameters</th>
+                        </tr>
+                    </thead>
+                    <tbody id="features-edit-rows"></tbody>
+                </table>
+                <div id="features-edit-error" class="alert alert-danger mt-3 mb-0 d-none" role="alert"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary" id="features-edit-save">Save</button>
             </div>
         </form>
     </div>
@@ -159,7 +189,11 @@
             f.outputLocation.value = outputLocation;
         }
 
+        // Row data for the model open in the editor; refreshed after feature params are saved.
+        let currentModel = null;
+
         function openModelEditor(data) {
+            currentModel = data;
             for (const el of modelEditForm.elements) {
                 if (!el.name) continue;
                 if (el.type === 'checkbox') el.checked = !!data[el.name];
@@ -202,6 +236,140 @@
                 modelEditError.classList.remove('d-none');
             } finally {
                 modelEditSave.disabled = false;
+            }
+        });
+
+        const featuresEditModalEl = document.getElementById('features-edit-modal');
+        const featuresEditModal = new bootstrap.Modal(featuresEditModalEl);
+        const featuresEditForm = document.getElementById('features-edit-form');
+        const featuresEditRows = document.getElementById('features-edit-rows');
+        const featuresEditError = document.getElementById('features-edit-error');
+        const featuresEditSave = document.getElementById('features-edit-save');
+
+        // Bootstrap doesn't support stacked modals, so the model editor is hidden while the features
+        // editor is open and shown again (with any unsaved edits intact) when it closes.
+        document.getElementById('model-edit-features').addEventListener('click', () => {
+            document.getElementById('model-edit-modal').addEventListener('hidden.bs.modal', () => openFeaturesEditor(currentModel), { once: true });
+            modelEditModal.hide();
+        });
+        featuresEditModalEl.addEventListener('hidden.bs.modal', () => modelEditModal.show());
+
+        function openFeaturesEditor(model) {
+            document.getElementById('features-edit-title').textContent = `Edit Features: ${model.modelName}`;
+            featuresEditRows.replaceChildren();
+
+            const features = [...(model.modelFeatures ?? [])].sort((a, b) => a.sortOrder - b.sortOrder);
+            if (!features.length) {
+                const row = featuresEditRows.insertRow();
+                const cell = row.insertCell();
+                cell.colSpan = 4;
+                cell.className = 'text-muted';
+                cell.textContent = 'This model has no features.';
+            }
+
+            features.forEach((feature, i) => {
+                const row = featuresEditRows.insertRow();
+                row.insertCell().textContent = i + 1;
+                const nameCell = row.insertCell();
+                nameCell.textContent = feature.featureType?.name ?? `FeatureType ${feature.featureTypeId}`;
+                const marker = document.createElement('span');
+                marker.className = 'text-danger fw-bold ms-1 missing-param-marker d-none';
+                marker.title = 'Missing parameter values';
+                marker.textContent = '*';
+                nameCell.appendChild(marker);
+                row.insertCell().textContent = feature.source ?? 'daily';
+
+                const paramsCell = row.insertCell();
+                const typeParams = [...(feature.featureType?.featureTypeParams ?? [])]
+                    .sort((a, b) => a.parameterKey.localeCompare(b.parameterKey));
+                if (!typeParams.length) {
+                    paramsCell.className = 'text-muted';
+                    paramsCell.textContent = 'None';
+                    return;
+                }
+
+                const group = document.createElement('div');
+                group.className = 'd-flex flex-wrap gap-2';
+                for (const typeParam of typeParams) {
+                    const existing = (feature.modelFeatureParams ?? []).find(p => p.featureTypeParamId === typeParam.id);
+                    const inputId = `feature-param-${feature.id}-${typeParam.id}`;
+
+                    const wrapper = document.createElement('div');
+                    wrapper.className = 'input-group input-group-sm';
+                    wrapper.style.width = '11rem';
+
+                    const label = document.createElement('label');
+                    label.className = 'input-group-text';
+                    label.htmlFor = inputId;
+                    label.textContent = typeParam.parameterKey;
+
+                    const input = document.createElement('input');
+                    input.type = 'number';
+                    input.step = '1';
+                    input.className = 'form-control';
+                    input.id = inputId;
+                    input.placeholder = 'not set';
+                    input.dataset.modelFeatureId = feature.id;
+                    input.dataset.featureTypeParamId = typeParam.id;
+                    input.value = existing?.paramValue ?? '';
+
+                    wrapper.append(label, input);
+                    group.appendChild(wrapper);
+                }
+                paramsCell.appendChild(group);
+            });
+
+            featuresEditForm.classList.remove('was-validated');
+            featuresEditError.classList.add('d-none');
+            refreshMissingParams();
+            featuresEditModal.show();
+        }
+
+        // Marks each feature that has a blank param input, and only enables Save once none are blank.
+        function refreshMissingParams() {
+            let anyMissing = false;
+            for (const row of featuresEditRows.rows) {
+                const marker = row.querySelector('.missing-param-marker');
+                if (!marker) continue;
+                const missing = [...row.querySelectorAll('input[data-model-feature-id]')].some(input => input.value.trim() === '');
+                marker.classList.toggle('d-none', !missing);
+                anyMissing ||= missing;
+            }
+            featuresEditSave.disabled = anyMissing;
+        }
+
+        featuresEditRows.addEventListener('input', refreshMissingParams);
+
+        featuresEditForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            featuresEditForm.classList.add('was-validated');
+            if (!featuresEditForm.checkValidity()) return;
+
+            const params = [...featuresEditRows.querySelectorAll('input[data-model-feature-id]')]
+                .map(input => ({
+                    modelFeatureId: Number(input.dataset.modelFeatureId),
+                    featureTypeParamId: Number(input.dataset.featureTypeParamId),
+                    paramValue: Number(input.value)
+                }));
+
+            featuresEditSave.disabled = true;
+            featuresEditError.classList.add('d-none');
+            try {
+                const res = await fetch('/Home/UpdateFeatureParams', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ modelConfigId: currentModel.id, params })
+                });
+                if (!res.ok) throw new Error((await res.text()) || `request failed with status ${res.status}`);
+
+                await table.replaceData();
+                currentModel = table.getRow(currentModel.id)?.getData() ?? currentModel;
+                featuresEditModal.hide();
+            } catch (err) {
+                featuresEditError.textContent = `Save failed: ${err.message}`;
+                featuresEditError.classList.remove('d-none');
+            } finally {
+                refreshMissingParams();
             }
         });
 
