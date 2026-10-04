@@ -145,6 +145,26 @@
     </div>
 </div>
 
+<div class="modal fade" id="delete-model-modal" tabindex="-1" aria-labelledby="delete-model-title" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="delete-model-title">Delete Model</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-2">Delete <strong id="delete-model-name"></strong>?</p>
+                <p class="mb-0 text-muted small" id="delete-model-details"></p>
+                <div id="delete-model-error" class="alert alert-danger mt-3 mb-0 d-none" role="alert"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="delete-model-confirm">Delete</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="modal fade" id="export-modal" tabindex="-1" aria-labelledby="export-title" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -219,11 +239,54 @@
                     if (!cell.getValue() && e.target.closest('button:not([disabled])')) startFeatureExport(cell.getRow().getData());
                 }
             },
-            Defaults.grid.buildEditColumn('id', (data) => openModelEditor(data))
+            Defaults.grid.buildEditColumn('id', (data) => openModelEditor(data)),
+            {
+                title: '', field: 'id', hozAlign: 'center', width: Defaults.grid.editColumnWidth, headerSort: false,
+                formatter: () => "<button type='button' class='btn btn-sm btn-outline-danger' title='Delete'><i class='bi bi-trash'></i></button>",
+                cellClick: (e, cell) => {
+                    if (e.target.closest('button')) confirmDeleteModel(cell.getRow().getData());
+                }
+            }
         ];
         const table = Defaults.grid.buildGrid('#models-table', columns, '/Home/Models');
 
         document.getElementById('models-add').addEventListener('click', () => openModelEditor(null));
+
+        const deleteModelModal = new bootstrap.Modal(document.getElementById('delete-model-modal'));
+        const deleteModelConfirm = document.getElementById('delete-model-confirm');
+        const deleteModelError = document.getElementById('delete-model-error');
+        let modelPendingDelete = null;
+
+        // Nothing is deleted until the user confirms in the popup.
+        function confirmDeleteModel(model) {
+            modelPendingDelete = model;
+            const features = model.modelFeatures ?? [];
+            const params = features.reduce((sum, f) => sum + (f.modelFeatureParams?.length ?? 0), 0);
+            document.getElementById('delete-model-name').textContent = model.modelName;
+            document.getElementById('delete-model-details').textContent =
+                `This permanently deletes the model along with its ${features.length} feature${features.length === 1 ? '' : 's'} ` +
+                `and ${params} parameter value${params === 1 ? '' : 's'}. It can't be undone. Exported files on disk are not removed.`;
+            deleteModelError.classList.add('d-none');
+            deleteModelConfirm.disabled = false;
+            deleteModelModal.show();
+        }
+
+        deleteModelConfirm.addEventListener('click', async () => {
+            if (!modelPendingDelete) return;
+            deleteModelConfirm.disabled = true;
+            deleteModelError.classList.add('d-none');
+            try {
+                const res = await fetch(`/Home/DeleteModel/${modelPendingDelete.id}`, { method: 'POST' });
+                if (!res.ok) throw new Error((await res.text()) || `request failed with status ${res.status}`);
+                modelPendingDelete = null;
+                deleteModelModal.hide();
+                table.replaceData();
+            } catch (err) {
+                deleteModelError.textContent = `Delete failed: ${err.message}`;
+                deleteModelError.classList.remove('d-none');
+                deleteModelConfirm.disabled = false;
+            }
+        });
 
         // True if any of the model's features lacks a value for one of its feature type's params.
         function hasMissingParams(model) {

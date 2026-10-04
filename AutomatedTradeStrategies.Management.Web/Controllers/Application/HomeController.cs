@@ -20,6 +20,7 @@ public class HomeController(
     IDefaultUpdateCommand<ModelConfig> updateModelConfig,
     IDefaultInsertCommand<ModelConfig> insertModelConfig,
     ReplaceModelFeatureParams replaceModelFeatureParams,
+    DeleteModelConfig deleteModelConfig,
     FeatureExportJobs featureExportJobs,
     GetBarDataCountsByDate barDataCountsByDate,
     GetDistinctBarDataInstruments distinctBarDataInstruments,
@@ -125,6 +126,18 @@ public class HomeController(
         {
             return BadRequest(ex.Message);
         }
+    }
+
+    // Deletes the model with its features, feature params and performance rows (see DeleteModelConfig).
+    [HttpPost]
+    public async Task<IActionResult> DeleteModel(long id)
+    {
+        if (id <= 0)
+            return BadRequest("A model Id is required.");
+        if (featureExportJobs.GetStatus(id)?.State == FeatureExportState.Running)
+            return Conflict("This model's features are being exported. Wait for the export to finish before deleting it.");
+
+        return await deleteModelConfig.Execute(id) ? Ok() : NotFound($"Model {id} was not found.");
     }
 
     // Starts a background feature export for the model (or returns the one already running).
