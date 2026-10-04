@@ -74,7 +74,7 @@ public class HomeController(
         return updated == 0 ? NotFound($"Model {model.Id} was not found.") : Ok();
     }
 
-    // Replaces all of a model's feature param values with the posted set.
+    // Replaces all of a model's feature param values with the posted set and saves the feature names.
     [HttpPost]
     public async Task<IActionResult> UpdateFeatureParams([FromBody] ModelFeatureParamsUpdate request)
     {
@@ -83,7 +83,11 @@ public class HomeController(
 
         try
         {
-            await replaceModelFeatureParams.Execute(request.ModelConfigId, request.Params);
+            if (request.Features.GroupBy(f => f.ModelFeatureId).Any(g => g.Count() > 1))
+                return BadRequest("A feature name was sent more than once for the same feature.");
+
+            await replaceModelFeatureParams.Execute(request.ModelConfigId, request.Params,
+                request.Features.ToDictionary(f => f.ModelFeatureId, f => f.ModelFeatureName));
             return Ok();
         }
         catch (ArgumentException ex)

@@ -118,6 +118,7 @@
                         <tr>
                             <th style="width: 3rem;">#</th>
                             <th>Feature</th>
+                            <th>Name</th>
                             <th>Source</th>
                             <th>Parameters</th>
                         </tr>
@@ -302,7 +303,7 @@
             if (!features.length) {
                 const row = featuresEditRows.insertRow();
                 const cell = row.insertCell();
-                cell.colSpan = 4;
+                cell.colSpan = 5;
                 cell.className = 'text-muted';
                 cell.textContent = 'This model has no features.';
             }
@@ -317,6 +318,17 @@
                 marker.title = 'Missing parameter values';
                 marker.textContent = '*';
                 nameCell.appendChild(marker);
+
+                // Optional, so it isn't part of the missing-value check (which only looks at data-model-feature-id inputs).
+                const featureNameInput = document.createElement('input');
+                featureNameInput.type = 'text';
+                featureNameInput.className = 'form-control form-control-sm model-feature-name';
+                featureNameInput.placeholder = 'optional';
+                featureNameInput.setAttribute('aria-label', `${feature.featureType?.name ?? 'Feature'} ${i + 1} name`);
+                featureNameInput.dataset.featureId = feature.id;
+                featureNameInput.value = feature.modelFeatureName ?? '';
+                row.insertCell().appendChild(featureNameInput);
+
                 row.insertCell().textContent = feature.source ?? 'daily';
 
                 const paramsCell = row.insertCell();
@@ -392,13 +404,19 @@
                     paramValue: Number(input.value)
                 }));
 
+            const features = [...featuresEditRows.querySelectorAll('input.model-feature-name')]
+                .map(input => ({
+                    modelFeatureId: Number(input.dataset.featureId),
+                    modelFeatureName: input.value.trim() || null
+                }));
+
             featuresEditSave.disabled = true;
             featuresEditError.classList.add('d-none');
             try {
                 const res = await fetch('/Home/UpdateFeatureParams', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ modelConfigId: currentModel.id, params })
+                    body: JSON.stringify({ modelConfigId: currentModel.id, params, features })
                 });
                 if (!res.ok) throw new Error((await res.text()) || `request failed with status ${res.status}`);
 

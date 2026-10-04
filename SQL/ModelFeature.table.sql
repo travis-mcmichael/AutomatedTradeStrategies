@@ -9,5 +9,6 @@ CREATE TABLE IF NOT EXISTS ModelFeature (
     -- Feature dispatch
     Source TEXT CHECK (Source IS NULL OR Source IN ('prevMinute', 'currMinute')),
                                            -- NULL = 'daily' (default source)
-    SortOrder INTEGER NOT NULL            -- preserves feature/column ordering from models.json
+    SortOrder INTEGER NOT NULL,           -- preserves feature/column ordering from models.json
+    ModelFeatureName TEXT                 -- optional display name; NULL when not set
 );

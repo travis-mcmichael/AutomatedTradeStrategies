@@ -13,5 +13,6 @@ public class ModelFeature : IDatabaseEntity
     public string? Source { get; set; }
     public long ModelConfigId { get; set; }
     public int SortOrder { get; set; }
+    public string? ModelFeatureName { get; set; }
     public IEnumerable<ModelFeatureParam> ModelFeatureParams { get; set; } = [];
 }
