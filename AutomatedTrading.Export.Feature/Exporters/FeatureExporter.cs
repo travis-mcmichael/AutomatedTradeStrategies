@@ -52,7 +52,7 @@ public class FeatureExporter
         var changeovers = await _getChangeovers.Execute(orderedSessions.Last(), start, end);
         if (changeovers.Any())
         {
-            var runningAdjustment =
+            var runningAdjustment = 0L;
             for (var i = orderedSessions.Count() - 1; i >= 0; i--)
             {
                 var current = orderedSessions[i];

@@ -19,10 +19,8 @@ public class BarData : IDatabaseEntity
     public string? Timeframe { get; set; }
     public string? SessionDate { get; set; }
     public string? SessionTime { get; set; }
-    public int? InstrumentId { get; set; }
-    public int? VersionId { get; set; }
     public string? Instrument { get; set; }
-    public string? Version { get; set; }
+    public string? InstrumentVersion { get; set; }
     public BarData() { }
     public BarData(BarData bar)
     {
@@ -35,9 +33,7 @@ public class BarData : IDatabaseEntity
         Timeframe = bar.Timeframe;
         Timestamp = bar.Timestamp;
         SessionDate = bar.SessionDate;
-        InstrumentId = bar.InstrumentId;
-        VersionId = bar.VersionId;
-        Version = bar.Version;
+        InstrumentVersion = bar.InstrumentVersion;
     }
     public virtual string ToLog()
     {
@@ -57,10 +53,8 @@ public class BarData : IDatabaseEntity
             High = ordered.Max(x => x.High),
             Low = ordered.Min(x => x.Low),
             Volume = ordered.Sum(x => x.Volume),
-            VersionId = last.VersionId,
-            InstrumentId = last.InstrumentId,
+            InstrumentVersion = last.InstrumentVersion,
             Instrument = last.Instrument,
-            Version = last.Version
         };
     }
 }

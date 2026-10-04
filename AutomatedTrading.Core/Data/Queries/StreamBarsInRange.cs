@@ -12,22 +12,19 @@ public class StreamBarsInRange(IDbConnectionFactory connectionFactory, ILogger<S
 {
     private const string Sql = @"
         SELECT 
-            b.Timeframe, 
-            b.Timestamp, 
-            b.SessionDate, 
-            b.SessionTime, 
-            b.Open, 
-            b.High, 
-            b.Low, 
-            b.Close, 
-            b.Volume,
-            i.Instrument,
-            b.InstrumentId,
-            v.Version,
-            b.VersionId
+            Timeframe, 
+            Timestamp, 
+            SessionDate, 
+            SessionTime, 
+            Open, 
+            High, 
+            Low, 
+            Close, 
+            Volume,
+            Instrument,
+            InstrumentId,
+            InstrumentVersion
         FROM BarData b
-        LEFT JOIN Instrument i ON b.InstrumentId = i.Id
-        LEFT JOIN InstrumentVersion v ON b.VersionId = v.Id
         WHERE Timestamp >= @StartTimestamp AND Timestamp <= @EndTimestamp
         ORDER BY Timestamp ASC";
 
@@ -67,7 +64,6 @@ public class StreamBarsInRange(IDbConnectionFactory connectionFactory, ILogger<S
         Close = r.GetDouble(7),
         Volume = r.GetDouble(8),
         Instrument = r.GetString(9),
-        InstrumentId = r.GetInt64(10),
-        Version = r.GetString(11),
+        InstrumentVersion = r.GetString(11),
     };
 }

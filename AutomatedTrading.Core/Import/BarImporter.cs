@@ -1,11 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.Configuration;
 using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using AutomatedTrading.Core.Data;
-using AutomatedTrading.Core.Data.Commands;
 using AutomatedTrading.Core.Framework;
 using AutomatedTrading.Core.Models;
 
@@ -20,16 +20,12 @@ public class BarImporter
     public static async Task<int> ImportBarData(
         string file,
         string fileName,
-        GetOrCreateInstrument getOrCreateInstrument,
-        GetOrCreateInstrumentVersion getOrCreateInstrumentVersion,
         IDefaultInsertCommand<BarData> barRepository)
     {
         if (!File.Exists(file))
             return 0;
 
         var (instrument, version) = parseFileName(fileName);
-        var instrumentId = await getOrCreateInstrument.Execute(instrument);
-        var versionId = await getOrCreateInstrumentVersion.Execute(instrumentId, version);
 
         var bars = new List<BarData>();
         using var reader = new StreamReader(file);
@@ -37,7 +33,7 @@ public class BarImporter
         while ((line = await reader.ReadLineAsync()) != null)
         {
             if (string.IsNullOrWhiteSpace(line)) continue;
-            var bar = parseBarData(line, instrument, (int)instrumentId, (int)versionId);
+            var bar = parseBarData(line, instrument, version);
             if (bar != null) bars.Add(bar);
         }
 
@@ -70,7 +66,7 @@ public class BarImporter
         return (parts[0], parts[1]);
     }
 
-    private static BarData? parseBarData(string line, string instrument, int instrumentId, int versionId)
+    private static BarData? parseBarData(string line, string instrument, string version)
     {
         var parts = line.Split(';');
         var timestamp = DateTimeConverter.UtcStringToLocal(parts[0].Replace(" ", ""));
@@ -81,8 +77,7 @@ public class BarImporter
         return new BarData
         {
             Instrument = instrument,
-            InstrumentId = instrumentId,
-            VersionId = versionId,
+            InstrumentVersion = version,
             Timeframe = "1m",
             Timestamp = timestamp,
             Open = double.Parse(parts[1], CultureInfo.InvariantCulture),

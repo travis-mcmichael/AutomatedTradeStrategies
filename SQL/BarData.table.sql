@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS BarData (
 
     -- Instrument & timeframe
     Instrument TEXT NOT NULL,
+    InstrumentVersion TEXT NOT NULL,
     Timeframe TEXT NOT NULL,              -- e.g. '1m', '5m', '1s'
     
     -- Timestamp

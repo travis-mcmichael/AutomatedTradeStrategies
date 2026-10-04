@@ -2,7 +2,6 @@ using System.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using AutomatedTradeStrategies.Management.Web.Models;
 using AutomatedTrading.Core.Data;
-using AutomatedTrading.Core.Data.Commands;
 using AutomatedTrading.Core.Data.Queries;
 using AutomatedTrading.Core.Import;
 using AutomatedTrading.Core.Models;
@@ -14,8 +13,6 @@ public class HomeController(
     IDefaultRepository<ModelConfig> models,
     GetBarDataCountsByDate barDataCountsByDate,
     GetDistinctBarDataInstruments distinctBarDataInstruments,
-    GetOrCreateInstrument getOrCreateInstrument,
-    GetOrCreateInstrumentVersion getOrCreateInstrumentVersion,
     IDefaultInsertCommand<BarData> barInsertCommand) : Controller
 {
     public IActionResult Index()
@@ -56,7 +53,7 @@ public class HomeController(
                 await using (var stream = System.IO.File.Create(tempPath))
                     await file.CopyToAsync(stream);
 
-                var imported = await BarImporter.ImportBarData(tempPath, file.FileName, getOrCreateInstrument, getOrCreateInstrumentVersion, barInsertCommand);
+                var imported = await BarImporter.ImportBarData(tempPath, file.FileName, barInsertCommand);
                 results.Add(new { fileName = file.FileName, imported });
             }
             catch (FormatException ex)

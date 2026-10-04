@@ -74,20 +74,19 @@ public class GetVersionChangeovers(IDbConnectionFactory connectionFactory)
         using var cmd = connection.CreateCommand();
         cmd.CommandText = @"
             SELECT b.SessionDate,
-                   v.Version,
+                   b.InstrumentVersion,
                    SUM(b.Volume) AS TotalVolume,
                    (SELECT f.Open
                       FROM BarData f
                      WHERE f.Instrument = b.Instrument
-                       AND f.VersionId = b.VersionId
+                       AND f.InstrumentVersion = b.InstrumentVersion
                        AND f.SessionDate = b.SessionDate
                      ORDER BY f.Timestamp
                      LIMIT 1) AS FirstOpen
               FROM BarData b
-              JOIN InstrumentVersion v ON v.Id = b.VersionId
              WHERE b.Instrument = @Instrument
                AND b.SessionDate BETWEEN @Start AND @End
-             GROUP BY b.SessionDate, b.VersionId";
+             GROUP BY b.SessionDate, b.InstrumentVersion";
 
         SqlHelper.AddParameter(cmd, "@Instrument", instrument);
         SqlHelper.AddParameter(cmd, "@Start", start.ToString(AppConstants.DATE_FORMAT));
