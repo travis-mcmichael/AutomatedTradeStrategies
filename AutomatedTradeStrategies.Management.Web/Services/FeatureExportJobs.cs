@@ -1,8 +1,10 @@
 using System.Collections.Concurrent;
 using System.Globalization;
 using System.Text.Json.Serialization;
+using AutomatedTrading.Core.Data;
 using AutomatedTrading.Core.Data.Queries;
 using AutomatedTrading.Core.Framework;
+using AutomatedTrading.Core.Models;
 
 namespace AutomatedTradeStrategies.Management.Web.Services;
 
@@ -89,7 +91,12 @@ public class FeatureExportJobs(IServiceScopeFactory scopeFactory, ILogger<Featur
                     $"No feature rows were generated for {model.ModelName}. Check that it has features configured and bar data between {model.TrainingStart} and {model.TrainingEnd}.");
 
             File.Move(tempPath, outputPath, overwrite: true);
-            update(FeatureExportState.Succeeded, $"{rows:N0} rows written to {outputPath}", rows);
+
+            // A successful export stamps the model's Version with today's date.
+            var version = DateTime.Today.ToString(AppConstants.DATE_FORMAT);
+            await services.GetRequiredService<IDefaultUpdateCommand<ModelConfig>>().Execute(new { Version = version }, new { model.Id });
+
+            update(FeatureExportState.Succeeded, $"{rows:N0} rows written to {outputPath}. Version set to {version}.", rows);
             logger.LogInformation("Feature export for ModelConfigId {ModelConfigId} wrote {Rows} rows to {Path}", job.ModelConfigId, rows, outputPath);
         }
         catch (Exception ex)

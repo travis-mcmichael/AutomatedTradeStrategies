@@ -51,13 +51,14 @@ public class HomeController(
     {
         if (model.Id <= 0)
             return BadRequest("A model Id is required.");
+        // Version is set by a successful feature export (FeatureExportJobs), never by the edit screen.
+        ModelState.Remove(nameof(ModelConfig.Version));
         if (!ModelState.IsValid)
             return BadRequest(string.Join(" ", ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage)));
 
         var updated = await updateModelConfig.Execute(new
         {
             model.ModelName,
-            model.Version,
             model.Instrument,
             model.Target,
             model.BarType,
