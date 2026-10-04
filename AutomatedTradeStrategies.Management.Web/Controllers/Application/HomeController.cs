@@ -10,8 +10,7 @@ namespace AutomatedTradeStrategies.Management.Web.Controllers.Application;
 
 public class HomeController(
     ILogger<HomeController> logger,
-    IDefaultRepository<ModelConfig> models,
-    IDefaultRepository<ModelFeature> modelFeatures,
+    GetAllModelConfigs allModelConfigs,
     GetBarDataCountsByDate barDataCountsByDate,
     GetDistinctBarDataInstruments distinctBarDataInstruments,
     IDefaultInsertCommand<BarData> barInsertCommand) : Controller
@@ -23,11 +22,7 @@ public class HomeController(
 
     public async Task<IActionResult> Models()
     {
-        var result = await models.GetDataAsync(new Dictionary<string, object> { { "1", 1 } }, "ModelName");
-        var featuresByModel = (await modelFeatures.GetDataAsync(new Dictionary<string, object> { { "1", 1 } }))
-            .ToLookup(f => f.ModelConfigId);
-        foreach (var model in result)
-            model.ModelFeatures = [.. featuresByModel[model.Id]];
+        var result = (await allModelConfigs.Execute()).OrderBy(m => m.ModelName);
         return Ok(result);
     }
 

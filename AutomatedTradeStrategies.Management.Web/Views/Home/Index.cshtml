@@ -45,6 +45,15 @@
 {
     <script>
         const columns = [
+            {
+                title: '', field: 'paramsMismatch', hozAlign: 'center', width: 40, headerSort: false,
+                // Flags a model where any feature's param count differs from its feature type's param count.
+                mutator: (value, data) => (data.modelFeatures ?? []).some(f =>
+                    (f.featureType?.featureTypeParams?.length ?? 0) !== (f.modelFeatureParams?.length ?? 0)),
+                formatter: (cell) => cell.getValue()
+                    ? "<i class='bi bi-exclamation-circle-fill text-danger' title='Feature parameters do not match their feature type'></i>"
+                    : ''
+            },
             { title: 'Model', field: 'modelName' },
             { title: 'Version', field: 'version' },
             { title: 'Instrument', field: 'instrument' },
