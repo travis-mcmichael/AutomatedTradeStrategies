@@ -52,7 +52,7 @@ public class FeatureExporter
 
         if (!minuteBarsBySession.Any()) return;
 
-        var orderedSessions = minuteBarsBySession.Keys.Order().ToList();
+        var orderedSessions = minuteBarsBySession.Keys.OrderBy(x => x).ToList();
         var changeovers = await _getChangeovers.Execute(_model.Instrument, start, end);
         if (changeovers.Any())
         {
