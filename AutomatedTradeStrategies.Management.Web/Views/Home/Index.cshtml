@@ -1,3 +1,4 @@
+@inject IConfiguration Configuration
 @{
     ViewData["Title"] = "Home Page";
 }
@@ -26,6 +27,84 @@
         </div>
         <h2>BarData — Last 30 Trading Days</h2>
         <div id="bar-data-table"></div>
+    </div>
+</div>
+
+<div class="modal fade" id="model-edit-modal" tabindex="-1" aria-labelledby="model-edit-title" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <form class="modal-content" id="model-edit-form" novalidate>
+            <div class="modal-header">
+                <h5 class="modal-title" id="model-edit-title">Edit Model</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" name="id" />
+                <!-- Generated from appsettings + the fields below (see setGeneratedLocations); not user-editable. -->
+                <input type="hidden" name="featureLocation" />
+                <input type="hidden" name="outputLocation" />
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label for="model-edit-modelName" class="form-label">Model Name</label>
+                        <input type="text" class="form-control" id="model-edit-modelName" name="modelName" required />
+                    </div>
+                    <div class="col-md-3">
+                        <label for="model-edit-version" class="form-label">Version</label>
+                        <input type="text" class="form-control" id="model-edit-version" name="version" required />
+                    </div>
+                    <div class="col-md-3">
+                        <label for="model-edit-instrument" class="form-label">Instrument</label>
+                        <input type="text" class="form-control" id="model-edit-instrument" name="instrument" required />
+                    </div>
+                    <div class="col-md-3">
+                        <label for="model-edit-target" class="form-label">Target</label>
+                        <select class="form-select" id="model-edit-target" name="target" required>
+                            <option value="HIGH">HIGH</option>
+                            <option value="LOW">LOW</option>
+                            <option value="CLASS">CLASS</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="model-edit-barType" class="form-label">Bar Type</label>
+                        <select class="form-select" id="model-edit-barType" name="barType" required>
+                            <option value="session">session</option>
+                            <option value="window">window</option>
+                            <option value="minute">minute</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="model-edit-windowStart" class="form-label">Window Start</label>
+                        <input type="text" class="form-control" id="model-edit-windowStart" name="windowStart" pattern="\d{5,6}" placeholder="HHmmss" />
+                    </div>
+                    <div class="col-md-3">
+                        <label for="model-edit-windowEnd" class="form-label">Window End</label>
+                        <input type="text" class="form-control" id="model-edit-windowEnd" name="windowEnd" pattern="\d{5,6}" placeholder="HHmmss" />
+                    </div>
+                    <div class="col-md-3">
+                        <label for="model-edit-trainingStart" class="form-label">Training Start</label>
+                        <input type="text" class="form-control" id="model-edit-trainingStart" name="trainingStart" pattern="\d{8}" placeholder="yyyyMMdd" required />
+                    </div>
+                    <div class="col-md-3">
+                        <label for="model-edit-trainingEnd" class="form-label">Training End</label>
+                        <input type="text" class="form-control" id="model-edit-trainingEnd" name="trainingEnd" pattern="\d{8}" placeholder="yyyyMMdd" required />
+                    </div>
+                    <div class="col-md-6 d-flex align-items-end gap-4">
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="model-edit-active" name="active" />
+                            <label for="model-edit-active" class="form-check-label">Active</label>
+                        </div>
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="model-edit-export" name="export" />
+                            <label for="model-edit-export" class="form-check-label">Export</label>
+                        </div>
+                    </div>
+                </div>
+                <div id="model-edit-error" class="alert alert-danger mt-3 mb-0 d-none" role="alert"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary" id="model-edit-save">Save</button>
+            </div>
+        </form>
     </div>
 </div>
 
@@ -61,9 +140,70 @@
             { title: 'Bar Type', field: 'barType' },
             { title: 'Features', field: 'featureCount', hozAlign: 'right', mutator: (value, data) => data.modelFeatures?.length ?? 0 },
             { title: 'Active', field: 'active', formatter: 'tickCross' },
-            { title: 'Export', field: 'export', formatter: 'tickCross' }
+            { title: 'Export', field: 'export', formatter: 'tickCross' },
+            Defaults.grid.buildEditColumn('id', (data) => openModelEditor(data))
         ];
         const table = Defaults.grid.buildGrid('#models-table', columns, '/Home/Models');
+
+        const modelEditModal = new bootstrap.Modal(document.getElementById('model-edit-modal'));
+        const modelEditForm = document.getElementById('model-edit-form');
+        const modelEditError = document.getElementById('model-edit-error');
+        const modelEditSave = document.getElementById('model-edit-save');
+
+        const featureLocationBase = @Json.Serialize(Configuration["featureLocation"]);
+        const outputLocation = @Json.Serialize(Configuration["outputLocation"]);
+
+        function setGeneratedLocations() {
+            const f = modelEditForm.elements;
+            f.featureLocation.value = `${featureLocationBase}/${f.instrument.value.trim()}.${f.barType.value}.${f.target.value}`;
+            f.outputLocation.value = outputLocation;
+        }
+
+        function openModelEditor(data) {
+            for (const el of modelEditForm.elements) {
+                if (!el.name) continue;
+                if (el.type === 'checkbox') el.checked = !!data[el.name];
+                else el.value = data[el.name] ?? '';
+            }
+            document.getElementById('model-edit-title').textContent = `Edit Model: ${data.modelName}`;
+            modelEditForm.classList.remove('was-validated');
+            modelEditError.classList.add('d-none');
+            modelEditModal.show();
+        }
+
+        modelEditForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            modelEditForm.classList.add('was-validated');
+            if (!modelEditForm.checkValidity()) return;
+            setGeneratedLocations();
+
+            const payload = {};
+            for (const el of modelEditForm.elements) {
+                if (!el.name) continue;
+                if (el.type === 'checkbox') payload[el.name] = el.checked;
+                else if (el.name === 'id') payload.id = Number(el.value);
+                else payload[el.name] = el.value.trim() === '' ? null : el.value.trim();
+            }
+
+            modelEditSave.disabled = true;
+            modelEditError.classList.add('d-none');
+            try {
+                const res = await fetch('/Home/UpdateModel', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!res.ok) throw new Error((await res.text()) || `request failed with status ${res.status}`);
+
+                modelEditModal.hide();
+                table.replaceData();
+            } catch (err) {
+                modelEditError.textContent = `Save failed: ${err.message}`;
+                modelEditError.classList.remove('d-none');
+            } finally {
+                modelEditSave.disabled = false;
+            }
+        });
 
         const barDataColumns = [
             {

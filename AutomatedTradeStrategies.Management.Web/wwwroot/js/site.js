@@ -19,6 +19,7 @@ const Defaults = {
                 columns: c
             });
         },
+        // dest is either a URL prefix (navigates to dest/{value}) or a function called with the row's data.
         buildEditColumn: (f, dest) => {
             return {
                 title: '',
@@ -28,6 +29,10 @@ const Defaults = {
                 headerSort: false,
                 formatter: () => `<button type='button' class='btn btn-sm btn-outline-primary' title='Edit'>${Defaults.grid.editColumnElement}</button>`,
                 cellClick: (e, cell) => {
+                    if (typeof dest === 'function') {
+                        dest(cell.getRow().getData());
+                        return;
+                    }
                     const id = cell.getValue();
                     window.location.href = `${dest}/${id}`;        
                 }
