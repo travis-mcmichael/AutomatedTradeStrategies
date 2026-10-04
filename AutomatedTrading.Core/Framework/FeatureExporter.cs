@@ -39,18 +39,19 @@ public class FeatureExporter
         _getChangeovers = getVersionChangeovers;
     }
 
-    public async Task GenerateFeatures(DateTime start, DateTime end)
+    // Returns the number of feature rows written. Errors while building features are logged and rethrown.
+    public async Task<int> GenerateFeatures(DateTime start, DateTime end)
     {
         if (_model.ModelFeatures.Count == 0)
         {
             Logger.Info($"  No features configured for '{_model.ModelName}'. Skipping.");
-            return;
+            return 0;
         }
         Logger.Info("  Loading 1-minute bars from database...");
         var minuteBarsBySession = new Dictionary<string, List<BarData>>();
         await GetBarsBySession(start, end, minuteBarsBySession!);
 
-        if (!minuteBarsBySession.Any()) return;
+        if (!minuteBarsBySession.Any()) return 0;
 
         var orderedSessions = minuteBarsBySession.Keys.OrderBy(x => x).ToList();
         var changeovers = await _getChangeovers.Execute(_model.Instrument, start, end);
@@ -83,9 +84,11 @@ public class FeatureExporter
         catch (Exception ex)
         {
             Console.WriteLine($"  Error building features : {ex.Message}\r\n\t{ex.StackTrace}");
+            throw;
         }
 
         Console.WriteLine($"  Feature export complete. {rowsWritten} rows written to {_outputPath}");
+        return rowsWritten;
     }
 
     // Produces a unique column name for each feature, appending sorted param values

@@ -32,7 +32,14 @@ class Program
             var start = DateTime.ParseExact(model.TrainingStart, "yyyyMMdd", null);
             var end = DateTime.ParseExact(model.TrainingEnd, "yyyyMMdd", null);
 
-            await new FeatureExporter(model, outPath, streamBars, getChangeovers).GenerateFeatures(start, end);
+            try
+            {
+                await new FeatureExporter(model, outPath, streamBars, getChangeovers).GenerateFeatures(start, end);
+            }
+            catch (Exception)
+            {
+                // Already logged by FeatureExporter; carry on with the remaining models.
+            }
         }
 
         Console.WriteLine($"\nOutput complete for {models?.Count() ?? 0} predictive models.");

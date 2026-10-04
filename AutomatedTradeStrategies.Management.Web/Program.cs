@@ -3,6 +3,7 @@ using AutomatedTrading.Core.Data.Commands;
 using AutomatedTrading.Core.Framework.DataLayer;
 using AutomatedTrading.Core.Framework.DataLayer.Sqlite;
 using AutomatedTrading.Core.Models;
+using AutomatedTradeStrategies.Management.Web.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -35,6 +36,9 @@ var queryAndCommandTypes = typeof(IDatabaseEntity).Assembly.GetTypes()
 
 foreach (var type in queryAndCommandTypes)
     builder.Services.AddScoped(type);
+
+// Singleton so background feature exports (and their status) outlive the request that started them.
+builder.Services.AddSingleton<FeatureExportJobs>();
 
 var app = builder.Build();
 
