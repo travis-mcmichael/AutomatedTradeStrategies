@@ -9,17 +9,19 @@ using Microsoft.Extensions.Logging;
 
 namespace AutomatedTrading.Core.Data.Commands;
 
-// Replaces every ModelFeatureParam on the given ModelConfig's features with the supplied set, and sets the
-// supplied ModelFeature names, in one transaction. Each param must pair one of that model's ModelFeatures
-// with a FeatureTypeParam of the feature's FeatureType, at most once, and each named feature must belong
-// to the model; otherwise nothing is changed and ArgumentException is thrown.
+// Replaces every ModelFeatureParam on the given ModelConfig's features with the supplied set, sets the
+// supplied ModelFeature names and deletes the given ModelFeatures, in one transaction. Each param must pair
+// one of that model's ModelFeatures with a FeatureTypeParam of the feature's FeatureType, at most once; each
+// named or deleted feature must belong to the model, and nothing may be set on a deleted feature. Otherwise
+// nothing is changed and ArgumentException is thrown.
 public class ReplaceModelFeatureParams(IDbConnectionFactory connectionFactory, ILogger<ReplaceModelFeatureParams> logger)
 {
     public async Task<int> Execute(long modelConfigId, IEnumerable<ModelFeatureParam> parameters,
-        IReadOnlyDictionary<long, string?>? featureNames = null)
+        IReadOnlyDictionary<long, string?>? featureNames = null, IReadOnlyCollection<long>? deletedFeatureIds = null)
     {
         var list = parameters.ToList();
         featureNames ??= new Dictionary<long, string?>();
+        var deleted = (deletedFeatureIds ?? []).ToHashSet();
 
         using var connection = connectionFactory.CreateConnection();
         await connection.OpenAsync();
@@ -52,10 +54,15 @@ public class ReplaceModelFeatureParams(IDbConnectionFactory connectionFactory, I
             while (await reader.ReadAsync())
                 modelFeatureIds.Add(reader.GetInt64(0));
         }
-        foreach (var featureId in featureNames.Keys)
+        foreach (var featureId in featureNames.Keys.Concat(deleted))
         {
             if (!modelFeatureIds.Contains(featureId))
                 throw new ArgumentException($"ModelFeature {featureId} does not belong to model {modelConfigId}.");
+        }
+        foreach (var featureId in featureNames.Keys.Concat(list.Select(p => p.ModelFeatureId)))
+        {
+            if (deleted.Contains(featureId))
+                throw new ArgumentException($"ModelFeature {featureId} is being deleted, so its name or params can't also be set.");
         }
 
         var seen = new HashSet<(long, long)>();
@@ -105,6 +112,20 @@ public class ReplaceModelFeatureParams(IDbConnectionFactory connectionFactory, I
             foreach (var (featureId, name) in featureNames)
             {
                 cmd.Parameters["@ModelFeatureName"].Value = string.IsNullOrWhiteSpace(name) ? DBNull.Value : name.Trim();
+                cmd.Parameters["@Id"].Value = featureId;
+                await cmd.ExecuteNonQueryAsync();
+            }
+        }
+
+        // The model's params were all deleted above, so the deleted features have none left to orphan.
+        using (var cmd = connection.CreateCommand())
+        {
+            cmd.Transaction = transaction;
+            cmd.CommandText = "DELETE FROM ModelFeature WHERE Id = @Id AND ModelConfigId = @ModelConfigId";
+            SqlHelper.AddParameter(cmd, "@Id", null);
+            SqlHelper.AddParameter(cmd, "@ModelConfigId", modelConfigId);
+            foreach (var featureId in deleted)
+            {
                 cmd.Parameters["@Id"].Value = featureId;
                 await cmd.ExecuteNonQueryAsync();
             }

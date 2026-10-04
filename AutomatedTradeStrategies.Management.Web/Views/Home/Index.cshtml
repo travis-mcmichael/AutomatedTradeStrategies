@@ -121,6 +121,7 @@
                             <th>Name</th>
                             <th>Source</th>
                             <th>Parameters</th>
+                            <th style="width: 2.5rem;"><span class="visually-hidden">Remove</span></th>
                         </tr>
                     </thead>
                     <tbody id="features-edit-rows"></tbody>
@@ -128,6 +129,7 @@
                 <div id="features-edit-error" class="alert alert-danger mt-3 mb-0 d-none" role="alert"></div>
             </div>
             <div class="modal-footer">
+                <span id="features-edit-pending" class="me-auto small text-danger d-none"></span>
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                 <button type="submit" class="btn btn-primary" id="features-edit-save">Save</button>
             </div>
@@ -295,15 +297,20 @@
         });
         featuresEditModalEl.addEventListener('hidden.bs.modal', () => modelEditModal.show());
 
+        const featuresEditPending = document.getElementById('features-edit-pending');
+        // Features removed in the editor; only deleted from the database when the editor is saved.
+        let removedFeatureIds = new Set();
+
         function openFeaturesEditor(model) {
             document.getElementById('features-edit-title').textContent = `Edit Features: ${model.modelName}`;
             featuresEditRows.replaceChildren();
+            removedFeatureIds = new Set();
 
             const features = [...(model.modelFeatures ?? [])].sort((a, b) => a.sortOrder - b.sortOrder);
             if (!features.length) {
                 const row = featuresEditRows.insertRow();
                 const cell = row.insertCell();
-                cell.colSpan = 5;
+                cell.colSpan = 6;
                 cell.className = 'text-muted';
                 cell.textContent = 'This model has no features.';
             }
@@ -332,6 +339,18 @@
                 row.insertCell().textContent = feature.source ?? 'daily';
 
                 const paramsCell = row.insertCell();
+
+                const removeButton = document.createElement('button');
+                removeButton.type = 'button';
+                removeButton.className = 'btn btn-sm btn-link text-danger p-0';
+                removeButton.title = 'Remove feature';
+                removeButton.setAttribute('aria-label', `Remove ${feature.featureType?.name ?? 'feature'} ${i + 1}`);
+                removeButton.innerHTML = "<i class='bi bi-x-lg'></i>";
+                removeButton.addEventListener('click', () => removeFeatureRow(row, feature.id));
+                const removeCell = row.insertCell();
+                removeCell.className = 'text-center';
+                removeCell.appendChild(removeButton);
+
                 const typeParams = [...(feature.featureType?.featureTypeParams ?? [])]
                     .sort((a, b) => a.parameterKey.localeCompare(b.parameterKey));
                 if (!typeParams.length) {
@@ -374,7 +393,22 @@
             featuresEditForm.classList.remove('was-validated');
             featuresEditError.classList.add('d-none');
             refreshMissingParams();
+            refreshPendingRemovals();
             featuresEditModal.show();
+        }
+
+        function removeFeatureRow(row, featureId) {
+            removedFeatureIds.add(featureId);
+            row.remove();
+            [...featuresEditRows.rows].forEach((r, i) => r.cells[0].textContent = i + 1);
+            refreshMissingParams();
+            refreshPendingRemovals();
+        }
+
+        function refreshPendingRemovals() {
+            const count = removedFeatureIds.size;
+            featuresEditPending.classList.toggle('d-none', count === 0);
+            featuresEditPending.textContent = `${count} feature${count === 1 ? '' : 's'} will be deleted on Save.`;
         }
 
         // Marks each feature that has a blank param input, and only enables Save once none are blank.
@@ -416,7 +450,7 @@
                 const res = await fetch('/Home/UpdateFeatureParams', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ modelConfigId: currentModel.id, params, features })
+                    body: JSON.stringify({ modelConfigId: currentModel.id, params, features, deletedFeatureIds: [...removedFeatureIds] })
                 });
                 if (!res.ok) throw new Error((await res.text()) || `request failed with status ${res.status}`);
 
