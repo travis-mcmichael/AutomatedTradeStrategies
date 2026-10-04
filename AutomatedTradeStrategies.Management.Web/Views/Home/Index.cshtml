@@ -361,9 +361,6 @@
             featuresEditRows.querySelector('.features-empty-row')?.remove();
             const isNew = feature === null;
             const featureId = isNew ? nextTempFeatureId-- : feature.id;
-            const label = () => isNew
-                ? (typeSelect.selectedOptions[0]?.value ? typeSelect.selectedOptions[0].textContent : 'new feature')
-                : (feature.featureType?.name ?? `FeatureType ${feature.featureTypeId}`);
 
             const row = featuresEditRows.insertRow();
             row.dataset.featureId = featureId;
@@ -380,7 +377,11 @@
                 typeSelect.add(new Option('Select a feature type...', ''));
                 featureCell.appendChild(typeSelect);
             } else {
-                featureCell.textContent = label();
+                // The feature type's Description is shown only as this hover tooltip.
+                const typeName = document.createElement('span');
+                typeName.textContent = feature.featureType?.name ?? `FeatureType ${feature.featureTypeId}`;
+                typeName.title = feature.featureType?.description ?? '';
+                featureCell.appendChild(typeName);
             }
             const marker = document.createElement('span');
             marker.className = 'text-danger fw-bold ms-1 missing-param-marker d-none';
@@ -427,6 +428,7 @@
                 loadFeatureTypes().then(types => {
                     for (const type of types) {
                         const option = new Option(type.name, type.id);
+                        option.title = type.description ?? '';
                         option.featureType = type;
                         typeSelect.add(option);
                     }
@@ -435,6 +437,7 @@
                     paramsCell.textContent = `Failed to load feature types: ${err.message}`;
                 });
                 typeSelect.addEventListener('change', () => {
+                    typeSelect.title = typeSelect.selectedOptions[0]?.featureType?.description ?? '';
                     renderParamInputs(paramsCell, featureId, typeSelect.selectedOptions[0]?.featureType ?? null, []);
                     refreshFeatureRows();
                 });

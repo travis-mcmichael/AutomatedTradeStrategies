@@ -9,5 +9,6 @@ public class FeatureType : IDatabaseEntity
     public string SchemaName { get; } = "dbo";
     public long Id { get; set; }
     public string Name { get; set; } = default!;
+    public string? Description { get; set; }
     public IEnumerable<FeatureTypeParam> FeatureTypeParams { get; set; } = [];
 }
