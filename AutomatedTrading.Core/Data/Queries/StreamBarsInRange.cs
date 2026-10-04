@@ -11,8 +11,23 @@ namespace AutomatedTrading.Core.Data.Queries;
 public class StreamBarsInRange(IDbConnectionFactory connectionFactory, ILogger<StreamBarsInRange> logger)
 {
     private const string Sql = @"
-        SELECT Instrument, Timeframe, Timestamp, SessionDate, SessionTime, Open, High, Low, Close, Volume
-        FROM BarData
+        SELECT 
+            b.Timeframe, 
+            b.Timestamp, 
+            b.SessionDate, 
+            b.SessionTime, 
+            b.Open, 
+            b.High, 
+            b.Low, 
+            b.Close, 
+            b.Volume,
+            i.Instrument,
+            b.InstrumentId,
+            v.Version,
+            b.VersionId
+        FROM BarData b
+        LEFT JOIN Instrument i ON b.InstrumentId = i.Id
+        LEFT JOIN InstrumentVersion v ON b.VersionId = v.Id
         WHERE Timestamp >= @StartTimestamp AND Timestamp <= @EndTimestamp
         ORDER BY Timestamp ASC";
 
@@ -42,15 +57,17 @@ public class StreamBarsInRange(IDbConnectionFactory connectionFactory, ILogger<S
 
     private static BarData mapBar(DbDataReader r) => new BarData
     {
-        Instrument = r.GetString(0),
-        Timeframe = r.GetString(1),
-        Timestamp = DateTimeOffset.FromUnixTimeMilliseconds(r.GetInt64(2)).UtcDateTime,
-        SessionDate = r.IsDBNull(3) ? null : r.GetString(3),
-        SessionTime = r.IsDBNull(4) ? null : r.GetString(4),
-        Open = r.GetDouble(5),
-        High = r.GetDouble(6),
-        Low = r.GetDouble(7),
-        Close = r.GetDouble(8),
-        Volume = r.GetDouble(9)
+        Timeframe = r.GetString(0),
+        Timestamp = DateTimeOffset.FromUnixTimeMilliseconds(r.GetInt64(1)).UtcDateTime,
+        SessionDate = r.IsDBNull(2) ? null : r.GetString(2),
+        SessionTime = r.IsDBNull(3) ? null : r.GetString(3),
+        Open = r.GetDouble(4),
+        High = r.GetDouble(5),
+        Low = r.GetDouble(6),
+        Close = r.GetDouble(7),
+        Volume = r.GetDouble(8),
+        Instrument = r.GetString(9),
+        InstrumentId = r.GetInt64(10),
+        Version = r.GetString(11),
     };
 }

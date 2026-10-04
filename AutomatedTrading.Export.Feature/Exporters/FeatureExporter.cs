@@ -2,6 +2,7 @@ using AutomatedTrading.Core.Framework.Logging;
 using AutomatedTrading.Core.Framework;
 using AutomatedTrading.Core.Models;
 using AutomatedTrading.Core.Data.Queries;
+using AutomatedTrading.Core.Data.Commands;
 
 namespace AutomatedTrading.Export.Feature.Exporters;
 
@@ -24,12 +25,14 @@ public class FeatureExporter
     private readonly ModelConfig _model;
     private readonly string _outputPath;
     private readonly StreamBarsInRange _streamBars;
+    private readonly GetVersionChangeovers _getChangeovers;
 
-    public FeatureExporter(ModelConfig model, string outputPath, StreamBarsInRange streamBars)
+    public FeatureExporter(ModelConfig model, string outputPath, StreamBarsInRange streamBars, GetVersionChangeovers getVersionChangeovers)
     {
         _model = model;
         _outputPath = outputPath;
         _streamBars = streamBars;
+        _getChangeovers = getVersionChangeovers;
     }
 
     public async Task GenerateFeatures(DateTime start, DateTime end)
@@ -42,6 +45,21 @@ public class FeatureExporter
         Logger.Info("  Loading 1-minute bars from database...");
         var minuteBarsBySession = new Dictionary<string, List<BarData>>();
         await GetBarsBySession(start, end, minuteBarsBySession!);
+
+        if (!minuteBarsBySession.Any()) return;
+
+        var orderedSessions = minuteBarsBySession.Keys.Order().ToList();
+        var changeovers = await _getChangeovers.Execute(orderedSessions.Last(), start, end);
+        if (changeovers.Any())
+        {
+            var runningAdjustment =
+            for (var i = orderedSessions.Count() - 1; i >= 0; i--)
+            {
+                var current = orderedSessions[i];
+
+            }
+        }
+
         Logger.Info($"  Loaded {minuteBarsBySession.Count} sessions. Building features...");
         var sessionDates = minuteBarsBySession.Keys.OrderBy(x => x).ToList();
         var rowsWritten = 0;
