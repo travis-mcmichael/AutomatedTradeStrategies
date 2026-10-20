@@ -23,7 +23,6 @@ public class HomeController(
     DeleteModelConfig deleteModelConfig,
     FeatureExportJobs featureExportJobs,
     GetBarDataCountsByDate barDataCountsByDate,
-    GetDistinctBarDataInstruments distinctBarDataInstruments,
     IDefaultInsertCommand<BarData> barInsertCommand) : Controller
 {
     public IActionResult Index()
@@ -170,12 +169,6 @@ public class HomeController(
             return BadRequest("Month must be 1-12 and year a four-digit year.");
 
         var result = await barDataCountsByDate.Execute(y, m);
-        return Ok(result);
-    }
-
-    public async Task<IActionResult> Instruments()
-    {
-        var result = await distinctBarDataInstruments.Execute();
         return Ok(result);
     }
 

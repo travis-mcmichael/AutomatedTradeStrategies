@@ -22,27 +22,38 @@ public class GetBarDataCountsByDate(IDbConnectionFactory connectionFactory)
         using var connection = connectionFactory.CreateConnection();
         using var cmd = connection.CreateCommand();
         cmd.CommandText = $@"
-            SELECT SessionDate, COUNT(*) AS BarCount
+            SELECT SessionDate, Instrument, InstrumentVersion, COUNT(*) AS BarCount
             FROM BarData
             WHERE SessionDate IN ({string.Join(", ", paramNames)})
-            GROUP BY SessionDate";
+            GROUP BY SessionDate, Instrument, InstrumentVersion
+            ORDER BY SessionDate, Instrument, InstrumentVersion";
 
         for (var i = 0; i < sessionDates.Count; i++)
             addParameter(cmd, paramNames[i], sessionDates[i].ToString(AppConstants.DATE_FORMAT));
 
         await connection.OpenAsync();
 
-        var counts = new Dictionary<string, int>();
+        var details = new Dictionary<string, List<BarDataInstrumentCount>>();
         using (var reader = await cmd.ExecuteReaderAsync())
         {
             while (await reader.ReadAsync())
-                counts[reader.GetString(0)] = reader.GetInt32(1);
+            {
+                var date = reader.GetString(0);
+                if (!details.TryGetValue(date, out var list)) details[date] = list = [];
+                list.Add(new BarDataInstrumentCount
+                {
+                    Instrument = reader.GetString(1),
+                    InstrumentVersion = reader.GetString(2),
+                    BarCount = reader.GetInt32(3)
+                });
+            }
         }
 
         return [.. sessionDates.Select(d =>
         {
             var key = d.ToString(AppConstants.DATE_FORMAT);
-            return new BarDataDateCount { SessionDate = key, BarCount = counts.TryGetValue(key, out var count) ? count : 0 };
+            var list = details.TryGetValue(key, out var l) ? l : [];
+            return new BarDataDateCount { SessionDate = key, BarCount = list.Sum(x => x.BarCount), Details = list };
         })];
     }
 
