@@ -23,6 +23,8 @@ public class HomeController(
     DeleteModelConfig deleteModelConfig,
     FeatureExportJobs featureExportJobs,
     GetBarDataCountsByDate barDataCountsByDate,
+    GetBarsByInstrumentSession barsByInstrumentSession,
+    GetVersionChangeovers versionChangeovers,
     IDefaultInsertCommand<BarData> barInsertCommand) : Controller
 {
     public IActionResult Index()
@@ -169,6 +171,26 @@ public class HomeController(
             return BadRequest("Month must be 1-12 and year a four-digit year.");
 
         var result = await barDataCountsByDate.Execute(y, m);
+
+        // Changeover dates depend on the full volume history, so search all of it, not just this month.
+        var changeoverDates = new HashSet<string>();
+        foreach (var instrument in result.SelectMany(r => r.Details).Select(d => d.Instrument).Distinct())
+        {
+            foreach (var c in await versionChangeovers.Execute(instrument, new DateTime(2000, 1, 1), DateTime.Today))
+                changeoverDates.Add(c.SessionDate);
+        }
+        foreach (var row in result)
+            row.HasChangeover = changeoverDates.Contains(row.SessionDate);
+
+        return Ok(result);
+    }
+
+    public async Task<IActionResult> BarDataBySession(string sessionDate, string instrument, string instrumentVersion)
+    {
+        if (string.IsNullOrWhiteSpace(sessionDate) || string.IsNullOrWhiteSpace(instrument) || string.IsNullOrWhiteSpace(instrumentVersion))
+            return BadRequest("sessionDate, instrument and instrumentVersion are required.");
+
+        var result = await barsByInstrumentSession.Execute(sessionDate, instrument, instrumentVersion);
         return Ok(result);
     }
 

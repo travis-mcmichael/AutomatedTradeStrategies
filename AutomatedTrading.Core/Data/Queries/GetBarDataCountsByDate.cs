@@ -22,7 +22,7 @@ public class GetBarDataCountsByDate(IDbConnectionFactory connectionFactory)
         using var connection = connectionFactory.CreateConnection();
         using var cmd = connection.CreateCommand();
         cmd.CommandText = $@"
-            SELECT SessionDate, Instrument, InstrumentVersion, COUNT(*) AS BarCount
+            SELECT SessionDate, Instrument, InstrumentVersion, COUNT(*) AS BarCount, SUM(Volume) AS TotalVolume
             FROM BarData
             WHERE SessionDate IN ({string.Join(", ", paramNames)})
             GROUP BY SessionDate, Instrument, InstrumentVersion
@@ -44,7 +44,8 @@ public class GetBarDataCountsByDate(IDbConnectionFactory connectionFactory)
                 {
                     Instrument = reader.GetString(1),
                     InstrumentVersion = reader.GetString(2),
-                    BarCount = reader.GetInt32(3)
+                    BarCount = reader.GetInt32(3),
+                    Volume = reader.GetDouble(4)
                 });
             }
         }

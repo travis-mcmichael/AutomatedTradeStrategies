@@ -33,6 +33,27 @@
     </div>
 </div>
 
+<div class="modal fade" id="bar-data-modal" tabindex="-1" aria-labelledby="bar-data-modal-title" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="bar-data-modal-title">BarData</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="bar-data-modal-combo" class="form-label">Instrument / Version</label>
+                    <select id="bar-data-modal-combo" class="form-select"></select>
+                </div>
+                <div id="bar-data-modal-table"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="modal fade" id="model-edit-modal" tabindex="-1" aria-labelledby="model-edit-title" aria-hidden="true">
     <div class="modal-dialog modal-lg">
         <form class="modal-content" id="model-edit-form" novalidate>
@@ -731,7 +752,17 @@
                     return v ? `${v.slice(0, 4)}-${v.slice(4, 6)}-${v.slice(6, 8)}` : '';
                 }
             },
-            { title: 'Total Bar Count', field: 'barCount', hozAlign: 'right' }
+            { title: 'Total Bar Count', field: 'barCount', hozAlign: 'right' },
+            {
+                title: 'Has Changeover?', field: 'hasChangeover', hozAlign: 'center', headerSort: false,
+                formatter: (cell) => cell.getValue()
+                    ? '<i class="bi bi-exclamation-circle-fill text-danger" title="Version changeover detected"></i>' : ''
+            },
+            {
+                title: '', field: 'sessionDate', width: 110, hozAlign: 'center', headerSort: false,
+                formatter: () => '<button type="button" class="btn btn-sm btn-outline-primary">View Data</button>',
+                cellClick: (e, cell) => openBarDataModal(cell.getRow().getData())
+            }
         ];
 
         // Expanded rows render a sub-grid of instrument/version totals under the row's cells.
@@ -749,10 +780,83 @@
                 columns: [
                     { title: 'Instrument', field: 'instrument' },
                     { title: 'Version', field: 'instrumentVersion' },
-                    { title: 'Bar Count', field: 'barCount', hozAlign: 'right' }
+                    { title: 'Bar Count', field: 'barCount', hozAlign: 'right' },
+                    { title: 'Total Volume', field: 'volume', hozAlign: 'right', formatter: (cell) => cell.getValue().toLocaleString() }
                 ]
             });
         }
+
+        const barDataModalEl = document.getElementById('bar-data-modal');
+        const barDataComboSelect = document.getElementById('bar-data-modal-combo');
+        let barDataModalDate = null;
+        let barDataModalTable = null;
+
+        // Every minute of a session, starting at 17:00:00 and wrapping past midnight.
+        const sessionTimes = Array.from({ length: 1440 }, (_, i) => {
+            const m = (17 * 60 + i) % 1440;
+            return `${String(Math.floor(m / 60)).padStart(2, '0')}${String(m % 60).padStart(2, '0')}00`;
+        });
+
+        const barDataModalColumns = [
+            {
+                title: 'Session Time', field: 'sessionTime', width: 130,
+                formatter: (cell) => cell.getValue().replace(/(\d\d)(\d\d)(\d\d)/, '$1:$2:$3')
+            },
+            { title: 'Open', field: 'open', hozAlign: 'right' },
+            { title: 'High', field: 'high', hozAlign: 'right' },
+            { title: 'Low', field: 'low', hozAlign: 'right' },
+            { title: 'Close', field: 'close', hozAlign: 'right' },
+            { title: 'Volume', field: 'volume', hozAlign: 'right' }
+        ];
+
+        function openBarDataModal(data) {
+            const v = data.sessionDate;
+            barDataModalDate = v;
+            document.getElementById('bar-data-modal-title').textContent =
+                `BarData — ${v.slice(0, 4)}-${v.slice(4, 6)}-${v.slice(6, 8)}`;
+
+            barDataComboSelect.innerHTML = '';
+            for (const d of data.details) {
+                const option = document.createElement('option');
+                option.value = JSON.stringify([d.instrument, d.instrumentVersion]);
+                option.textContent = `${d.instrument} ${d.instrumentVersion}`;
+                barDataComboSelect.appendChild(option);
+            }
+            if (!data.details.length) barDataComboSelect.innerHTML = '<option value="">No bar data</option>';
+
+            bootstrap.Modal.getOrCreateInstance(barDataModalEl).show();
+        }
+
+        // One row per possible session time; times with no bar are left blank.
+        async function loadBarDataModalRows() {
+            const rows = sessionTimes.map((t) => ({ sessionTime: t }));
+            if (barDataComboSelect.value) {
+                const [instrument, version] = JSON.parse(barDataComboSelect.value);
+                const params = new URLSearchParams({ sessionDate: barDataModalDate, instrument, instrumentVersion: version });
+                try {
+                    const res = await fetch(`/Home/BarDataBySession?${params}`);
+                    if (!res.ok) throw new Error(`request failed with status ${res.status}`);
+                    const byTime = new Map((await res.json()).map((b) => [b.sessionTime, b]));
+                    rows.forEach((r, i) => { if (byTime.has(r.sessionTime)) rows[i] = byTime.get(r.sessionTime); });
+                } catch (err) {
+                    console.error(err);
+                }
+            }
+            barDataModalTable.setData(rows);
+        }
+
+        // Built on show: Tabulator can't measure a container inside a hidden modal.
+        barDataModalEl.addEventListener('shown.bs.modal', () => {
+            if (barDataModalTable) barDataModalTable.destroy();
+            barDataModalTable = new Tabulator('#bar-data-modal-table', {
+                layout: Defaults.grid.layout,
+                height: '400px',
+                columns: barDataModalColumns,
+                data: []
+            });
+            barDataModalTable.on('tableBuilt', loadBarDataModalRows);
+        });
+        barDataComboSelect.addEventListener('change', () => { if (barDataModalTable) loadBarDataModalRows(); });
 
         // Built lazily on first show: Tabulator's fitColumns layout can't measure
         // a container that's still display:none inside the inactive tab pane.
