@@ -22,20 +22,7 @@ public class BarImporter
         string fileName,
         IDefaultInsertCommand<BarData> barRepository)
     {
-        if (!File.Exists(file))
-            return 0;
-
-        var (instrument, version) = parseFileName(fileName);
-
-        var bars = new List<BarData>();
-        using var reader = new StreamReader(file);
-        string? line;
-        while ((line = await reader.ReadLineAsync()) != null)
-        {
-            if (string.IsNullOrWhiteSpace(line)) continue;
-            var bar = parseBarData(line, instrument, version);
-            if (bar != null) bars.Add(bar);
-        }
+        var bars = await ParseBarData(file, fileName);
 
         try
         {
@@ -51,6 +38,27 @@ public class BarImporter
         }
 
         return 0;
+    }
+
+    // Parses the file without saving anything, so callers can preview what an import would write.
+    public static async Task<List<BarData>> ParseBarData(string file, string fileName)
+    {
+        var bars = new List<BarData>();
+        if (!File.Exists(file))
+            return bars;
+
+        var (instrument, version) = parseFileName(fileName);
+
+        using var reader = new StreamReader(file);
+        string? line;
+        while ((line = await reader.ReadLineAsync()) != null)
+        {
+            if (string.IsNullOrWhiteSpace(line)) continue;
+            var bar = parseBarData(line, instrument, version);
+            if (bar != null) bars.Add(bar);
+        }
+
+        return bars;
     }
 
     private static (string Instrument, string Version) parseFileName(string fileName)

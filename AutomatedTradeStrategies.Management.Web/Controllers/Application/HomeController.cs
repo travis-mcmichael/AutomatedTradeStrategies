@@ -195,6 +195,42 @@ public class HomeController(
     }
 
     [HttpPost]
+    public async Task<IActionResult> PreviewBarImport(List<IFormFile> files)
+    {
+        if (files == null || files.Count == 0)
+            return BadRequest("No files were uploaded.");
+
+        var results = new List<object>();
+        foreach (var file in files)
+        {
+            var tempPath = Path.GetTempFileName();
+            try
+            {
+                await using (var stream = System.IO.File.Create(tempPath))
+                    await file.CopyToAsync(stream);
+
+                var bars = await BarImporter.ParseBarData(tempPath, file.FileName);
+                var sessions = bars
+                    .GroupBy(b => b.SessionDate)
+                    .OrderBy(g => g.Key)
+                    .Select(g => new { sessionDate = g.Key, count = g.Count() })
+                    .ToList();
+                results.Add(new { fileName = file.FileName, sessions });
+            }
+            catch (FormatException ex)
+            {
+                results.Add(new { fileName = file.FileName, sessions = Array.Empty<object>(), error = ex.Message });
+            }
+            finally
+            {
+                System.IO.File.Delete(tempPath);
+            }
+        }
+
+        return Ok(results);
+    }
+
+    [HttpPost]
     public async Task<IActionResult> ImportBarData(List<IFormFile> files)
     {
         if (files == null || files.Count == 0)
