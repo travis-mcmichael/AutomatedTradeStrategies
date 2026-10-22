@@ -43,13 +43,14 @@ public class BarData : IDatabaseEntity
     public static BarData Aggregate(List<BarData> bars)
     {
         var ordered = bars.OrderBy(b => b.Timestamp).ToList();
+        var first = ordered.First();
         var last = ordered.Last();
         return new BarData
         {
-            Timestamp = ordered.First().Timestamp,
-            SessionDate = ordered.First().SessionDate,
-            Open = ordered.First().Open,
-            Close = ordered.Last().Close,
+            Timestamp = first.Timestamp,
+            SessionDate = first.SessionDate,
+            Open = first.Open,
+            Close = last.Close,
             High = ordered.Max(x => x.High),
             Low = ordered.Min(x => x.Low),
             Volume = ordered.Sum(x => x.Volume),

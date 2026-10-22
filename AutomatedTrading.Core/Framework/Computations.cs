@@ -10,55 +10,10 @@ public class Computations
     #region - Bar Computations -
 
     /// <summary>
-    /// Price range of the session so far: highest high minus lowest low from the start of bar <paramref name="i"/>'s
-    /// session up to and including bar <paramref name="i"/>. Walks backwards until the SessionDate changes.
-    /// Raw price points, not ATR-normalised.
-    /// </summary>
-    public static double SessionRange(List<BarData> bars, int i)
-    {
-        var session = bars[i].SessionDate;
-        double high = double.MinValue;
-        double low = double.MaxValue;
-
-        for (var j = i; j >= 0; j--)
-        {
-            if (bars[j].SessionDate != session)
-                break;
-
-            if (bars[j].High > high)
-                high = bars[j].High;
-            if (bars[j].Low < low)
-                low = bars[j].Low;
-        }
-
-        return high - low;
-    }
-
-    /// <summary>
-    /// Volume-weighted average price of the session so far: each bar's typical price (high + low + close) / 3 is
-    /// weighted by its volume, from the start of bar <paramref name="i"/>'s session up to bar <paramref name="i"/>.
-    /// Falls back to bar <paramref name="i"/>'s close when the session has no volume.
-    /// </summary>
-    public static double SessionVWAP(List<BarData> bars, int i)
-    {
-        var sessionDate = bars[i].SessionDate;
-        double pv = 0;
-        double volume = 0;
-        for (var j = i; j >= 0; j--)
-        {
-            if (bars[j].SessionDate != sessionDate)
-                break;
-            
-            pv += (bars[j].High + bars[j].Low + bars[j].Close) / 3.0 * bars[j].Volume;
-            volume += bars[j].Volume;
-        }
-        return volume == 0 ? bars[i].Close : pv / volume;
-    }
-    /// <summary>
     /// Log return over <paramref name="lookback"/> bars: ln(close[i] / close[i - lookback]). Positive when price rose.
     /// Returns 0 when there aren't <paramref name="lookback"/> earlier bars.
     /// </summary>
-    public static double Return(List<BarData> bars, int i, int lookback) 
+    public static double Return(List<BarData> bars, int i, int lookback)
     {
         if (i < lookback) return 0;
         return Math.Log(bars[i].Close / bars[i - lookback].Close);
@@ -68,7 +23,7 @@ public class Computations
     /// True range of bar <paramref name="i"/>: the largest of high - low, |high - previous close| and
     /// |low - previous close|, so overnight gaps count as range. For the first bar it's just high - low.
     /// </summary>
-    public static double TrueRange(List<BarData> bars, int i) 
+    public static double TrueRange(List<BarData> bars, int i)
     {
         if (i == 0)
             return bars[i].High - bars[i].Low;
@@ -83,11 +38,11 @@ public class Computations
     /// Average of (high - low) over the last <paramref name="lookback"/> bars ending at <paramref name="i"/>.
     /// Unlike <see cref="ATR"/> it ignores gaps from the previous close. Returns NaN when there aren't enough bars.
     /// </summary>
-    public static double AverageRange(List<BarData> bars, int i, int lookback) 
+    public static double AverageRange(List<BarData> bars, int i, int lookback)
     {
         if (i < lookback - 1)
             return double.NaN;
-        
+
         double sum = 0;
         for (var j = i - lookback + 1; j <= i; j++)
         {
@@ -102,7 +57,7 @@ public class Computations
     /// normalise most other features. Returns 0 when there are fewer than <paramref name="lookback"/> bars
     /// up to <paramref name="i"/>.
     /// </summary>
-    public static double ATR(List<BarData> bars, int i, int lookback) 
+    public static double ATR(List<BarData> bars, int i, int lookback)
     {
         if (lookback <= 0 || i < lookback - 1) return 0;
 
@@ -121,7 +76,7 @@ public class Computations
     /// k = 2 / (lookback + 1): value[i] * k + EMA[i - 1] * (1 - k), seeded with bar 0's value.
     /// Walks forward from bar 0 each call, so it costs O(i).
     /// </summary>
-    public static double EMA(List<BarData> bars, int i, int lookback, Func<BarData, double> selector) 
+    public static double EMA(List<BarData> bars, int i, int lookback, Func<BarData, double> selector)
     {
         var k = 2.0 / (lookback + 1);
         var ema = selector(bars[0]);
@@ -136,7 +91,7 @@ public class Computations
     /// Uses simple sums rather than Wilder's smoothing. Returns 100 when there were no losses, and 0 when there
     /// aren't enough bars.
     /// </summary>
-    public static double RSI(List<BarData> bars, int i, int lookback) 
+    public static double RSI(List<BarData> bars, int i, int lookback)
     {
         if (i < lookback) return 0;
         double gain = 0;
@@ -161,7 +116,7 @@ public class Computations
     /// in either direction. This is a single-window DX rather than Wilder's smoothed ADX.
     /// Returns 0 when <paramref name="i"/> &lt; 2 × <paramref name="lookback"/> or there's no range.
     /// </summary>
-    public static double ADX(List<BarData> bars, int i, int lookback) 
+    public static double ADX(List<BarData> bars, int i, int lookback)
     {
         if (i < lookback * 2)
             return 0;
@@ -204,7 +159,7 @@ public class Computations
     /// <paramref name="lookback"/> bars ending at <paramref name="i"/>. Returns 0 when there are fewer than
     /// <paramref name="lookback"/> bars up to <paramref name="i"/>, or <paramref name="lookback"/> is 0.
     /// </summary>
-    public static double SMA(List<BarData> bars, int i, int lookback, Func<BarData, double> selector) 
+    public static double SMA(List<BarData> bars, int i, int lookback, Func<BarData, double> selector)
     {
         if (lookback <= 0 || i < lookback - 1) return 0;
 
@@ -221,7 +176,7 @@ public class Computations
     /// ending at <paramref name="i"/>: how spread out the values are around their <see cref="SMA"/>.
     /// Returns 0 when there are fewer than <paramref name="lookback"/> bars up to <paramref name="i"/>.
     /// </summary>
-    public static double StandardDeviation(List<BarData> bars, int i, int lookback, Func<BarData, double> selector) 
+    public static double StandardDeviation(List<BarData> bars, int i, int lookback, Func<BarData, double> selector)
     {
         if (lookback <= 0 || i < lookback - 1) return 0;
         var mean = SMA(bars, i, lookback, selector);
@@ -235,20 +190,10 @@ public class Computations
     }
 
     /// <summary>
-    /// The bar's full range (high - low) in ATR units, e.g. 1.5 means the bar spanned one and a half typical moves.
-    /// Returns 0 when <paramref name="atr"/> is 0.
-    /// </summary>
-    public static double HighLowRange(BarData bar, double atr) 
-    {
-        if (atr == 0) return 0;
-        return (bar.High - bar.Low) / atr;
-    }
-
-    /// <summary>
     /// Size of the candle body, |close - open|, in ATR units, ignoring direction. When <paramref name="atr"/> is 0
     /// it returns the raw body size in points instead.
     /// </summary>
-    public static double BodySize(BarData bar, double atr) 
+    public static double BodySize(BarData bar, double atr)
     {
         return Math.Abs(bar.Close - bar.Open) / (atr != 0 ? atr : 1);
     }
@@ -257,7 +202,7 @@ public class Computations
     /// Length of the upper wick (high minus the top of the body) in ATR units: how far price was pushed up and
     /// rejected. Returns 0 when <paramref name="atr"/> is 0.
     /// </summary>
-    public static double UpperWick(BarData bar, double atr) 
+    public static double UpperWick(BarData bar, double atr)
     {
         if (atr == 0) return 0;
         return (bar.High - Math.Max(bar.Close, bar.Open)) / atr;
@@ -267,7 +212,7 @@ public class Computations
     /// Length of the lower wick (bottom of the body minus low) in ATR units: how far price was pushed down and
     /// rejected. Returns 0 when <paramref name="atr"/> is 0.
     /// </summary>
-    public static double LowerWick(BarData bar, double atr) 
+    public static double LowerWick(BarData bar, double atr)
     {
         if (atr == 0) return 0;
         return (Math.Min(bar.Open, bar.Close) - bar.Low) / atr;
@@ -277,7 +222,7 @@ public class Computations
     /// Where the close sits within the bar's range, from 0 (closed at the low) to 1 (closed at the high).
     /// Returns 0 for a bar with no range.
     /// </summary>
-    public static double ClosePosition(BarData bar) 
+    public static double ClosePosition(BarData bar)
     {
         return bar.High - bar.Low == 0 ? 0 : (bar.Close - bar.Low) / (bar.High - bar.Low);
     }
@@ -287,7 +232,7 @@ public class Computations
     /// <paramref name="period"/> bars ending at <paramref name="i"/>. Not annualised.
     /// Returns 0 when there aren't enough bars.
     /// </summary>
-    public static double RealizedVolatility(List<BarData> bars, int i, int period) 
+    public static double RealizedVolatility(List<BarData> bars, int i, int period)
     {
         if (i < period) return 0;
         var returns = new List<double>();
@@ -305,7 +250,7 @@ public class Computations
     /// Price change in points over <paramref name="lookback"/> bars: close[i] - close[i - lookback].
     /// Returns 0 when there aren't enough bars.
     /// </summary>
-    public static double Momentum(List<BarData> bars, int i, int lookback) 
+    public static double Momentum(List<BarData> bars, int i, int lookback)
     {
         if (i < lookback || bars.Count < lookback) return 0;
         return bars[i].Close - bars[i - lookback].Close;
@@ -337,7 +282,7 @@ public class Computations
     /// Uses future data, so it's for building training targets, not live features.
     /// Returns 0 near the end of the data.
     /// </summary>
-    public static double FutureReturn(List<BarData> bars, int i, int lookahead) 
+    public static double FutureReturn(List<BarData> bars, int i, int lookahead)
     {
         if (i + lookahead >= bars.Count) return 0;
         return (bars[i + lookahead].Close / bars[i].Close) - 1.0;
@@ -348,7 +293,7 @@ public class Computations
     /// in standard deviations from their mean: 2 means much heavier than normal, negative means lighter.
     /// Returns NaN when there aren't enough bars and 0 when volume didn't vary.
     /// </summary>
-    public static double VolumeZScore(List<BarData> bars, int i, int lookback) 
+    public static double VolumeZScore(List<BarData> bars, int i, int lookback)
     {
         if (i < lookback - 1)
             return double.NaN;
@@ -366,7 +311,7 @@ public class Computations
             return 0;
         return (bars[i].Volume - mean) / Math.Sqrt(variance);
     }
-    
+
     /// <summary>
     /// Training target: how far the next session's high rose above that session's open, in ATR units. Skips past
     /// the rest of bar <paramref name="i"/>'s session, then measures the following session.
@@ -398,98 +343,15 @@ public class Computations
         return (nextHigh - nextOpen) / atr;
     }
 
-    /// <summary>
-    /// High-low range of the overnight bars (from the 16:00 session open until the 08:30 RTH start), in ATR units.
-    /// Returns NaN when there are no overnight bars.
-    /// Window membership is decided by <c>Timestamp.TimeOfDay</c> against the Central-time constants in
-    /// <see cref="AppConstants"/>; bar timestamps are loaded as Central time (see <see cref="MarketTime"/>).
-    /// </summary>
-    public static double OvernightRange(List<BarData> bars, double atr)
+    public static double Range(List<BarData> bars, double atr)
     {
-        var ordered = bars.OrderBy(b => b.Timestamp).ToList(); 
-        var overnight = ordered.Where(b => 
-            b.Timestamp.TimeOfDay >= AppConstants.SESSION_OPEN_TIME || 
-            b.Timestamp.TimeOfDay <  AppConstants.RTH_START_TIME).ToList();
-        return overnight.Count != 0 ? Operations.SafeDiv(overnight.Max(b => b.High) - overnight.Min(b => b.Low), atr) : double.NaN;
+        var a = BarData.Aggregate(bars);
+        return bars.Count != 0 ? Operations.SafeDiv(a.High - a.Low, atr) : double.NaN;
     }
 
-    /// <summary>
-    /// High-low range of the regular trading hours bars (08:30 to 15:15), in ATR units.
-    /// Returns NaN when there are no RTH bars.
-    /// Window membership is decided by <c>Timestamp.TimeOfDay</c> against the Central-time constants in
-    /// <see cref="AppConstants"/>; bar timestamps are loaded as Central time (see <see cref="MarketTime"/>).
-    /// </summary>
-    public static double RegularHoursRange(List<BarData> bars, double atr)
+    public static double TotalVolume(List<BarData> bars)
     {
-        var ordered = bars.OrderBy(b => b.Timestamp).ToList();
-        var rth = ordered.Where(b => 
-        b.Timestamp.TimeOfDay >= AppConstants.RTH_START_TIME &&
-        b.Timestamp.TimeOfDay < AppConstants.RTH_END_TIME).ToList();
-        return rth.Count != 0 ? Operations.SafeDiv(rth.Max(b => b.High) - rth.Min(b => b.Low), atr) : double.NaN;
-    }
-
-    /// <summary>
-    /// Share of the session's total volume that traded overnight (16:00 to 08:30), from 0 to 1.
-    /// Returns NaN when there are no overnight bars.
-    /// Window membership is decided by <c>Timestamp.TimeOfDay</c> against the Central-time constants in
-    /// <see cref="AppConstants"/>; bar timestamps are loaded as Central time (see <see cref="MarketTime"/>).
-    /// </summary>
-    public static double OvernightVolumeRatio(List<BarData> bars)
-    {
-        var ordered = bars.OrderBy(b => b.Timestamp).ToList();
-        var totalVolume = ordered.Sum(b => b.Volume);
-        var overnight = ordered.Where(b => 
-            b.Timestamp.TimeOfDay >= AppConstants.SESSION_OPEN_TIME || 
-            b.Timestamp.TimeOfDay <  AppConstants.RTH_START_TIME).ToList();
-        return overnight.Count != 0 ? Operations.SafeDiv(overnight.Sum(b => b.Volume), totalVolume) : double.NaN;
-    }
-
-    /// <summary>
-    /// How far the overnight low fell below the session's opening price, in ATR units (0 when it never went below).
-    /// Uses the first bar's open as the session open.
-    /// Window membership is decided by <c>Timestamp.TimeOfDay</c> against the Central-time constants in
-    /// <see cref="AppConstants"/>; bar timestamps are loaded as Central time (see <see cref="MarketTime"/>).
-    /// </summary>
-    public static double OvernightDropRatio(List<BarData> bars, double atr)
-    {
-        var ordered = bars.OrderBy(b => b.Timestamp).ToList();
-        var sessionOpen = ordered.First().Open;
-        var overnight = ordered.Where(b =>
-            b.Timestamp.TimeOfDay >= AppConstants.SESSION_OPEN_TIME || 
-            b.Timestamp.TimeOfDay <  AppConstants.RTH_START_TIME).ToList();
-        var overnightLow = overnight.Count != 0 ? overnight.Min(b => b.Low) : sessionOpen;
-
-        return Operations.SafeDiv(sessionOpen - overnightLow, atr);
-    }
-
-    /// <summary>
-    /// High-low range of the first hour of regular trading (08:30 to 09:30), in ATR units.
-    /// Returns 0 when there are no bars in that hour.
-    /// Window membership is decided by <c>Timestamp.TimeOfDay</c> against the Central-time constants in
-    /// <see cref="AppConstants"/>; bar timestamps are loaded as Central time (see <see cref="MarketTime"/>).
-    /// </summary>
-    public static double FirstRthHourRange(List<BarData> bars, double atr)
-    {
-        var ordered = bars.OrderBy(b => b.Timestamp).ToList();
-        var firstHour = ordered.Where(b => 
-            b.Timestamp.TimeOfDay >= AppConstants.RTH_START_TIME && 
-            b.Timestamp.TimeOfDay < AppConstants.RTH_START_TIME + TimeSpan.FromHours(1)).ToList();
-        return firstHour.Count != 0 ? Operations.SafeDiv(firstHour.Max(b => b.High) - firstHour.Min(b => b.Low), atr) : 0;
-    }
-
-    /// <summary>
-    /// High-low range of the last hour of regular trading (14:15 to 15:15), in ATR units.
-    /// Returns 0 when there are no bars in that hour.
-    /// Window membership is decided by <c>Timestamp.TimeOfDay</c> against the Central-time constants in
-    /// <see cref="AppConstants"/>; bar timestamps are loaded as Central time (see <see cref="MarketTime"/>).
-    /// </summary>
-    public static double LastRthHourRange(List<BarData> bars, double atr)
-    {
-        var ordered = bars.OrderBy(b => b.Timestamp).ToList();
-        var lastHour  = ordered.Where(b => 
-            b.Timestamp.TimeOfDay >= AppConstants.RTH_END_TIME - TimeSpan.FromHours(1) &&
-            b.Timestamp.TimeOfDay <  AppConstants.RTH_END_TIME).ToList();
-        return lastHour.Count != 0 ? Operations.SafeDiv(lastHour.Max(b => b.High) - lastHour.Min(b => b.Low), atr) : 0;
+        return bars.Count != 0 ? bars.Sum(b => b.Volume) : 0;
     }
 
     /// <summary>
@@ -521,248 +383,23 @@ public class Computations
     /// <summary>
     /// How far the session's high rose above its opening price (the first bar's open), in ATR units.
     /// </summary>
-    public static double OpenToHighRatio(List<BarData> bars, double atr)
+    public static double HighOpenDiff(List<BarData> bars, double atr)
     {
         var ordered = bars.OrderBy(b => b.Timestamp).ToList();
         var sessionOpen = ordered.First().Open;
-        var sessionHigh  = ordered.Max(b => b.High);
+        var sessionHigh = ordered.Max(b => b.High);
         return Operations.SafeDiv(sessionHigh - sessionOpen, atr);
     }
 
     /// <summary>
     /// How far the session's low fell below its opening price (the first bar's open), in ATR units, as a positive number.
     /// </summary>
-    public static double OpenToLowRatio(List<BarData> bars, double atr)
+    public static double OpenLowDiff(List<BarData> bars, double atr)
     {
         var ordered = bars.OrderBy(b => b.Timestamp).ToList();
         var sessionOpen = ordered.First().Open;
-        var sessionLow   = ordered.Min(b => b.Low);
+        var sessionLow = ordered.Min(b => b.Low);
         return Operations.SafeDiv(sessionOpen - sessionLow, atr);
-    }
-
-    /// <summary>
-    /// Where the RTH close sits within the last hour's range (14:15 to 15:15), from 0 (at that hour's low) to 1
-    /// (at its high). Shows whether the day finished strong or weak. Returns 0.5 when the hour had no range and NaN
-    /// when there are no bars in it.
-    /// Window membership is decided by <c>Timestamp.TimeOfDay</c> against the Central-time constants in
-    /// <see cref="AppConstants"/>; bar timestamps are loaded as Central time (see <see cref="MarketTime"/>).
-    /// </summary>
-    public static double LastRthHourClosePosition(List<BarData> bars)
-    {
-        var ordered = bars.OrderBy(b => b.Timestamp).ToList();
-        var lastHour = ordered.Where(b =>
-            b.Timestamp.TimeOfDay >= AppConstants.RTH_END_TIME - TimeSpan.FromHours(1) &&
-            b.Timestamp.TimeOfDay <  AppConstants.RTH_END_TIME).ToList();
-        double lastHourClosePos = double.NaN;
-        if (lastHour.Count != 0)
-        {
-            var lhHigh = lastHour.Max(b => b.High);
-            var lhLow = lastHour.Min(b => b.Low);
-            var lhClose = lastHour.OrderBy(b => b.Timestamp).Last().Close;
-            lastHourClosePos = lhHigh == lhLow ? 0.5 : (lhClose - lhLow) / (lhHigh - lhLow);
-        }
-        return lastHourClosePos;
-    }
-
-    // ── RTH-scoped intraday features (prev session) ───────────────────────────
-
-    /// <summary>
-    /// High-low range of the regular trading hours bars only (08:30 to 15:15), in ATR units. Unlike
-    /// <see cref="RegularHoursRange"/> it doesn't sort first, which doesn't matter for a high-low range.
-    /// Returns NaN when there are no RTH bars.
-    /// Window membership is decided by <c>Timestamp.TimeOfDay</c> against the Central-time constants in
-    /// <see cref="AppConstants"/>; bar timestamps are loaded as Central time (see <see cref="MarketTime"/>).
-    /// </summary>
-    public static double RthRange(List<BarData> bars, double atr)
-    {
-        var rth = bars.Where(b =>
-            b.Timestamp.TimeOfDay >= AppConstants.RTH_START_TIME &&
-            b.Timestamp.TimeOfDay <  AppConstants.RTH_END_TIME).ToList();
-        return rth.Count != 0 ? Operations.SafeDiv(rth.Max(b => b.High) - rth.Min(b => b.Low), atr) : double.NaN;
-    }
-
-    /// <summary>
-    /// High-low range of the first 30 minutes of regular trading (08:30 to 09:00), in ATR units.
-    /// Returns NaN when there are no bars in that window.
-    /// Window membership is decided by <c>Timestamp.TimeOfDay</c> against the Central-time constants in
-    /// <see cref="AppConstants"/>; bar timestamps are loaded as Central time (see <see cref="MarketTime"/>).
-    /// </summary>
-    public static double FirstHalfRthHourRange(List<BarData> bars, double atr)
-    {
-        var firstHalfHour = bars.Where(b =>
-            b.Timestamp.TimeOfDay >= AppConstants.RTH_START_TIME &&
-            b.Timestamp.TimeOfDay <  AppConstants.RTH_START_TIME + TimeSpan.FromMinutes(30)).ToList();
-        return firstHalfHour.Count != 0
-            ? Operations.SafeDiv(firstHalfHour.Max(b => b.High) - firstHalfHour.Min(b => b.Low), atr) : double.NaN;
-    }
-
-    /// <summary>
-    /// When the RTH high was made, as a fraction of the way through the RTH bars: 0 = the first RTH bar, 1 = the last.
-    /// Like <see cref="HighTimeRatio"/> but limited to 08:30–15:15. Returns NaN when there are no RTH bars and
-    /// 0.5 for a single bar.
-    /// Window membership is decided by <c>Timestamp.TimeOfDay</c> against the Central-time constants in
-    /// <see cref="AppConstants"/>; bar timestamps are loaded as Central time (see <see cref="MarketTime"/>).
-    /// </summary>
-    public static double RthHighTimeRatio(List<BarData> bars)
-    {
-        var rth = bars.Where(b =>
-            b.Timestamp.TimeOfDay >= AppConstants.RTH_START_TIME &&
-            b.Timestamp.TimeOfDay <  AppConstants.RTH_END_TIME)
-            .OrderBy(b => b.Timestamp).ToList();
-        if (rth.Count == 0) return double.NaN;
-        var max = rth.Max(x => x.High);
-        var highBar = rth.FirstOrDefault(b => b.High == max)!;
-        var idx = rth.IndexOf(highBar);
-        return rth.Count > 1 ? (double)idx / (rth.Count - 1) : 0.5;
-    }
-
-    /// <summary>
-    /// When the RTH low was made, as a fraction of the way through the RTH bars: 0 = the first RTH bar, 1 = the last.
-    /// Like <see cref="LowTimeRatio"/> but limited to 08:30–15:15. Returns NaN when there are no RTH bars and
-    /// 0.5 for a single bar.
-    /// Window membership is decided by <c>Timestamp.TimeOfDay</c> against the Central-time constants in
-    /// <see cref="AppConstants"/>; bar timestamps are loaded as Central time (see <see cref="MarketTime"/>).
-    /// </summary>
-    public static double RthLowTimeRatio(List<BarData> bars)
-    {
-        var rth = bars.Where(b =>
-            b.Timestamp.TimeOfDay >= AppConstants.RTH_START_TIME &&
-            b.Timestamp.TimeOfDay <  AppConstants.RTH_END_TIME)
-            .OrderBy(b => b.Timestamp).ToList();
-        if (rth.Count == 0) return double.NaN;
-        var min = rth.Min(x => x.Low);
-        var lowBar = rth.FirstOrDefault(x => x.Low == min)!;
-        var idx = rth.IndexOf(lowBar);
-        return rth.Count > 1 ? (double)idx / (rth.Count - 1) : 0.5;
-    }
-
-    /// <summary>
-    /// How far the RTH high rose above the RTH open (the first bar at or after 08:30), in ATR units.
-    /// Returns NaN when there are no RTH bars.
-    /// Window membership is decided by <c>Timestamp.TimeOfDay</c> against the Central-time constants in
-    /// <see cref="AppConstants"/>; bar timestamps are loaded as Central time (see <see cref="MarketTime"/>).
-    /// </summary>
-    public static double RthOpenToHighRatio(List<BarData> bars, double atr)
-    {
-        var rth = bars.Where(b =>
-            b.Timestamp.TimeOfDay >= AppConstants.RTH_START_TIME &&
-            b.Timestamp.TimeOfDay <  AppConstants.RTH_END_TIME)
-            .OrderBy(b => b.Timestamp).ToList();
-        if (rth.Count == 0) return double.NaN;
-        var rthOpen = rth.First().Open;
-        var rthHigh = rth.Max(b => b.High);
-        return Operations.SafeDiv(rthHigh - rthOpen, atr);
-    }
-
-    /// <summary>
-    /// How far the RTH low fell below the RTH open (the first bar at or after 08:30), in ATR units, as a positive
-    /// number. Returns NaN when there are no RTH bars.
-    /// Window membership is decided by <c>Timestamp.TimeOfDay</c> against the Central-time constants in
-    /// <see cref="AppConstants"/>; bar timestamps are loaded as Central time (see <see cref="MarketTime"/>).
-    /// </summary>
-    public static double RthOpenToLowRatio(List<BarData> bars, double atr)
-    {
-        var rth = bars.Where(b =>
-            b.Timestamp.TimeOfDay >= AppConstants.RTH_START_TIME &&
-            b.Timestamp.TimeOfDay <  AppConstants.RTH_END_TIME)
-            .OrderBy(b => b.Timestamp).ToList();
-        if (rth.Count == 0) return double.NaN;
-        var rthOpen = rth.First().Open;
-        var rthLow  = rth.Min(b => b.Low);
-        return Operations.SafeDiv(rthOpen - rthLow, atr);
-    }
-
-    // ── Pre-market features (current session, known before RTH opens) ─────────
-
-    /// <summary>
-    /// High-low range of the pre-market bars (16:00 session open until the 08:30 RTH start), in ATR units.
-    /// Known before the RTH open, so it's usable for trade-day predictions. Returns NaN when there are no
-    /// pre-market bars.
-    /// Window membership is decided by <c>Timestamp.TimeOfDay</c> against the Central-time constants in
-    /// <see cref="AppConstants"/>; bar timestamps are loaded as Central time (see <see cref="MarketTime"/>).
-    /// </summary>
-    public static double PreMarketRange(List<BarData> bars, double atr)
-    {
-        var pm = bars.Where(b =>
-            b.Timestamp.TimeOfDay >= AppConstants.SESSION_OPEN_TIME ||
-            b.Timestamp.TimeOfDay <  AppConstants.RTH_START_TIME).ToList();
-        return pm.Count != 0 ? Operations.SafeDiv(pm.Max(b => b.High) - pm.Min(b => b.Low), atr) : double.NaN;
-    }
-
-    /// <summary>
-    /// Pre-market high minus the RTH open, in ATR units: positive when pre-market traded above where RTH opened.
-    /// Takes the RTH open from the first RTH bar in <paramref name="bars"/>, so those bars must be included.
-    /// Returns NaN when there are no RTH or no pre-market bars.
-    /// Window membership is decided by <c>Timestamp.TimeOfDay</c> against the Central-time constants in
-    /// <see cref="AppConstants"/>; bar timestamps are loaded as Central time (see <see cref="MarketTime"/>).
-    /// </summary>
-    public static double PreMarketHighVsOpen(List<BarData> bars, double atr)
-    {
-         var rthBars = bars.Where(b =>
-        b.Timestamp.TimeOfDay >= AppConstants.RTH_START_TIME &&
-        b.Timestamp.TimeOfDay < AppConstants.RTH_END_TIME)
-        .ToList();
-        var pm = bars.Where(b =>
-            b.Timestamp.TimeOfDay >= AppConstants.SESSION_OPEN_TIME ||
-            b.Timestamp.TimeOfDay <  AppConstants.RTH_START_TIME).ToList();
-        if (rthBars.Count == 0 || pm.Count == 0) return double.NaN;
-        var rth = BarData.Aggregate(rthBars);
-        return Operations.SafeDiv(pm.Max(b => b.High) - rth.Open, atr);
-    }
-
-    /// <summary>
-    /// How far the pre-market low was below the RTH open (RTH open minus pre-market low), in ATR units, as a
-    /// positive number like <see cref="OpenToLowRatio"/> and <see cref="RthOpenToLowRatio"/>; negative only if the
-    /// whole pre-market traded above the open. Takes the RTH open from the first RTH bar in <paramref name="bars"/>.
-    /// Returns NaN when there are no RTH or no pre-market bars.
-    /// Window membership is decided by <c>Timestamp.TimeOfDay</c> against the Central-time constants in
-    /// <see cref="AppConstants"/>; bar timestamps are loaded as Central time (see <see cref="MarketTime"/>).
-    /// </summary>
-    public static double PreMarketLowVsOpen(List<BarData> bars, double atr)
-    {
-        var rthBars = bars.Where(b =>
-        b.Timestamp.TimeOfDay >= AppConstants.RTH_START_TIME &&
-        b.Timestamp.TimeOfDay < AppConstants.RTH_END_TIME)
-        .ToList();
-        var pm = bars.Where(b =>
-            b.Timestamp.TimeOfDay >= AppConstants.SESSION_OPEN_TIME ||
-            b.Timestamp.TimeOfDay <  AppConstants.RTH_START_TIME).ToList();
-        if (rthBars.Count == 0 || pm.Count == 0) return double.NaN;
-        var rth = BarData.Aggregate(rthBars);
-        return Operations.SafeDiv(rth.Open - pm.Min(b => b.Low), atr);
-    }
-
-    /// <summary>
-    /// Opening gap: the RTH open minus <paramref name="prevClose"/> (the previous session's close), in ATR units.
-    /// Positive for a gap up, negative for a gap down. Returns NaN when there are no RTH bars.
-    /// Window membership is decided by <c>Timestamp.TimeOfDay</c> against the Central-time constants in
-    /// <see cref="AppConstants"/>; bar timestamps are loaded as Central time (see <see cref="MarketTime"/>).
-    /// </summary>
-    public static double GapToRthOpen(List<BarData> bars, double prevClose, double atr)
-    {
-        var rthBars = bars.Where(b =>
-        b.Timestamp.TimeOfDay >= AppConstants.RTH_START_TIME &&
-        b.Timestamp.TimeOfDay < AppConstants.RTH_END_TIME)
-        .ToList();
-        if (rthBars.Count == 0) return double.NaN;
-        var rth = BarData.Aggregate(rthBars);
-        return Operations.SafeDiv(rth.Open - prevClose, atr);
-    } 
-
-    /// <summary>
-    /// Share of the supplied bars' total volume that traded pre-market (16:00 to 08:30), from 0 to 1.
-    /// Returns NaN when there are no pre-market bars.
-    /// Window membership is decided by <c>Timestamp.TimeOfDay</c> against the Central-time constants in
-    /// <see cref="AppConstants"/>; bar timestamps are loaded as Central time (see <see cref="MarketTime"/>).
-    /// </summary>
-    public static double PreMarketVolumeRatio(List<BarData> bars)
-    {
-        var pm = bars.Where(b =>
-        b.Timestamp.TimeOfDay >= AppConstants.SESSION_OPEN_TIME ||
-        b.Timestamp.TimeOfDay < AppConstants.RTH_START_TIME)
-        .ToList();
-        if (pm.Count == 0) return double.NaN;
-        return Operations.SafeDiv(pm.Sum(b => b.Volume), bars.Sum(b => b.Volume));
     }
 
     #endregion

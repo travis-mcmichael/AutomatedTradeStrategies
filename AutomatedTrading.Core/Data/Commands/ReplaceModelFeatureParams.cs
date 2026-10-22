@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using AutomatedTrading.Core.Framework.DataLayer;
+using AutomatedTrading.Core.Framework.Enums;
 using AutomatedTrading.Core.Models;
 using AutomatedTrading.Core.Utility;
 using Microsoft.Extensions.Logging;
@@ -18,6 +19,7 @@ namespace AutomatedTrading.Core.Data.Commands;
 public class ReplaceModelFeatureParams(IDbConnectionFactory connectionFactory, ILogger<ReplaceModelFeatureParams> logger)
 {
     private static readonly HashSet<string?> validSources = [null, "prevMinute", "currMinute"];
+    private static readonly HashSet<string?> sources = [DataRangeSource.Session.ToString(), DataRangeSource.Window.ToString()];
 
     public async Task<int> Execute(long modelConfigId, IEnumerable<ModelFeatureParam> parameters,
         IReadOnlyDictionary<long, string?>? featureNames = null, IReadOnlyCollection<long>? deletedFeatureIds = null,

@@ -49,11 +49,19 @@ public class FeatureExporter
         }
         Logger.Info("  Loading 1-minute bars from database...");
         var minuteBarsBySession = new Dictionary<string, List<BarData>>();
+        // collect the minute bars by session date
         await GetBarsBySession(start, end, minuteBarsBySession!);
 
         if (!minuteBarsBySession.Any()) return 0;
 
+        // get keys in order by date
         var orderedSessions = minuteBarsBySession.Keys.OrderBy(x => x).ToList();
+
+        // changeover - in this context, a changeover occurs on a session date when:
+        // - 2 instrument versions have bar data on the session date
+        // - the total volume of the new instrument version surpasses the total volume of the old version's bar data
+        // we loop backwards through session dates and adjust all session dates beyond each changeover by the gap between the two versions' open values.
+        // This is to prevent odd price jumps when switching between versions of an instrument.
         var changeovers = await _getChangeovers.Execute(_model.Instrument, start, end);
         if (changeovers.Any())
         {
@@ -61,7 +69,7 @@ public class FeatureExporter
         }
 
         Logger.Info($"  Loaded {minuteBarsBySession.Count} sessions. Building features...");
-        var sessionDates = minuteBarsBySession.Keys.OrderBy(x => x).ToList();
+        //var sessionDates = minuteBarsBySession.Keys.OrderBy(x => x).ToList();
         var rowsWritten = 0;
         using var writer = new StreamWriter(_outputPath);
         try
@@ -70,15 +78,15 @@ public class FeatureExporter
             await writer.WriteLineAsync(header + "," + targetColumnName());
             if (_model.BarType == "session")
             {
-                rowsWritten = await buildSessionFeatures(minuteBarsBySession, sessionDates, rowsWritten, writer);
+                rowsWritten = await buildSessionFeatures(minuteBarsBySession, orderedSessions, rowsWritten, writer);
             }
             else if (_model.BarType == "window")
             {
-                rowsWritten = await buildWindowFeatures(minuteBarsBySession, sessionDates, rowsWritten, writer);
+                rowsWritten = await buildWindowFeatures(minuteBarsBySession, orderedSessions, rowsWritten, writer);
             }
             else if (_model.BarType == "minute")
             {
-                rowsWritten = await buildMinuteFeatures(minuteBarsBySession, sessionDates, rowsWritten, writer);
+                rowsWritten = await buildMinuteFeatures(minuteBarsBySession, orderedSessions, rowsWritten, writer);
             }
         }
         catch (Exception ex)
