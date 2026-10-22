@@ -69,7 +69,6 @@ public class HomeController(
             model.ModelName,
             model.Instrument,
             model.Target,
-            model.BarType,
             model.WindowStart,
             model.WindowEnd,
             model.TrainingStart,

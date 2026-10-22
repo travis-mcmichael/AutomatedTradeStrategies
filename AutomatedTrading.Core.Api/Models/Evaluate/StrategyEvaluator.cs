@@ -189,72 +189,56 @@ public class StrategyEvaluator
             try
             {
                 var sequence = new List<BarData>();
-                switch (model.BarType)
+                var hasWindow = model.WindowStart is not null && model.WindowEnd is not null;
+                if (hasWindow)
                 {
-                    case "window":
+                    var windowBarCount = dataSnapshot[sessionDate].Count(b =>
+                    {
+                        return isWindowOpen(b.SessionTime!, model.WindowStart, model.WindowEnd);
+                    });
+                    if (windowBarCount < AppConstants.MINIMUM_BARS_TO_EVALUATE)
+                    {
+                        Logger.Info($"Not enough bars to evaluate {model.ModelName} @ {sessionTime}, skipping...");
+                        continue;
+                    }
 
-                        var windowBarCount = dataSnapshot[sessionDate].Count(b =>
+                    foreach (var key in dataSnapshot.Keys)
+                    {
+                        var bars = dataSnapshot[key] ?? new();
+                        bars = bars.Where(b =>
+                            {
+                                return isWindowOpen(b.SessionTime!, model.WindowStart, model.WindowEnd);
+                            })
+                            .OrderBy(b => b.Timestamp)
+                            .ToList();
+                        if (bars.Count < AppConstants.MINIMUM_BARS_TO_EVALUATE)
                         {
-                            return isWindowOpen(b.SessionTime!, model.WindowStart, model.WindowEnd);
-                        });
-                        if (windowBarCount < AppConstants.MINIMUM_BARS_TO_EVALUATE)
-                        {
-                            Logger.Info($"Not enough bars to evaluate {model.ModelName} @ {sessionTime}, skipping...");
+                            Logger.Info($"This shouldn't be happening anymore: Not enough bars to evaluate {model.ModelName} on {key} @ {sessionTime}, skipping...");
                             continue;
                         }
-
-                        foreach (var key in dataSnapshot.Keys)
-                        {
-                            var bars = dataSnapshot[key] ?? new();
-                            bars = bars.Where(b =>
-                                {
-                                    return isWindowOpen(b.SessionTime!, model.WindowStart, model.WindowEnd);
-                                })
-                                .OrderBy(b => b.Timestamp)
-                                .ToList();
-                            if (bars.Count < AppConstants.MINIMUM_BARS_TO_EVALUATE)
-                            {
-                                //Logger.Info($"Not enough bars to evaluate {model.ModelName} on {key} @ {sessionTime}, skipping...");
-                                Logger.Info($"This shouldn't be happening anymore: Not enough bars to evaluate {model.ModelName} on {key} @ {sessionTime}, skipping...");
-                                continue;
-                            }
-                            sequence.Add(BarData.Aggregate(bars));
-                        }
-                        sequence = sequence.OrderBy(b => b.Timestamp).ToList();
-                        break;
-                    case "session":
-                        var sessionBarCount = dataSnapshot[sessionDate].Count;
-                        if (sessionBarCount < AppConstants.MINIMUM_BARS_TO_EVALUATE)
-                        {
-                            Logger.Info($"Not enough bars to evaluate {model.ModelName} @ {sessionTime}, skipping...");
-                            continue;
-                        }
-
-                        foreach (var key in dataSnapshot.Keys)
-                        {
-                            var bars = dataSnapshot[key] ?? [];
-                            if (bars.Count < AppConstants.MINIMUM_BARS_TO_EVALUATE)
-                            {
-                                Logger.Info($"Not enough bars to evaluate {model.ModelName}, skipping...");
-                            }
-                            sequence.Add(BarData.Aggregate(bars));
-                        }
-                        sequence = sequence.OrderBy(b => b.Timestamp).ToList();
-                        break;
-                    case "minute":
-                        if (dataSnapshot.TryGetValue(sessionDate, out var sessionBars))
-                        {
-                            sequence = sessionBars;
-                            if (sequence.Count > LOOKBACK)
-                            {
-                                sequence = sequence
-                                    .Skip(sequence.Count - LOOKBACK)
-                                    .OrderBy(b => b.Timestamp)
-                                    .ToList();
-                            }
-                        }
-                        break;
+                        sequence.Add(BarData.Aggregate(bars));
+                    }
                 }
+                else
+                {
+                    var sessionBarCount = dataSnapshot[sessionDate].Count;
+                    if (sessionBarCount < AppConstants.MINIMUM_BARS_TO_EVALUATE)
+                    {
+                        Logger.Info($"Not enough bars to evaluate {model.ModelName} @ {sessionTime}, skipping...");
+                        continue;
+                    }
+
+                    foreach (var key in dataSnapshot.Keys)
+                    {
+                        var bars = dataSnapshot[key] ?? [];
+                        if (bars.Count < AppConstants.MINIMUM_BARS_TO_EVALUATE)
+                        {
+                            Logger.Info($"Not enough bars to evaluate {model.ModelName}, skipping...");
+                        }
+                        sequence.Add(BarData.Aggregate(bars));
+                    }
+                }
+                sequence = sequence.OrderBy(b => b.Timestamp).ToList();
 
                 if (sequence.Count == 0)
                 {

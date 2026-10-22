@@ -13,7 +13,6 @@ CREATE TABLE IF NOT EXISTS ModelConfig (
 
     -- Prediction target
     Target TEXT NOT NULL CHECK (Target IN ('HIGH', 'LOW', 'CLASS')),
-    BarType TEXT NOT NULL CHECK (BarType IN ('session', 'window', 'minute')),
     WindowStart TEXT,                     -- HHmmss (CT), NULL for session-level models
     WindowEnd TEXT,                       -- HHmmss (CT), NULL for session-level models
 

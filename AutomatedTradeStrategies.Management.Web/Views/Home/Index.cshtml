@@ -101,15 +101,6 @@
                         </select>
                     </div>
                     <div class="col-md-3">
-                        <label for="model-edit-barType" class="form-label">Bar Type</label>
-                        <select class="form-select" id="model-edit-barType" name="barType" required>
-                            <option value="" disabled hidden>Select...</option>
-                            <option value="session">session</option>
-                            <option value="window">window</option>
-                            <option value="minute">minute</option>
-                        </select>
-                    </div>
-                    <div class="col-md-3">
                         <label for="model-edit-windowStart" class="form-label">Window Start</label>
                         <input type="text" class="form-control" id="model-edit-windowStart" name="windowStart" pattern="\d{5,6}" placeholder="HHmmss" />
                     </div>
@@ -256,7 +247,6 @@
             { title: 'Version', field: 'version' },
             { title: 'Instrument', field: 'instrument' },
             { title: 'Target', field: 'target' },
-            { title: 'Bar Type', field: 'barType' },
             { title: 'Features', field: 'featureCount', hozAlign: 'right', mutator: (value, data) => data.modelFeatures?.length ?? 0 },
             {
                 title: 'Export Features', field: 'featuresExported', hozAlign: 'center', headerSort: false,
@@ -342,7 +332,7 @@
 
         function setGeneratedLocations() {
             const f = modelEditForm.elements;
-            f.featureLocation.value = `${featureLocationBase}/${f.instrument.value.trim()}.${f.barType.value}.${f.target.value}`;
+            f.featureLocation.value = `${featureLocationBase}/${f.instrument.value.trim()}.${f.target.value}`;
             f.outputLocation.value = outputLocation;
         }
 

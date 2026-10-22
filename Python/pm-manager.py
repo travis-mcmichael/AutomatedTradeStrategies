@@ -27,7 +27,7 @@ with tab_models:
         df = pd.DataFrame(models).drop(columns=[
             "id", "modelFeatures", "trainingStart", "trainingEnd",
             "windowStart", "windowEnd", "featureLocation", "outputLocation",
-            "schemaName", "tableName", "target", "barType", "export", "active",
+            "schemaName", "tableName", "target", "export", "active",
         ])
 
         st.dataframe(df, width="stretch", hide_index=True)

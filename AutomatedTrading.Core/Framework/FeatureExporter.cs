@@ -76,18 +76,7 @@ public class FeatureExporter
         {
             var header = string.Join(",", _model.ModelFeatures.Select(columnName));
             await writer.WriteLineAsync(header + "," + targetColumnName());
-            if (_model.BarType == "session")
-            {
-                rowsWritten = await buildSessionFeatures(minuteBarsBySession, orderedSessions, rowsWritten, writer);
-            }
-            else if (_model.BarType == "window")
-            {
-                rowsWritten = await buildWindowFeatures(minuteBarsBySession, orderedSessions, rowsWritten, writer);
-            }
-            else if (_model.BarType == "minute")
-            {
-                rowsWritten = await buildMinuteFeatures(minuteBarsBySession, orderedSessions, rowsWritten, writer);
-            }
+            rowsWritten = await buildFeatures(minuteBarsBySession, orderedSessions, rowsWritten, writer);
         }
         catch (Exception ex)
         {
@@ -123,7 +112,7 @@ public class FeatureExporter
         return 0;
     }
 
-    private string targetColumnName() => $"{_model.BarType} {_model.Target}";
+    private string targetColumnName() => _model.Target;
 
     // Handles both straight windows (e.g. 08:30–16:00) and cross-midnight windows
     // (e.g. 17:00–08:30) where start > end.
@@ -131,24 +120,32 @@ public class FeatureExporter
         start <= end ? time >= start && time < end
                      : time >= start || time < end;
 
-    private async Task<int> buildWindowFeatures(Dictionary<string, List<BarData>> minuteBarsBySession,
+    private async Task<int> buildFeatures(Dictionary<string, List<BarData>> minuteBarsBySession,
         List<string> sessionDates,
         int written,
         StreamWriter writer)
     {
-        var start = int.Parse(_model.WindowStart!);
-        var end = int.Parse(_model.WindowEnd!);
-        var sequence = sessionDates.Select(date =>
+        List<BarData?> sequence = new List<BarData?>();
+        if (_model.WindowStart != null && _model.WindowEnd != null)
         {
-            var minuteBarsForDay = minuteBarsBySession[date];
-            var windowBars = minuteBarsForDay.Where(bar => InWindow(int.Parse(bar.SessionTime!), start, end));
-            if (windowBars.Any())
-                return BarData.Aggregate([.. windowBars]);
-            return null;
-        })
-        .Where(bar => bar != null)
-        .OrderBy(bar => bar!.Timestamp)
-        .ToList();
+            var start = int.Parse(_model.WindowStart!);
+            var end = int.Parse(_model.WindowEnd!);
+            sequence.AddRange(sessionDates.Select(date =>
+            {
+                var minuteBarsForDay = minuteBarsBySession[date];
+                var windowBars = minuteBarsForDay.Where(bar => InWindow(int.Parse(bar.SessionTime!), start, end));
+                if (windowBars.Any())
+                    return BarData.Aggregate([.. windowBars]);
+                return null;
+            })
+            .Where(bar => bar != null)
+            .OrderBy(bar => bar!.Timestamp)
+            .ToList());
+        }
+        else
+        {
+            sequence.AddRange(sessionDates.Select(date => BarData.Aggregate(minuteBarsBySession[date])).ToList());
+        }
 
         if (sequence.Count == 0 || sessionDates.Count < MinLookback) return written;
 
@@ -174,69 +171,6 @@ public class FeatureExporter
             }
             if (written % 100 == 0)
                 Console.WriteLine($"  {written} rows written...");
-        }
-        return written;
-    }
-
-    private async Task<int> buildMinuteFeatures(Dictionary<string, List<BarData>> minuteBarsBySession,
-        List<string> sessionDates,
-        int written,
-        StreamWriter writer)
-    {
-        for (var i = 0; i < sessionDates.Count; i++)
-        {
-            var sequence = minuteBarsBySession[sessionDates[i]];
-            var atr20 = Computations.ATR(sequence, i - 1, MinLookback);
-            if (atr20 == 0) continue;
-            var features = FeatureComputations.ParseFeatures(_model.ModelFeatures, new FeatureContext
-            (
-                sequence,
-                i - 1,
-                atr20,
-                sessionDates[i],
-                minuteBarsBySession
-            ));
-            if (features != null)
-            {
-                var target = getTarget(sequence, sequence.First().Open, atr20);
-                await writer.WriteLineAsync($"{string.Join(",", features.Select(f => f.ToString("G6")))},{target:G6}");
-                written++;
-                if (written % 100 == 0)
-                    Console.WriteLine($"  {written} rows written...");
-            }
-        }
-        return written;
-    }
-
-    private async Task<int> buildSessionFeatures(Dictionary<string, List<BarData>> minuteBarsBySession,
-        List<string> sessionDates,
-        int written,
-        StreamWriter writer)
-    {
-        var sequence = sessionDates.Select(date => BarData.Aggregate(minuteBarsBySession[date])).ToList();
-        for (var i = MinLookback; i < sessionDates.Count; i++)
-        {
-            var atr20 = Computations.ATR(sequence, i - 1, MinLookback);
-            if (atr20 == 0) continue;
-            var features = FeatureComputations.ParseFeatures(
-                _model.ModelFeatures,
-                new FeatureContext
-                (
-                    sequence,
-                    i - 1,
-                    atr20,
-                    sessionDates[i],
-                    minuteBarsBySession
-                ));
-            if (features != null)
-            {
-                var target = getTarget(minuteBarsBySession[sessionDates[i]], sequence[i].Open, atr20);
-                await writer.WriteLineAsync(
-                    $"{string.Join(",", features.Select(f => f.ToString("G6")))},{target:G6}");
-                written++;
-                if (written % 100 == 0)
-                    Console.WriteLine($"  {written} rows written...");
-            }
         }
         return written;
     }
