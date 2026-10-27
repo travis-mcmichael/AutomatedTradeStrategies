@@ -100,14 +100,14 @@ public class FeatureExporter
         return $"{feature.FeatureType?.Name}_{suffix}";
     }
 
-    private double getTarget(List<BarData> barData, double open, double atr)
+    private double getTarget(BarData barData, double atr)
     {
         switch (_model.Target)
         {
             case "HIGH": //Core.Framework.Enums.PredictionTarget.HIGH:
-                return (barData.Max(b => b.High) - open) / atr;
+                return (barData.High - barData.Open) / atr;
             case "LOW": //Core.Framework.Enums.PredictionTarget.LOW:
-                return (open - barData.Min(b => b.Low)) / atr;
+                return (barData.Open - barData.Low) / atr;
         }
         return 0;
     }
@@ -126,6 +126,8 @@ public class FeatureExporter
         StreamWriter writer)
     {
         List<BarData?> sequence = new List<BarData?>();
+
+        // consolidates context data into window/session bars
         if (_model.WindowStart != null && _model.WindowEnd != null)
         {
             var start = int.Parse(_model.WindowStart!);
@@ -151,9 +153,11 @@ public class FeatureExporter
 
         for (var i = MinLookback; i < sequence.Count; i++)
         {
+            if (sequence[i] == null) continue;
+
             var atr20 = Computations.ATR(sequence!, i - 1, MinLookback);
             if (atr20 == 0 || sequence[i] is null) continue;
-            var target = getTarget(minuteBarsBySession[sequence[i]?.SessionDate ?? ""], sequence[i]?.Open ?? 0, atr20);
+            var target = getTarget(sequence[i]!, atr20);
             var featureValues = FeatureComputations.ParseFeatures(
                _model.ModelFeatures,
                new FeatureContext

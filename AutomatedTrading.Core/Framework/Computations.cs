@@ -343,10 +343,10 @@ public class Computations
         return (nextHigh - nextOpen) / atr;
     }
 
-    public static double Range(List<BarData> bars, double atr)
+    public static double Range(BarData bar, double atr)
     {
-        var a = BarData.Aggregate(bars);
-        return bars.Count != 0 ? Operations.SafeDiv(a.High - a.Low, atr) : double.NaN;
+        if (atr == 0) return double.NaN;
+        return Operations.SafeDiv(bar.High - bar.Low, atr);
     }
 
     public static double TotalVolume(List<BarData> bars)
@@ -383,23 +383,17 @@ public class Computations
     /// <summary>
     /// How far the session's high rose above its opening price (the first bar's open), in ATR units.
     /// </summary>
-    public static double HighOpenDiff(List<BarData> bars, double atr)
+    public static double HighOpenDiff(BarData source, BarData diff, double atr)
     {
-        var ordered = bars.OrderBy(b => b.Timestamp).ToList();
-        var sessionOpen = ordered.First().Open;
-        var sessionHigh = ordered.Max(b => b.High);
-        return Operations.SafeDiv(sessionHigh - sessionOpen, atr);
+        return Operations.SafeDiv(source.High - diff.Open, atr);
     }
 
     /// <summary>
     /// How far the session's low fell below its opening price (the first bar's open), in ATR units, as a positive number.
     /// </summary>
-    public static double OpenLowDiff(List<BarData> bars, double atr)
+    public static double OpenLowDiff(BarData source, BarData diff, double atr)
     {
-        var ordered = bars.OrderBy(b => b.Timestamp).ToList();
-        var sessionOpen = ordered.First().Open;
-        var sessionLow = ordered.Min(b => b.Low);
-        return Operations.SafeDiv(sessionOpen - sessionLow, atr);
+        return Operations.SafeDiv(source.Open - diff.Low, atr);
     }
 
     #endregion

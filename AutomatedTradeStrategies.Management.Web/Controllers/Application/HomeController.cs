@@ -17,6 +17,7 @@ public class HomeController(
     GetAllModelConfigs allModelConfigs,
     IDefaultRepository<ModelConfig> models,
     GetFeatureTypes featureTypes,
+    IDefaultRepository<FeatureTypeParam> featureTypeParams,
     IDefaultUpdateCommand<ModelConfig> updateModelConfig,
     IDefaultInsertCommand<ModelConfig> insertModelConfig,
     ReplaceModelFeatureParams replaceModelFeatureParams,
@@ -158,6 +159,14 @@ public class HomeController(
     public async Task<IActionResult> FeatureTypes()
     {
         var result = await featureTypes.Execute();
+        return Ok(result);
+    }
+
+    // The optional window fields: FeatureTypeParams that belong to no FeatureType.
+    public async Task<IActionResult> WindowParams()
+    {
+        var result = await featureTypeParams.GetDataAsync(
+            new Dictionary<string, object> { { nameof(FeatureTypeParam.FeatureTypeId), AppConstants.WINDOW_FEATURE_TYPE_ID } });
         return Ok(result);
     }
 

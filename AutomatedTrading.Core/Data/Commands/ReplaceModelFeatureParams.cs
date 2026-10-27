@@ -2,8 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using AutomatedTrading.Core.Framework;
 using AutomatedTrading.Core.Framework.DataLayer;
-using AutomatedTrading.Core.Framework.Enums;
 using AutomatedTrading.Core.Models;
 using AutomatedTrading.Core.Utility;
 using Microsoft.Extensions.Logging;
@@ -18,8 +18,10 @@ namespace AutomatedTrading.Core.Data.Commands;
 // nothing is changed and ArgumentException is thrown.
 public class ReplaceModelFeatureParams(IDbConnectionFactory connectionFactory, ILogger<ReplaceModelFeatureParams> logger)
 {
-    private static readonly HashSet<string?> validSources = [null, "prevMinute", "currMinute"];
-    private static readonly HashSet<string?> sources = [DataRangeSource.Session.ToString(), DataRangeSource.Window.ToString()];
+    // Lowercase to match the values the popup sends and FeatureComputations switches on (DataRangeSource.ToString() is capitalized).
+    private const string SESSION_SOURCE = "session";
+    private const string WINDOW_SOURCE = "window";
+    private static readonly HashSet<string?> validSources = [null, "prevMinute", "currMinute", SESSION_SOURCE, WINDOW_SOURCE];
 
     public async Task<int> Execute(long modelConfigId, IEnumerable<ModelFeatureParam> parameters,
         IReadOnlyDictionary<long, string?>? featureNames = null, IReadOnlyCollection<long>? deletedFeatureIds = null,
@@ -38,13 +40,23 @@ public class ReplaceModelFeatureParams(IDbConnectionFactory connectionFactory, I
         using (var cmd = connection.CreateCommand())
         {
             cmd.Transaction = transaction;
+            // Window fields belong to no FeatureType, so a window feature also allows the window FeatureTypeParams.
             cmd.CommandText = @"
                 SELECT mf.Id, ftp.Id
                   FROM ModelFeature mf
                   JOIN FeatureTypeParam ftp
                     ON ftp.FeatureTypeId = mf.FeatureTypeId
-                 WHERE mf.ModelConfigId = @ModelConfigId";
+                 WHERE mf.ModelConfigId = @ModelConfigId
+                UNION
+                SELECT mf.Id, ftp.Id
+                  FROM ModelFeature mf
+                  JOIN FeatureTypeParam ftp
+                    ON ftp.FeatureTypeId = @WindowFeatureTypeId
+                 WHERE mf.ModelConfigId = @ModelConfigId
+                   AND mf.Source = @WindowSource";
             SqlHelper.AddParameter(cmd, "@ModelConfigId", modelConfigId);
+            SqlHelper.AddParameter(cmd, "@WindowFeatureTypeId", AppConstants.WINDOW_FEATURE_TYPE_ID);
+            SqlHelper.AddParameter(cmd, "@WindowSource", WINDOW_SOURCE);
             using var reader = await cmd.ExecuteReaderAsync();
             while (await reader.ReadAsync())
                 allowed.Add((reader.GetInt64(0), reader.GetInt64(1)));
@@ -89,6 +101,17 @@ public class ReplaceModelFeatureParams(IDbConnectionFactory connectionFactory, I
                 }
             }
 
+            var windowParamIds = new List<long>();
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.Transaction = transaction;
+                cmd.CommandText = "SELECT Id FROM FeatureTypeParam WHERE FeatureTypeId = @WindowFeatureTypeId";
+                SqlHelper.AddParameter(cmd, "@WindowFeatureTypeId", AppConstants.WINDOW_FEATURE_TYPE_ID);
+                using var reader = await cmd.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                    windowParamIds.Add(reader.GetInt64(0));
+            }
+
             var tempIds = new HashSet<long>();
             foreach (var feature in newFeatures)
             {
@@ -97,9 +120,12 @@ public class ReplaceModelFeatureParams(IDbConnectionFactory connectionFactory, I
                 if (!typeParamIds.TryGetValue(feature.FeatureTypeId, out var ids))
                     throw new ArgumentException($"FeatureType {feature.FeatureTypeId} does not exist.");
                 if (!validSources.Contains(feature.Source))
-                    throw new ArgumentException($"Source '{feature.Source}' is not valid; use prevMinute, currMinute or none (daily).");
+                    throw new ArgumentException($"Source '{feature.Source}' is not valid; use session, window, prevMinute, currMinute or none (defaults to session).");
                 foreach (var id in ids)
                     allowed.Add((feature.TempId, id));
+                if (feature.Source == WINDOW_SOURCE)
+                    foreach (var id in windowParamIds)
+                        allowed.Add((feature.TempId, id));
             }
         }
 
@@ -143,7 +169,7 @@ public class ReplaceModelFeatureParams(IDbConnectionFactory connectionFactory, I
             foreach (var feature in newFeatures)
             {
                 cmd.Parameters["@FeatureTypeId"].Value = feature.FeatureTypeId;
-                cmd.Parameters["@Source"].Value = (object?)feature.Source ?? DBNull.Value;
+                cmd.Parameters["@Source"].Value = feature.Source ?? SESSION_SOURCE;
                 cmd.Parameters["@SortOrder"].Value = ++sortOrder;
                 cmd.Parameters["@ModelFeatureName"].Value = string.IsNullOrWhiteSpace(feature.ModelFeatureName) ? DBNull.Value : feature.ModelFeatureName!.Trim();
                 insertedIds[feature.TempId] = Convert.ToInt64(await cmd.ExecuteScalarAsync());

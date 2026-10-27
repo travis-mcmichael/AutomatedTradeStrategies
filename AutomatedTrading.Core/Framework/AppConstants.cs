@@ -24,4 +24,7 @@ public static class AppConstants
     public static readonly string RTHSTART = "083000";
     public static readonly string XGB_MODEL_FILENAME = "xgb_model.onnx";
     public static readonly string SCALER_FILENAME = "scaler_params.json";
+
+    // FeatureTypeParams with this FeatureTypeId are the optional window fields, shown when a feature's Source is window.
+    public static readonly long WINDOW_FEATURE_TYPE_ID = 0;
 }
