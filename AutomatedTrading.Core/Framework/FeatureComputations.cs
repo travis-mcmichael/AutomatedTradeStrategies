@@ -11,12 +11,6 @@ namespace AutomatedTrading.Core.Framework;
 /// </summary>
 public class FeatureContext
 {
-    public List<BarData> Sequence { get; set; }
-
-    /// <summary>
-    /// Index of the previous BarData, can be used to retrieve the previous bar by using 
-    /// </summary>
-    public int J { get; set; }
 
     /// <summary>
     /// Average True Range
@@ -24,10 +18,8 @@ public class FeatureContext
     public double ATR { get; set; }
     public string SessionDate { get; set; }
     public Dictionary<string, List<BarData>> MinuteBars { get; set; }
-    public FeatureContext(List<BarData> sequence, int j, double atr, string sessionDate, Dictionary<string, List<BarData>> minuteBars)
+    public FeatureContext(double atr, string sessionDate, Dictionary<string, List<BarData>> minuteBars)
     {
-        Sequence = sequence;
-        J = j;
         ATR = atr;
         MinuteBars = minuteBars;
         SessionDate = sessionDate;
@@ -43,7 +35,7 @@ public static class FeatureComputations
         {
             d.Add(ParseFeatureComputation(feature, ctx));
         }
-        return d.ToArray();
+        return [.. d];
     }
 
     public static double ParseFeatureComputation(ModelFeature feature, FeatureContext ctx)
@@ -80,70 +72,186 @@ public static class FeatureComputations
                 break;
         }
 
-        var current = ctx.Sequence[ctx.J]; // bar to be evaluated (if only evaluating one)
-        var evaluationBars = ctx.Sequence; // bar to be evaluated + previous bar evaluation history
-                                           // these should never be used with BarData.Aggregate() - this step has already been performed
+        var last = contextBars.Count - 1;
+        var aggregatedContext = BarData.Aggregate(contextBars);
+
+        //var current = ctx.Sequence[ctx.J]; // bar to be evaluated (if only evaluating one)
+        //var evaluationBars = ctx.Sequence; // bar to be evaluated + previous bar evaluation history
+        // these should never be used with BarData.Aggregate() - this step has already been performed
 
         switch (feature.FeatureType?.Name)
         {
+            case "Atr":
+                return Computations.ATR(contextBars, p["lookback"]);
             case "AtrRatio":
                 return Operations.SafeDiv(
-                    Computations.ATR(evaluationBars, ctx.J, p!["short"]),
-                    Computations.ATR(evaluationBars, ctx.J, p["long"]));
+                    Computations.ATR(contextBars, p!["short"]),
+                    Computations.ATR(contextBars, p["long"]));
             case "AtrOpenRatio":
                 return Operations.SafeDiv(
-                    Computations.ATR(evaluationBars, ctx.J, p["lookback"]),
+                    Computations.ATR(contextBars, p["lookback"]),
                     BarData.Aggregate(contextBars).Open);
+            case "AvgBodyRatio":
+                return Computations.AverageBodyRatio(contextBars, p["lookback"], ctx.ATR);
             case "AvgRange":
-                return Computations.AverageRange(evaluationBars, ctx.J, p["lookback"]);
+                return Computations.AverageRange(contextBars, p["lookback"]);
             case "BodySize":
-                return Computations.BodySize(current, ctx.ATR);
+                return Computations.BodySize(aggregatedContext, ctx.ATR);
+            case "BodyRatio":
+                return Operations.SafeDiv(
+                    Computations.BodySize(aggregatedContext, ctx.ATR),
+                    Computations.Range(aggregatedContext, ctx.ATR));
+            case "CloseOpenDiff":
+                return Operations.SafeDiv(
+                    aggregatedContext.Close - aggregatedContext.Open,
+                    ctx.ATR);
+            case "ClosePrevCloseDiff":
+                if (contextBars.Count < 2) return double.NaN;
+                return Operations.SafeDiv(
+                    contextBars[contextBars.Count - 1].Close - contextBars[contextBars.Count - 2].Close,
+                    ctx.ATR);
+            case "ClosePrevHighDiff":
+                if (contextBars.Count < 2) return double.NaN;
+                return Operations.SafeDiv(
+                    contextBars[contextBars.Count - 1].Close - contextBars[contextBars.Count - 2].High,
+                    ctx.ATR);
+            case "ClosePrevLowDiff":
+                if (contextBars.Count < 2) return double.NaN;
+                return Operations.SafeDiv(
+                    contextBars[contextBars.Count - 1].Close - contextBars[contextBars.Count - 2].Low,
+                    ctx.ATR);
             case "ClosePosition":
-                return Computations.ClosePosition(BarData.Aggregate(contextBars));
+                return Computations.ClosePosition(aggregatedContext);
+            case "CloseSmaDiff":
+                return Operations.SafeDiv(
+                    aggregatedContext.Close - Computations.SMA(contextBars, p["lookback"], x => x.Close),
+                    ctx.ATR);
+            case "ConsecutiveDown":
+                return Computations.ConsecutiveDown(contextBars);
+            case "ConsecutiveUp":
+                return Computations.ConsecutiveUp(contextBars);
             case "DayOfWeek":
                 return (int)DateTime.ParseExact(ctx.SessionDate, AppConstants.DATE_FORMAT, null).DayOfWeek;
             case "DayOfMonth":
                 return DateTime.ParseExact(ctx.SessionDate, AppConstants.DATE_FORMAT, null).Day;
+            case "DownCount":
+                return contextBars.Count(x => x.Open > x.Close);
+            case "DownVolume":
+                return contextBars.Where(x => x.Open > x.Close).Sum(x => x.Volume);
+            case "EmaDiff":
+                return Operations.SafeDiv(
+                    Computations.EMA(contextBars, p["short"], x => x.Close) - Computations.EMA(contextBars, p["long"], x => x.Close),
+                    ctx.ATR);
+            case "GreenRatio":
+                return contextBars.Count(x => x.Open > x.Close) / contextBars.Count;
             case "HighOpenDiff":
-                return Operations.SafeDiv(current.High - BarData.Aggregate(contextBars).Open, ctx.ATR);
+                return Operations.SafeDiv(
+                    contextBars[last].High - aggregatedContext.Open,
+                    ctx.ATR);
             case "HighTimeRatio":
                 return Computations.HighTimeRatio(contextBars);
+            case "HolidayAdjacent":
+                return TradingCalendar.IsHolidayAdjacent(sessionDate) ? 1 : 0;
             case "LowTimeRatio":
                 return Computations.LowTimeRatio(contextBars);
             case "LowerWick":
-                return Computations.LowerWick(BarData.Aggregate(contextBars), ctx.ATR);
+                return Computations.LowerWick(aggregatedContext, ctx.ATR);
+            case "LowerWickRangeRatio":
+                return Operations.SafeDiv(
+                    Computations.LowerWick(aggregatedContext, ctx.ATR),
+                    Computations.Range(aggregatedContext, ctx.ATR));
+            case "MomentumRatio":
+                return Operations.SafeDiv(
+                    Computations.Momentum(contextBars, p!["short"]),
+                    Computations.Momentum(contextBars, p!["long"]));
             case "Month":
                 return DateTime.ParseExact(ctx.SessionDate, AppConstants.DATE_FORMAT, null).Month;
+            case "MovementTrendEfficiency":
+                return Operations.SafeDiv(
+                    Math.Abs(aggregatedContext.Open - aggregatedContext.Close),
+                    Computations.AbsoluteMovement(contextBars));
             case "OpenLowDiff":
-                return Operations.SafeDiv(current.Open - BarData.Aggregate(contextBars).Low, ctx.ATR);
+                return Operations.SafeDiv(
+                    contextBars[last].Open - aggregatedContext.Low,
+                    ctx.ATR);
             case "OpenCloseDiff":
-                return Operations.SafeDiv(current.Open - BarData.Aggregate(contextBars).Close, ctx.ATR);
+                return Operations.SafeDiv(
+                    aggregatedContext.Open - aggregatedContext.Close,
+                    ctx.ATR);
             case "OpenHighDiff":
-                return Operations.SafeDiv(current.Open - BarData.Aggregate(contextBars).High, ctx.ATR);
+                return Operations.SafeDiv(
+                    contextBars[last].Open - aggregatedContext.High,
+                    ctx.ATR);
             case "OpenSmaRatio":
                 return Operations.SafeDiv(
-                    current.Open,
-                    Computations.SMA(evaluationBars, ctx.J, p!["lookback"], x => x.Close));
+                    contextBars[last].Open,
+                    Computations.SMA(contextBars, p!["lookback"], x => x.Close));
+            case "PrevCloseOpenDiff":
+                if (contextBars.Count < 2) return 0;
+                return contextBars[last - 1].Close - contextBars[last].Open;
             case "Range":
-                return Computations.Range(BarData.Aggregate(contextBars), ctx.ATR);
+                return Computations.Range(aggregatedContext, ctx.ATR);
+            case "RangeAtrRatio":
+                var recent = BarData.Aggregate([.. contextBars.Skip(contextBars.Count - p["short"])]);
+                return Operations.SafeDiv(
+                    Computations.Range(recent, ctx.ATR),
+                    Computations.ATR(contextBars, p["long"]));
             case "RangeAvgRangeRatio":
                 return Operations.SafeDiv(
-                    current.High - current.Low,
-                    Computations.AverageRange(evaluationBars, ctx.J, p["lookback"]));
+                    contextBars[last].High - contextBars[last].Low,
+                    Computations.AverageRange(contextBars, p["lookback"]));
+            case "RangeRatio":
+                var l = contextBars.Skip(contextBars.Count - p["long"]).ToList();
+                return Operations.SafeDiv(
+                    Computations.Range(BarData.Aggregate([.. l.Skip(l.Count - p["short"])]), ctx.ATR),
+                    Computations.Range(BarData.Aggregate(l), ctx.ATR));
+            case "RealizedVolatility":
+                return Computations.RealizedVolatility(contextBars, p["lookback"]);
             case "Return":
-                return Computations.Return(evaluationBars, ctx.J, p!["lookback"]);
+                return Computations.Return(contextBars, p!["lookback"]);
             case "Rsi":
-                return Computations.RSI(evaluationBars, ctx.J, p!["lookback"]);
+                return Computations.RSI(contextBars, p!["lookback"]);
+            case "Sma":
+                return Computations.SMA(contextBars, p!["lookback"], x => x.Close);
             case "SmaRatio":
                 return Operations.SafeDiv(
-                    Computations.SMA(evaluationBars, ctx.J, p!["short"], x => x.Close),
-                    Computations.SMA(evaluationBars, ctx.J, p["long"], x => x.Close));
+                    Computations.SMA(contextBars, p!["short"], x => x.Close),
+                    Computations.SMA(contextBars, p["long"], x => x.Close));
+            case "UpCount":
+                return contextBars.Count(x => x.Close > x.Open);
+            case "UpDownVolumeRatio":
+                return Operations.SafeDiv(
+                    contextBars.Where(x => x.Close > x.Open).Sum(x => x.Volume),
+                    contextBars.Where(x => x.Open > x.Close).Sum(x => x.Volume));
             case "UpperWick":
-                return Computations.UpperWick(BarData.Aggregate(contextBars), ctx.ATR);
+                return Computations.UpperWick(aggregatedContext, ctx.ATR);
+            case "UpperWickRangeRatio":
+                return Operations.SafeDiv(
+                    Computations.UpperWick(aggregatedContext, ctx.ATR),
+                    Computations.Range(aggregatedContext, ctx.ATR));
+            case "UpVolume":
+                return contextBars.Where(x => x.Close > x.Open).Sum(x => x.Volume);
+            case "VolatilityRatio":
+                return Operations.SafeDiv(
+                    Computations.RealizedVolatility(contextBars, p["short"]),
+                    Computations.RealizedVolatility(contextBars, p["long"]));
+            case "Volume":
+                return aggregatedContext.Volume;
+            case "VolumePerPoint":
+                return Operations.SafeDiv(
+                    aggregatedContext.Volume,
+                    Computations.Range(aggregatedContext, ctx.ATR));
+            case "VolumeRatio":
+                if (contextBars.Count < p["long"]) return double.NaN;
+                return Operations.SafeDiv(
+                    Computations.TotalVolume([.. contextBars.Skip(contextBars.Count - p["short"])]),
+                    Computations.TotalVolume([.. contextBars.Skip(contextBars.Count - p["long"])]));
             case "VolumeSma":
-                return Computations.SMA(evaluationBars, ctx.J, p!["lookback"], x => x.Volume);
+                return Computations.SMA(contextBars, p!["lookback"], x => x.Volume);
+            case "VolumeTrend":
+                return Computations.VolumeTrend(contextBars, p!["lookback"]);
             case "VolumeZScore":
-                return Computations.VolumeZScore(evaluationBars, ctx.J, p!["lookback"]);
+                return Computations.VolumeZScore(contextBars, p!["lookback"]);
             default:
                 throw new ArgumentException($"Unknown/null feature name: '{feature?.FeatureType?.Name}'");
         }

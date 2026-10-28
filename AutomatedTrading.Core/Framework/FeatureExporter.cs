@@ -55,7 +55,7 @@ public class FeatureExporter
         if (!minuteBarsBySession.Any()) return 0;
 
         // get keys in order by date
-        var orderedSessions = minuteBarsBySession.Keys.OrderBy(x => x).ToList();
+        var orderedSessions = minuteBarsBySession.Keys.OrderByDescending(x => x).ToList();
 
         // changeover - in this context, a changeover occurs on a session date when:
         // - 2 instrument versions have bar data on the session date
@@ -132,8 +132,9 @@ public class FeatureExporter
         {
             var start = int.Parse(_model.WindowStart!);
             var end = int.Parse(_model.WindowEnd!);
-            sequence.AddRange(sessionDates.Select(date =>
+            sequence.AddRange([.. sessionDates.Select(date =>
             {
+                if (!minuteBarsBySession.ContainsKey(date)) return null;
                 var minuteBarsForDay = minuteBarsBySession[date];
                 var windowBars = minuteBarsForDay.Where(bar => InWindow(int.Parse(bar.SessionTime!), start, end));
                 if (windowBars.Any())
@@ -141,8 +142,7 @@ public class FeatureExporter
                 return null;
             })
             .Where(bar => bar != null)
-            .OrderBy(bar => bar!.Timestamp)
-            .ToList());
+            .OrderBy(bar => bar!.Timestamp)]);
         }
         else
         {
@@ -150,20 +150,31 @@ public class FeatureExporter
         }
 
         if (sequence.Count == 0 || sessionDates.Count < MinLookback) return written;
+        List<BarData> sanitizedSequence = [.. sequence.Where(x => x != null)];
 
         for (var i = MinLookback; i < sequence.Count; i++)
         {
             if (sequence[i] == null) continue;
 
-            var atr20 = Computations.ATR(sequence!, i - 1, MinLookback);
-            if (atr20 == 0 || sequence[i] is null) continue;
+            var atr20 = Computations.ATR(sanitizedSequence, MinLookback);
+            if (atr20 == 0) continue;
+            if (!minuteBarsBySession.ContainsKey(sessionDates[i])) continue;
+            // Found lots of strange instances where there are a few BarData records on a Saturday or Sunday
+            // spot-checking these made them look like they were fine to ignore completely.
+            if (minuteBarsBySession[sessionDates[i]].Count() < 50)
+            {
+                TradingCalendar.IsTradingDay(sessionDates[i]);
+                minuteBarsBySession.Remove(sessionDates[i]);
+                continue;
+            }
+
             var target = getTarget(sequence[i]!, atr20);
             var featureValues = FeatureComputations.ParseFeatures(
                _model.ModelFeatures,
                new FeatureContext
                (
-                   sequence!,
-                   i - 1,
+                   //    sequence!,
+                   //    i - 1,
                    atr20,
                    sessionDates[i],
                    minuteBarsBySession
@@ -186,7 +197,7 @@ public class FeatureExporter
             if (bar.SessionDate == null) return Task.CompletedTask;
             if (!minuteBarsBySession.TryGetValue(bar.SessionDate, out var list))
             {
-                list = new List<BarData>();
+                list = [];
                 minuteBarsBySession[bar.SessionDate] = list;
             }
             list?.Add(bar);
@@ -202,9 +213,10 @@ public class FeatureExporter
         var rolls = changeovers.OrderBy(c => c.SessionDate, StringComparer.Ordinal).ToList();
         foreach (var session in orderedSessions)
         {
-            var activeVersion = rolls.LastOrDefault(c => string.CompareOrdinal(c.SessionDate, session) <= 0)?.NewVersion
-                                ?? rolls[0].OldVersion;
-            var adjustment = rolls.Where(c => string.CompareOrdinal(c.SessionDate, session) > 0).Sum(c => c.Adjustment);
+
+            var dt = int.Parse(session);
+            var activeVersion = rolls.LastOrDefault(c => dt >= int.Parse(c.SessionDate))?.NewVersion ?? rolls.First().OldVersion;
+            var adjustment = rolls.Where(c => int.Parse(c.SessionDate) > dt).Sum(c => c.Adjustment);
 
             var bars = minuteBarsBySession[session].Where(b => b.InstrumentVersion == activeVersion).ToList();
             if (bars.Count == 0)
@@ -212,6 +224,9 @@ public class FeatureExporter
                 minuteBarsBySession.Remove(session);
                 continue;
             }
+
+            if (adjustment == 0)
+                continue;
 
             foreach (var bar in bars)
             {

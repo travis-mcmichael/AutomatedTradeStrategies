@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS ModelFeature (
     FeatureTypeId INTEGER NOT NULL REFERENCES FeatureType (Id),
 
     -- Feature dispatch
-    Source TEXT CHECK (Source IS NULL OR Source IN ('prevMinute', 'currMinute')),
+    Source TEXT,
                                            -- NULL = 'daily' (default source)
     SortOrder INTEGER NOT NULL,           -- preserves feature/column ordering from models.json
     ModelFeatureName TEXT                 -- optional display name; NULL when not set

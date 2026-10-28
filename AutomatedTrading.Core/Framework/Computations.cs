@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Linq;
 using AutomatedTrading.Core.Models;
 
@@ -13,40 +14,78 @@ public class Computations
     /// Log return over <paramref name="lookback"/> bars: ln(close[i] / close[i - lookback]). Positive when price rose.
     /// Returns 0 when there aren't <paramref name="lookback"/> earlier bars.
     /// </summary>
-    public static double Return(List<BarData> bars, int i, int lookback)
+    public static double Return(List<BarData> bars, int lookback)
     {
-        if (i < lookback) return 0;
-        return Math.Log(bars[i].Close / bars[i - lookback].Close);
+        var last = bars.Count() - 1;
+        if (bars.Count() < lookback) return 0;
+        return Math.Log(bars[last].Close / bars[last - lookback].Close);
+    }
+
+    public static int ConsecutiveUp(List<BarData> bars)
+    {
+        var count = 0;
+        var i = bars.Count() - 1;
+        while (bars[i].Close <= bars[i].Open)
+        {
+            count++;
+            i--;
+        }
+        return count;
+    }
+
+    public static int ConsecutiveDown(List<BarData> bars)
+    {
+        var count = 0;
+        var i = bars.Count() - 1;
+        while (bars[i].Close >= bars[i].Open)
+        {
+            count++;
+            i--;
+        }
+        return count;
     }
 
     /// <summary>
     /// True range of bar <paramref name="i"/>: the largest of high - low, |high - previous close| and
     /// |low - previous close|, so overnight gaps count as range. For the first bar it's just high - low.
     /// </summary>
-    public static double TrueRange(List<BarData> bars, int i)
+    public static double TrueRange(BarData current, BarData previous)
     {
-        if (i == 0)
-            return bars[i].High - bars[i].Low;
-
-        var highLow = bars[i].High - bars[i].Low;
-        var highClose = Math.Abs(bars[i].High - bars[i - 1].Close);
-        var lowClose = Math.Abs(bars[i].Low - bars[i - 1].Close);
+        var highLow = current.High - current.Low;
+        var highClose = Math.Abs(current.High - previous.Close);
+        var lowClose = Math.Abs(current.Low - previous.Close);
         return Math.Max(highLow, Math.Max(highClose, lowClose));
+    }
+
+    public static double AverageBodyRatio(List<BarData> bars, int lookback, double atr)
+    {
+        if (bars.Count < lookback)
+            return double.NaN;
+
+        double sum = 0;
+        for (var i = bars.Count - 1; i > 0; i--)
+        {
+            sum += Operations.SafeDiv(
+                BodySize(bars[i], atr),
+                Range(bars[i], atr));
+        }
+
+        return Operations.SafeDiv(sum, lookback);
     }
 
     /// <summary>
     /// Average of (high - low) over the last <paramref name="lookback"/> bars ending at <paramref name="i"/>.
     /// Unlike <see cref="ATR"/> it ignores gaps from the previous close. Returns NaN when there aren't enough bars.
     /// </summary>
-    public static double AverageRange(List<BarData> bars, int i, int lookback)
+    public static double AverageRange(List<BarData> bars, int lookback)
     {
-        if (i < lookback - 1)
+        if (bars.Count() < lookback)
             return double.NaN;
 
         double sum = 0;
-        for (var j = i - lookback + 1; j <= i; j++)
+        for (var i = bars.Count - 1; i > 0; i--)
         {
-            sum += bars[j].High - bars[j].Low;
+            sum += bars[i].High - bars[i].Low;
         }
         return sum / lookback;
     }
@@ -57,14 +96,14 @@ public class Computations
     /// normalise most other features. Returns 0 when there are fewer than <paramref name="lookback"/> bars
     /// up to <paramref name="i"/>.
     /// </summary>
-    public static double ATR(List<BarData> bars, int i, int lookback)
+    public static double ATR(List<BarData> bars, int lookback)
     {
-        if (lookback <= 0 || i < lookback - 1) return 0;
+        if (bars.Count < lookback) return 0;
 
         double atr = 0;
-        for (var j = i - lookback + 1; j <= i; j++)
+        for (var i = bars.Count; i > lookback; i--)
         {
-            atr += TrueRange(bars, j);
+            atr += TrueRange(bars[i], bars[i - 1]);
         }
 
         atr /= lookback;
@@ -76,11 +115,11 @@ public class Computations
     /// k = 2 / (lookback + 1): value[i] * k + EMA[i - 1] * (1 - k), seeded with bar 0's value.
     /// Walks forward from bar 0 each call, so it costs O(i).
     /// </summary>
-    public static double EMA(List<BarData> bars, int i, int lookback, Func<BarData, double> selector)
+    public static double EMA(List<BarData> bars, int lookback, Func<BarData, double> selector)
     {
         var k = 2.0 / (lookback + 1);
         var ema = selector(bars[0]);
-        for (var j = 1; j <= i; j++)
+        for (var j = 1; j < bars.Count(); j++)
             ema = selector(bars[j]) * k + ema * (1 - k);
         return ema;
     }
@@ -91,14 +130,14 @@ public class Computations
     /// Uses simple sums rather than Wilder's smoothing. Returns 100 when there were no losses, and 0 when there
     /// aren't enough bars.
     /// </summary>
-    public static double RSI(List<BarData> bars, int i, int lookback)
+    public static double RSI(List<BarData> bars, int lookback)
     {
-        if (i < lookback) return 0;
+        if (bars.Count() < lookback) return 0;
         double gain = 0;
         double loss = 0;
-        for (int j = i - lookback + 1; j <= i; j++)
+        for (var i = bars.Count() - lookback + 1; i < bars.Count(); i++)
         {
-            var change = bars[j].Close - bars[j - 1].Close;
+            var change = bars[i].Close - bars[i - 1].Close;
             if (change > 0) gain += change;
             else loss -= change;
         }
@@ -116,18 +155,18 @@ public class Computations
     /// in either direction. This is a single-window DX rather than Wilder's smoothed ADX.
     /// Returns 0 when <paramref name="i"/> &lt; 2 × <paramref name="lookback"/> or there's no range.
     /// </summary>
-    public static double ADX(List<BarData> bars, int i, int lookback)
+    public static double ADX(List<BarData> bars, int lookback)
     {
-        if (i < lookback * 2)
+        if (bars.Count() < lookback * 2)
             return 0;
 
         double plusDM = 0;
         double minusDM = 0;
         double tr = 0;
-        for (var j = i - lookback + 1; j <= i; j++)
+        for (var i = lookback + 1; i < bars.Count(); i++)
         {
-            var current = bars[j];
-            var prev = bars[j - 1];
+            var current = bars[i];
+            var prev = bars[i - 1];
             var upMove = current.High - prev.High;
             var downMove = prev.Low - current.Low;
             double plus = 0;
@@ -159,14 +198,14 @@ public class Computations
     /// <paramref name="lookback"/> bars ending at <paramref name="i"/>. Returns 0 when there are fewer than
     /// <paramref name="lookback"/> bars up to <paramref name="i"/>, or <paramref name="lookback"/> is 0.
     /// </summary>
-    public static double SMA(List<BarData> bars, int i, int lookback, Func<BarData, double> selector)
+    public static double SMA(List<BarData> bars, int lookback, Func<BarData, double> selector)
     {
-        if (lookback <= 0 || i < lookback - 1) return 0;
+        if (lookback <= 0 || bars.Count() < lookback) return 0;
 
         double sum = 0.0;
-        for (var j = i - lookback + 1; j <= i; j++)
+        for (var i = lookback + 1; i < bars.Count(); i++)
         {
-            sum += selector(bars[j]);
+            sum += selector(bars[i]);
         }
         return sum / lookback;
     }
@@ -176,14 +215,14 @@ public class Computations
     /// ending at <paramref name="i"/>: how spread out the values are around their <see cref="SMA"/>.
     /// Returns 0 when there are fewer than <paramref name="lookback"/> bars up to <paramref name="i"/>.
     /// </summary>
-    public static double StandardDeviation(List<BarData> bars, int i, int lookback, Func<BarData, double> selector)
+    public static double StandardDeviation(List<BarData> bars, int lookback, Func<BarData, double> selector)
     {
-        if (lookback <= 0 || i < lookback - 1) return 0;
-        var mean = SMA(bars, i, lookback, selector);
+        if (lookback <= 0 || bars.Count() < lookback) return 0;
+        var mean = SMA(bars, lookback, selector);
         double sum = 0.0;
-        for (var j = i - lookback + 1; j <= i; j++)
+        for (var i = lookback + 1; i < bars.Count(); i++)
         {
-            sum += Math.Pow(selector(bars[j]) - mean, 2);
+            sum += Math.Pow(selector(bars[i]) - mean, 2);
         }
         var variance = sum / lookback;
         return Math.Sqrt(variance);
@@ -229,20 +268,33 @@ public class Computations
 
     /// <summary>
     /// Realized volatility: the standard deviation of bar-to-bar log returns over the last
-    /// <paramref name="period"/> bars ending at <paramref name="i"/>. Not annualised.
+    /// <paramref name="lookback"/> bars ending at <paramref name="i"/>. Not annualised.
     /// Returns 0 when there aren't enough bars.
     /// </summary>
-    public static double RealizedVolatility(List<BarData> bars, int i, int period)
+    public static double RealizedSessionVolatility(List<BarData> bars, int lookback)
     {
-        if (i < period) return 0;
+        if (bars.Count() < lookback) return 0;
         var returns = new List<double>();
-        for (var j = i - period + 1; j <= i; j++)
+        for (var i = lookback + 1; i < bars.Count(); i++)
         {
-            returns.Add(Math.Log(bars[j].Close / bars[j - 1].Close));
+            returns.Add(Math.Log(bars[i].Close / bars[i - 1].Close));
         }
 
         var mean = returns.Average();
-        var variance = returns.Sum(r => Math.Pow(r - mean, 2)) / period;
+        var variance = returns.Sum(r => Math.Pow(r - mean, 2)) / lookback;
+        return Math.Sqrt(variance);
+    }
+
+    public static double RealizedVolatility(List<BarData> bars, int lookback)
+    {
+        if (bars.Count() < lookback) return 0;
+        var returns = new List<double>();
+        for (var i = bars.Count - 1; i > 0; i--)
+        {
+            returns.Add(Math.Log(bars[i].Close / bars[i - 1].Close));
+        }
+        var mean = returns.Average();
+        var variance = returns.Sum(r => Math.Pow(r - mean, 2)) / lookback;
         return Math.Sqrt(variance);
     }
 
@@ -250,10 +302,24 @@ public class Computations
     /// Price change in points over <paramref name="lookback"/> bars: close[i] - close[i - lookback].
     /// Returns 0 when there aren't enough bars.
     /// </summary>
-    public static double Momentum(List<BarData> bars, int i, int lookback)
+    public static double Momentum(List<BarData> bars, int lookback)
     {
-        if (i < lookback || bars.Count < lookback) return 0;
-        return bars[i].Close - bars[i - lookback].Close;
+        var last = bars.Count - 1;
+        if (last < lookback) return 0;
+        return bars[last].Close - bars[last - lookback].Close;
+    }
+
+    public static double AbsoluteMovement(List<BarData> bars)
+    {
+        var totalMovement = 0.0;
+        foreach (var bar in bars)
+        {
+            totalMovement +=
+                Math.Abs(bar.Open - bar.High) +
+                Math.Abs(bar.High - bar.Low) +
+                Math.Abs(bar.Low - bar.Close);
+        }
+        return totalMovement;
     }
 
     /// <summary>
@@ -288,20 +354,47 @@ public class Computations
         return (bars[i + lookahead].Close / bars[i].Close) - 1.0;
     }
 
+    public static int VolumeTrend(List<BarData> bars, int lookback)
+    {
+        if (bars.Count < lookback + 1)
+            return 0;
+
+        int up = 0, down = 0;
+        var last = bars.Count - 1;
+        for (var i = last - lookback; i < last; i++)
+        {
+            if (bars[i].Volume > bars[i - 1].Volume)
+                up++;
+            else if (bars[i].Volume < bars[i - 1].Volume)
+                down++;
+        }
+        var bar = BarData.Aggregate(bars);
+        if (up > down && bar.Open < bar.Close)
+        {
+            return 1;
+        }
+        else if (down > up && bar.Open > bar.Close)
+        {
+            return -1;
+        }
+        return 0;
+    }
+
     /// <summary>
     /// How unusual bar <paramref name="i"/>'s volume is versus the last <paramref name="lookback"/> bars (including itself),
     /// in standard deviations from their mean: 2 means much heavier than normal, negative means lighter.
     /// Returns NaN when there aren't enough bars and 0 when volume didn't vary.
     /// </summary>
-    public static double VolumeZScore(List<BarData> bars, int i, int lookback)
+    public static double VolumeZScore(List<BarData> bars, int lookback)
     {
-        if (i < lookback - 1)
+        var last = bars.Count - 1;
+        if (last < lookback)
             return double.NaN;
         double sum = 0;
         double sumSq = 0;
-        for (var ii = i - lookback + 1; ii <= i; ii++)
+        for (var i = lookback + 1; i < bars.Count; i++)
         {
-            double v = bars[ii].Volume;
+            double v = bars[i].Volume;
             sum += v;
             sumSq += v * v;
         }
@@ -309,7 +402,7 @@ public class Computations
         double variance = (sumSq / lookback) - (mean * mean);
         if (variance <= 0)
             return 0;
-        return (bars[i].Volume - mean) / Math.Sqrt(variance);
+        return (bars[last].Volume - mean) / Math.Sqrt(variance);
     }
 
     /// <summary>
