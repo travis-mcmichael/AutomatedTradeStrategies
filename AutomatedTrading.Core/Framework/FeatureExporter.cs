@@ -69,14 +69,15 @@ public class FeatureExporter
         }
 
         Logger.Info($"  Loaded {minuteBarsBySession.Count} sessions. Building features...");
-        //var sessionDates = minuteBarsBySession.Keys.OrderBy(x => x).ToList();
+        // Oldest first, so rows are written in chronological order. Built after the changeover step, which can drop sessions.
+        var sessionDates = minuteBarsBySession.Keys.OrderBy(x => x, StringComparer.Ordinal).ToList();
         var rowsWritten = 0;
         using var writer = new StreamWriter(_outputPath);
         try
         {
             var header = string.Join(",", _model.ModelFeatures.Select(columnName));
             await writer.WriteLineAsync(header + "," + targetColumnName());
-            rowsWritten = await buildFeatures(minuteBarsBySession, orderedSessions, rowsWritten, writer);
+            rowsWritten = await buildFeatures(minuteBarsBySession, sessionDates, rowsWritten, writer);
         }
         catch (Exception ex)
         {
@@ -125,58 +126,44 @@ public class FeatureExporter
         int written,
         StreamWriter writer)
     {
-        List<BarData?> sequence = new List<BarData?>();
-
-        // consolidates context data into window/session bars
+        // One entry per session that has bars in the model's window (or the whole session), oldest first. Each bar is
+        // stored with its date so a session without window bars can't push the other rows out of line with their dates.
+        var days = new List<(string Date, BarData Bar)>();
         if (_model.WindowStart != null && _model.WindowEnd != null)
         {
             var start = int.Parse(_model.WindowStart!);
             var end = int.Parse(_model.WindowEnd!);
-            sequence.AddRange([.. sessionDates.Select(date =>
+            foreach (var date in sessionDates)
             {
-                if (!minuteBarsBySession.ContainsKey(date)) return null;
-                var minuteBarsForDay = minuteBarsBySession[date];
-                var windowBars = minuteBarsForDay.Where(bar => InWindow(int.Parse(bar.SessionTime!), start, end));
-                if (windowBars.Any())
-                    return BarData.Aggregate([.. windowBars]);
-                return null;
-            })
-            .Where(bar => bar != null)
-            .OrderBy(bar => bar!.Timestamp)]);
+                if (!minuteBarsBySession.ContainsKey(date)) continue;
+                if (!TradingCalendar.IsTradingDay(date)) continue;
+                var windowBars = minuteBarsBySession[date].Where(bar => InWindow(int.Parse(bar.SessionTime!), start, end)).ToList();
+                if (windowBars.Count > 0)
+                    days.Add((date, BarData.Aggregate(windowBars)));
+            }
         }
         else
         {
-            sequence.AddRange([.. sessionDates.Select(date => BarData.Aggregate(minuteBarsBySession[date]))]);
+            foreach (var date in sessionDates)
+                days.Add((date, BarData.Aggregate(minuteBarsBySession[date])));
         }
 
-        if (sequence.Count == 0 || sessionDates.Count < MinLookback) return written;
-        List<BarData> sanitizedSequence = [.. sequence.Where(x => x != null)];
-
-        for (var i = MinLookback; i < sequence.Count; i++)
+        if (days.Count == 0 || days.Count < MinLookback) return written;
+        for (var i = MinLookback; i < days.Count; i++)
         {
-            if (sequence[i] == null) continue;
+            var (date, bar) = days[i];
 
-            var atr20 = Computations.ATR(sanitizedSequence, MinLookback);
+            // ATR as of this row: the MinLookback true ranges ending at this row's bar (needs MinLookback + 1 bars).
+            var atr20 = Computations.ATR(days.GetRange(i - MinLookback, MinLookback + 1).Select(d => d.Bar).ToList(), MinLookback);
             if (double.IsNaN(atr20) || atr20 == 0) continue;
-            if (!minuteBarsBySession.ContainsKey(sessionDates[i])) continue;
-            // Found lots of strange instances where there are a few BarData records on a Saturday or Sunday
-            // spot-checking these made them look like they were fine to ignore completely.
-            if (minuteBarsBySession[sessionDates[i]].Count < 50)
-            {
-                TradingCalendar.IsTradingDay(sessionDates[i]);
-                minuteBarsBySession.Remove(sessionDates[i]);
-                continue;
-            }
 
-            var target = getTarget(sequence[i]!, atr20);
+            var target = getTarget(bar, atr20);
             var featureValues = FeatureComputations.ParseFeatures(
                _model.ModelFeatures,
                new FeatureContext
                (
-                   //    sequence!,
-                   //    i - 1,
                    atr20,
-                   sessionDates[i],
+                   date,
                    minuteBarsBySession
                ));
             if (featureValues != null)

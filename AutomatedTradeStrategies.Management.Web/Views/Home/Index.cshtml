@@ -345,7 +345,7 @@
 
                     function setGeneratedLocations() {
                         const f = modelEditForm.elements;
-                        f.featureLocation.value = `${featureLocationBase}/${f.instrument.value.trim()}.${f.target.value}`;
+                        f.featureLocation.value = `${featureLocationBase}/${f.modelName.value.trim()}`;
                         f.outputLocation.value = outputLocation;
                     }
 
@@ -572,11 +572,11 @@
                         return row;
                     }
 
-                    // Window is only offered for feature types with CanUseWindow; otherwise the source is reset to Model-Defined Session.
+                    // Window is only offered for feature types with ContextEnabled; otherwise the source is reset to Model-Defined Session.
                     function updateSourceSelect(sourceSelect, featureType) {
-                        const canUseWindow = featureType?.canUseWindow === true;
-                        sourceSelect.disabled = !canUseWindow;
-                        if (!canUseWindow) sourceSelect.value = 'session';
+                        const contextEnabled = featureType?.contextEnabled === true;
+                        sourceSelect.disabled = !contextEnabled;
+                        if (!contextEnabled) sourceSelect.value = 'session';
                     }
 
                     function renderParamInputs(paramsCell, featureId, featureType, existingParams) {

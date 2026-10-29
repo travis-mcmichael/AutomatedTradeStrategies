@@ -9,28 +9,21 @@ namespace AutomatedTrading.Core.Framework;
 /// All data required to evaluate a single feature. Daily context is always required;
 /// PrevMinuteBars and CurrentMinuteBars are needed only for features with those sources.
 /// </summary>
-public class FeatureContext
+public class FeatureContext(double atr, string sessionDate, Dictionary<string, List<BarData>> minuteBars)
 {
-
     /// <summary>
     /// Average True Range
     /// </summary>
-    public double ATR { get; set; }
-    public string SessionDate { get; set; }
-    public Dictionary<string, List<BarData>> MinuteBars { get; set; }
-    public FeatureContext(double atr, string sessionDate, Dictionary<string, List<BarData>> minuteBars)
-    {
-        ATR = atr;
-        MinuteBars = minuteBars;
-        SessionDate = sessionDate;
-    }
+    public double ATR { get; set; } = atr;
+    public string SessionDate { get; set; } = sessionDate;
+    public Dictionary<string, List<BarData>> MinuteBars { get; set; } = minuteBars;
 }
 
 public static class FeatureComputations
 {
     public static double[] ParseFeatures(List<ModelFeature> features, FeatureContext ctx)
     {
-        List<double> d = new List<double>();
+        List<double> d = [];
         foreach (var feature in features)
         {
             d.Add(ParseFeatureComputation(feature, ctx));
@@ -41,7 +34,7 @@ public static class FeatureComputations
     public static double ParseFeatureComputation(ModelFeature feature, FeatureContext ctx)
     {
         var sessionDate = DateTime.ParseExact(ctx.SessionDate, AppConstants.DATE_FORMAT, null);
-        Dictionary<string, int> p = new Dictionary<string, int>();
+        Dictionary<string, int> p = [];
         foreach (var param in feature.ModelFeatureParams)
         {
             if (param.FeatureTypeParam != null)

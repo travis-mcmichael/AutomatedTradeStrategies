@@ -10,6 +10,6 @@ public class FeatureType : IDatabaseEntity
     public long Id { get; set; }
     public string Name { get; set; } = default!;
     public string? Description { get; set; }
-    public bool CanUseWindow { get; set; }
+    public bool ContextEnabled { get; set; }
     public IEnumerable<FeatureTypeParam> FeatureTypeParams { get; set; } = [];
 }

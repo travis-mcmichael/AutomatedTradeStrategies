@@ -303,7 +303,6 @@ public class StrategyEvaluator
                     Logger.Info($"{model.ModelName} - new prediction added, setting high {bar.High} @ {bar.SessionTime}");
                     _predictionResults.Add(model.ModelName, bar.High);
                     logPredictionSummary();
-
                 }
 
                 break;
