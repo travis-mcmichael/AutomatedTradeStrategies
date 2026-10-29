@@ -83,28 +83,30 @@ public static class FeatureComputations
         {
             case "Atr":
                 return Computations.ATR(contextBars, p["lookback"]);
-            case "AtrRatio":
-                return Operations.SafeDiv(
-                    Computations.ATR(contextBars, p!["short"]),
-                    Computations.ATR(contextBars, p["long"]));
             case "AtrOpenRatio":
                 return Operations.SafeDiv(
                     Computations.ATR(contextBars, p["lookback"]),
                     BarData.Aggregate(contextBars).Open);
+            case "AtrRatio":
+                return Operations.SafeDiv(
+                    Computations.ATR(contextBars, p!["short"]),
+                    Computations.ATR(contextBars, p["long"]));
             case "AvgBodyRatio":
                 return Computations.AverageBodyRatio(contextBars, p["lookback"], ctx.ATR);
             case "AvgRange":
                 return Computations.AverageRange(contextBars, p["lookback"]);
-            case "BodySize":
-                return Computations.BodySize(aggregatedContext, ctx.ATR);
             case "BodyRatio":
                 return Operations.SafeDiv(
                     Computations.BodySize(aggregatedContext, ctx.ATR),
                     Computations.Range(aggregatedContext, ctx.ATR));
+            case "BodySize":
+                return Computations.BodySize(aggregatedContext, ctx.ATR);
             case "CloseOpenDiff":
                 return Operations.SafeDiv(
                     aggregatedContext.Close - aggregatedContext.Open,
                     ctx.ATR);
+            case "ClosePosition":
+                return Computations.ClosePosition(aggregatedContext);
             case "ClosePrevCloseDiff":
                 if (contextBars.Count < 2) return double.NaN;
                 return Operations.SafeDiv(
@@ -120,8 +122,6 @@ public static class FeatureComputations
                 return Operations.SafeDiv(
                     contextBars[contextBars.Count - 1].Close - contextBars[contextBars.Count - 2].Low,
                     ctx.ATR);
-            case "ClosePosition":
-                return Computations.ClosePosition(aggregatedContext);
             case "CloseSmaDiff":
                 return Operations.SafeDiv(
                     aggregatedContext.Close - Computations.SMA(contextBars, p["lookback"], x => x.Close),

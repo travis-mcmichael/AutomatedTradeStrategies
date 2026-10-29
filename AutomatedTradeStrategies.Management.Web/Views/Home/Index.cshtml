@@ -522,7 +522,8 @@
                             updateSourceSelect(sourceSelect, null);
                             sourceCell.appendChild(sourceSelect);
                         } else {
-                            sourceCell.textContent = feature.source ?? 'daily';
+                            // Show the same label the dropdown uses; sources it doesn't list (e.g. prevMinute) display as stored.
+                            sourceCell.textContent = FEATURE_SOURCES.find(([value]) => value === feature.source)?.[1] ?? feature.source ?? 'daily';
                         }
 
                         const paramsCell = row.insertCell();

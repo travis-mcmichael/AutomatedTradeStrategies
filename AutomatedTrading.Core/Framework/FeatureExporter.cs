@@ -146,7 +146,7 @@ public class FeatureExporter
         }
         else
         {
-            sequence.AddRange(sessionDates.Select(date => BarData.Aggregate(minuteBarsBySession[date])).ToList());
+            sequence.AddRange([.. sessionDates.Select(date => BarData.Aggregate(minuteBarsBySession[date]))]);
         }
 
         if (sequence.Count == 0 || sessionDates.Count < MinLookback) return written;
@@ -161,7 +161,7 @@ public class FeatureExporter
             if (!minuteBarsBySession.ContainsKey(sessionDates[i])) continue;
             // Found lots of strange instances where there are a few BarData records on a Saturday or Sunday
             // spot-checking these made them look like they were fine to ignore completely.
-            if (minuteBarsBySession[sessionDates[i]].Count() < 50)
+            if (minuteBarsBySession[sessionDates[i]].Count < 50)
             {
                 TradingCalendar.IsTradingDay(sessionDates[i]);
                 minuteBarsBySession.Remove(sessionDates[i]);
