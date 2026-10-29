@@ -187,7 +187,7 @@ public static class FeatureComputations
                     contextBars[last].Open,
                     Computations.SMA(contextBars, p!["lookback"], x => x.Close));
             case "PrevCloseOpenDiff":
-                if (contextBars.Count < 2) return 0;
+                if (contextBars.Count < 2) return double.NaN;
                 return contextBars[last - 1].Close - contextBars[last].Open;
             case "Range":
                 return Computations.Range(aggregatedContext, ctx.ATR);
@@ -244,8 +244,8 @@ public static class FeatureComputations
             case "VolumeRatio":
                 if (contextBars.Count < p["long"]) return double.NaN;
                 return Operations.SafeDiv(
-                    Computations.TotalVolume([.. contextBars.Skip(contextBars.Count - p["short"])]),
-                    Computations.TotalVolume([.. contextBars.Skip(contextBars.Count - p["long"])]));
+                    contextBars.Skip(contextBars.Count - p["short"]).ToList().Sum(x => x.Volume),
+                    contextBars.Skip(contextBars.Count - p["long"]).ToList().Sum(x => x.Volume));
             case "VolumeSma":
                 return Computations.SMA(contextBars, p!["lookback"], x => x.Volume);
             case "VolumeTrend":

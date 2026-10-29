@@ -252,7 +252,7 @@ public class StrategyEvaluator
                 {
                     var level = open + prediction.PredictedMove;
                     _predictions[modelName] = level;
-                    _atr.Add(modelName, Computations.ATR(sequence, sequence.Count - 1, LOOKBACK));
+                    _atr.Add(modelName, Computations.ATR(sequence, LOOKBACK));
                     updatePredictionResults(currentBar!, model);
                 }
             }

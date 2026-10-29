@@ -30,17 +30,14 @@ public class InferenceService : IMovementPredictor
     {
         if (!isLoaded()) return null;
 
-        var j = sequence.Count - 1;
-        var atr = Computations.ATR(sequence, j, ATR_SPAN);
-        if (atr == 0) return null;
-        var current = sequence[j];
+        var atr = Computations.ATR(sequence, ATR_SPAN);
+        if (double.IsNaN(atr) || atr == 0) return null;
+        var current = sequence.Last();
         var open = sequence.Last().Open;
-        
+
         Logger.Info($"{_modelName} : Predict movement on {current.SessionDate} with open @ {open:F2}, ATR{ATR_SPAN} = {atr}.");
 
         var ctx = new FeatureContext(
-            sequence,
-            j,
             atr,
             current.SessionDate!,
             barDataBySession);

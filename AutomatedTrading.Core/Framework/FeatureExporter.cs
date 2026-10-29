@@ -157,7 +157,7 @@ public class FeatureExporter
             if (sequence[i] == null) continue;
 
             var atr20 = Computations.ATR(sanitizedSequence, MinLookback);
-            if (atr20 == 0) continue;
+            if (double.IsNaN(atr20) || atr20 == 0) continue;
             if (!minuteBarsBySession.ContainsKey(sessionDates[i])) continue;
             // Found lots of strange instances where there are a few BarData records on a Saturday or Sunday
             // spot-checking these made them look like they were fine to ignore completely.
