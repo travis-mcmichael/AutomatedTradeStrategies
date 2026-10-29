@@ -42,6 +42,9 @@ public class BarData : IDatabaseEntity
 
     public static BarData Aggregate(List<BarData> bars)
     {
+        if (bars.Count == 0)
+            throw new InvalidOperationException("No bars to aggregate");
+
         var ordered = bars.OrderBy(b => b.Timestamp).ToList();
         var first = ordered.First();
         var last = ordered.Last();

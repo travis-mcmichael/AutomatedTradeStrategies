@@ -103,7 +103,6 @@
                                 <option value="" disabled hidden>Select...</option>
                                 <option value="HIGH">HIGH</option>
                                 <option value="LOW">LOW</option>
-                                <option value="CLASS">CLASS</option>
                             </select>
                         </div>
                         <div class="col-md-3">
@@ -425,7 +424,7 @@
                     // New rows get negative temp ids, which their param inputs reference until the server assigns real ids.
                     let nextTempFeatureId = -1;
                     let featureTypesPromise = null;
-                    const FEATURE_SOURCES = [['session', 'Model-Defined Session'], ['window', 'Window']];
+                    const FEATURE_SOURCES = [['sessionMinute', 'Session - 1m'], ['sessionDay', 'Session - 1d'], ['windowMinute', 'Window - 1m'], ['windowDay', 'Window - 1d']];
 
                     function loadFeatureTypes() {
                         featureTypesPromise ??= fetch('/Home/FeatureTypes').then(async res => {
@@ -518,7 +517,7 @@
                             sourceSelect.className = 'form-select form-select-sm w-auto feature-source-select';
                             sourceSelect.setAttribute('aria-label', 'Feature source');
                             for (const [value, text] of FEATURE_SOURCES) sourceSelect.add(new Option(text, value));
-                            // Stays on Model-Defined Session and disabled until a feature type that can use a window is picked.
+                            // Stays on Session - 1m and disabled until a context-enabled feature type is picked.
                             updateSourceSelect(sourceSelect, null);
                             sourceCell.appendChild(sourceSelect);
                         } else {
@@ -557,26 +556,26 @@
                                 typeSelect.title = typeSelect.selectedOptions[0]?.featureType?.description ?? '';
                                 renderParamInputs(paramsCell, featureId, typeSelect.selectedOptions[0]?.featureType ?? null, []);
                                 updateSourceSelect(sourceSelect, typeSelect.selectedOptions[0]?.featureType ?? null);
-                                renderWindowParams(paramsCell, featureId, sourceSelect.value, []);
+                                renderContextParams(paramsCell, featureId, typeSelect.selectedOptions[0]?.featureType ?? null, sourceSelect.value, []);
                                 refreshFeatureRows();
                             });
                             sourceSelect.addEventListener('change', () => {
-                                renderWindowParams(paramsCell, featureId, sourceSelect.value, []);
+                                renderContextParams(paramsCell, featureId, typeSelect.selectedOptions[0]?.featureType ?? null, sourceSelect.value, []);
                                 refreshFeatureRows();
                             });
                             typeSelect.focus();
                         } else {
                             renderParamInputs(paramsCell, featureId, feature.featureType, feature.modelFeatureParams ?? []);
-                            renderWindowParams(paramsCell, featureId, feature.source, feature.modelFeatureParams ?? []);
+                            renderContextParams(paramsCell, featureId, feature.featureType, feature.source, feature.modelFeatureParams ?? []);
                         }
                         return row;
                     }
 
-                    // Window is only offered for feature types with ContextEnabled; otherwise the source is reset to Model-Defined Session.
+                    // Only context-enabled feature types can pick a source other than Session - 1m; otherwise it's reset.
                     function updateSourceSelect(sourceSelect, featureType) {
                         const contextEnabled = featureType?.contextEnabled === true;
                         sourceSelect.disabled = !contextEnabled;
-                        if (!contextEnabled) sourceSelect.value = 'session';
+                        if (!contextEnabled) sourceSelect.value = 'sessionMinute';
                     }
 
                     function renderParamInputs(paramsCell, featureId, featureType, existingParams) {
@@ -599,7 +598,7 @@
                         paramsCell.appendChild(buildParamGroup(featureId, typeParams, existingParams, false));
                     }
 
-                    // The window fields are optional, so their inputs are flagged to stay out of the missing-value check.
+                    // The context fields are optional, so their inputs are flagged to stay out of the missing-value check.
                     function buildParamGroup(featureId, typeParams, existingParams, optional) {
                         const group = document.createElement('div');
                         group.className = 'd-flex flex-wrap gap-2';
@@ -619,7 +618,7 @@
                             const input = document.createElement('input');
                             input.type = 'number';
                             input.step = '1';
-                            input.className = optional ? 'form-control window-param-input' : 'form-control';
+                            input.className = optional ? 'form-control context-param-input' : 'form-control';
                             input.id = inputId;
                             input.placeholder = 'not set';
                             input.dataset.modelFeatureId = featureId;
@@ -632,30 +631,47 @@
                         return group;
                     }
 
-                    // Shows the window fields under the feature's params while its source is Window, and removes them otherwise.
-                    // The fields load on first use, so a token drops a late response that a newer source change has overtaken.
-                    function renderWindowParams(paramsCell, featureId, source, existingParams) {
-                        paramsCell.querySelector('.window-params')?.remove();
-                        const token = String((Number(paramsCell.dataset.windowToken) || 0) + 1);
-                        paramsCell.dataset.windowToken = token;
-                        if (source !== 'window') return;
+                    const SESSION_CONTEXT_KEYS = ['days', 'weeks', 'months'];
+                    const WINDOW_CONTEXT_KEYS = ['start', 'end'];
 
-                        loadWindowParams().then(windowParams => {
-                            if (!windowParams.length || paramsCell.dataset.windowToken !== token) return;
-                            const section = document.createElement('div');
-                            section.className = 'window-params mt-2';
-                            const heading = document.createElement('div');
-                            heading.className = 'small text-muted mb-1';
-                            heading.textContent = 'Window (optional)';
-                            section.append(heading, buildParamGroup(featureId, windowParams, existingParams, true));
-                            paramsCell.appendChild(section);
+                    // Context fields for a context-enabled feature type: Session (days, weeks, months) always, and Window
+                    // (start, end) while the source is a window. The fields load on first use, so a token drops a late
+                    // response that a newer change has overtaken.
+                    function renderContextParams(paramsCell, featureId, featureType, source, existingParams) {
+                        paramsCell.querySelectorAll('.context-section').forEach(section => section.remove());
+                        const token = String((Number(paramsCell.dataset.contextToken) || 0) + 1);
+                        paramsCell.dataset.contextToken = token;
+                        if (!featureType?.contextEnabled) return;
+                        const showWindow = source === 'windowMinute' || source === 'windowDay';
+
+                        loadWindowParams().then(contextParams => {
+                            if (paramsCell.dataset.contextToken !== token) return;
+                            const pick = keys => keys.map(key => contextParams.find(p => p.parameterKey === key)).filter(Boolean);
+
+                            const sessionParams = pick(SESSION_CONTEXT_KEYS);
+                            if (sessionParams.length)
+                                paramsCell.appendChild(buildContextSection('Session', 'session-section', buildParamGroup(featureId, sessionParams, existingParams, true)));
+
+                            const windowParams = pick(WINDOW_CONTEXT_KEYS);
+                            if (showWindow && windowParams.length)
+                                paramsCell.appendChild(buildContextSection('Window', 'window-section', buildParamGroup(featureId, windowParams, existingParams, true)));
                         }).catch(err => {
-                            if (paramsCell.dataset.windowToken !== token) return;
+                            if (paramsCell.dataset.contextToken !== token) return;
                             const error = document.createElement('div');
-                            error.className = 'window-params small text-danger mt-2';
-                            error.textContent = `Failed to load window fields: ${err.message}`;
+                            error.className = 'context-section small text-danger mt-2';
+                            error.textContent = `Failed to load context fields: ${err.message}`;
                             paramsCell.appendChild(error);
                         });
+                    }
+
+                    function buildContextSection(title, className, group) {
+                        const section = document.createElement('div');
+                        section.className = `context-section ${className} mt-2`;
+                        const heading = document.createElement('div');
+                        heading.className = 'small fw-semibold mb-1';
+                        heading.textContent = title;
+                        section.append(heading, group);
+                        return section;
                     }
 
                     featuresAddButton.addEventListener('click', () => {
@@ -680,7 +696,7 @@
                             row.cells[0].textContent = i + 1;
                             const typeSelect = row.querySelector('.feature-type-select');
                             const missing = (typeSelect && !typeSelect.value)
-                                || [...row.querySelectorAll('input[data-model-feature-id]:not(.window-param-input)')].some(input => input.value.trim() === '');
+                                || [...row.querySelectorAll('input[data-model-feature-id]:not(.context-param-input)')].some(input => input.value.trim() === '');
                             marker.classList.toggle('d-none', !missing);
                             marker.title = typeSelect && !typeSelect.value ? 'Select a feature type' : 'Missing parameter values';
                             anyMissing ||= missing;

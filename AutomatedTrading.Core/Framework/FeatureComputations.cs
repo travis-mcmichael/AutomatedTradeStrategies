@@ -48,25 +48,56 @@ public static class FeatureComputations
         // get the correct context date to build context bars
         var contextDate = GetContextDate(sessionDate, p);
 
+        var hasWindow = p.TryGetValue("start", out var start);
+        hasWindow = p.TryGetValue("end", out var end) && hasWindow;
+
         // set the context bars to the correct range
         switch (source)
         {
-            case "window":
-                var start = p["start"];
-                var end = p["end"];
+            case "windowMinute":
+                if (!hasWindow)
+                    throw new InvalidOperationException("Missing window feature parameters");
 
                 var windowBars = ctx.MinuteBars[contextDate.ToString(AppConstants.DATE_FORMAT)]
                     .Where(x =>
-                        new TradeWindow() { WindowStart = start, WindowEnd = end }.InWindow(int.Parse(x.SessionTime)));
+                        new TradeWindow() { WindowStart = start, WindowEnd = end }
+                        .InWindow(int.Parse(x.SessionTime)))
+                    .OrderBy(x => x.Timestamp)
+                    .ToList();
                 contextBars.AddRange(windowBars);
                 break;
+            case "windowDay":
+                if (!hasWindow)
+                    throw new InvalidOperationException("Missing window feature parameters");
+                var windows = ctx.MinuteBars.Keys
+                    .Where(x => int.Parse(x) <= int.Parse(contextDate.ToString(AppConstants.DATE_FORMAT)))
+                    .Order()
+                    .ToList();
+                foreach (var session in windows)
+                {
+                    contextBars.Add(BarData.Aggregate([.. ctx.MinuteBars[session]
+                        .Where(x =>
+                            new TradeWindow() { WindowStart = start, WindowEnd = end }
+                                .InWindow(int.Parse(x.SessionTime)))]));
+                }
+                break;
+            case "sessionDay":
+                var sessions = ctx.MinuteBars.Keys
+                    .Where(x => int.Parse(x) <= int.Parse(contextDate.ToString(AppConstants.DATE_FORMAT)))
+                    .Order()
+                    .ToList();
+                foreach (var session in sessions)
+                {
+                    contextBars.Add(BarData.Aggregate([.. ctx.MinuteBars[session]]));
+                }
+                break;
             default:
-                contextBars.AddRange(ctx.MinuteBars[contextDate.ToString(AppConstants.DATE_FORMAT)]);
+                contextBars.AddRange([.. ctx.MinuteBars[contextDate.ToString(AppConstants.DATE_FORMAT)].OrderBy(x => x.Timestamp)]);
                 break;
         }
 
         var last = contextBars.Count - 1;
-        var aggregatedContext = BarData.Aggregate(contextBars);
+        var aggregatedContext = source.ToLower().Contains("day") ? contextBars.Last() : BarData.Aggregate(contextBars);
 
         //var current = ctx.Sequence[ctx.J]; // bar to be evaluated (if only evaluating one)
         //var evaluationBars = ctx.Sequence; // bar to be evaluated + previous bar evaluation history
@@ -250,6 +281,13 @@ public static class FeatureComputations
         }
     }
 
+    /// <summary>
+    /// Gets context date -> either the date to retrieve 1m bars for OR the end date range of a series of 1d bars.
+    /// (used with lookback parameter to get start date).
+    /// </summary>
+    /// <param name="sessionDate"></param>
+    /// <param name="p"></param>
+    /// <returns></returns>
     private static DateTime GetContextDate(DateTime sessionDate, Dictionary<string, int> p)
     {
         var prevDate = sessionDate;

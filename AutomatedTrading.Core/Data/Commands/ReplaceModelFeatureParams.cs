@@ -18,10 +18,25 @@ namespace AutomatedTrading.Core.Data.Commands;
 // nothing is changed and ArgumentException is thrown.
 public class ReplaceModelFeatureParams(IDbConnectionFactory connectionFactory, ILogger<ReplaceModelFeatureParams> logger)
 {
-    // Lowercase to match the values the popup sends and FeatureComputations switches on (DataRangeSource.ToString() is capitalized).
-    private const string SESSION_SOURCE = "session";
-    private const string WINDOW_SOURCE = "window";
-    private static readonly HashSet<string?> validSources = [null, "prevMinute", "currMinute", SESSION_SOURCE, WINDOW_SOURCE];
+    // Must match the popup's FEATURE_SOURCES values and the switch in FeatureComputations.
+    private const string SESSION_SOURCE = "sessionMinute";
+    private static readonly HashSet<string> windowSources = ["windowMinute", "windowDay"];
+    private static readonly HashSet<string?> validSources = [null, "prevMinute", "currMinute", SESSION_SOURCE, "sessionDay", .. windowSources];
+
+    // Context fields are FeatureTypeParams with no FeatureType (FeatureTypeId = WINDOW_FEATURE_TYPE_ID). Days/weeks/months
+    // apply to every context-enabled feature; start/end only when the source is a window.
+    private static readonly HashSet<string> sessionContextKeys = ["days", "weeks", "months"];
+    private static readonly HashSet<string> windowContextKeys = ["start", "end"];
+
+    // Allows a context field on a feature: days/weeks/months for any context-enabled feature, start/end only for a window source.
+    private static void allowContextParam(HashSet<(long ModelFeatureId, long FeatureTypeParamId)> allowed, long modelFeatureId,
+        string? source, long featureTypeParamId, string key)
+    {
+        var isSessionField = sessionContextKeys.Contains(key);
+        var isWindowField = windowContextKeys.Contains(key) && source is not null && windowSources.Contains(source);
+        if (isSessionField || isWindowField)
+            allowed.Add((modelFeatureId, featureTypeParamId));
+    }
 
     public async Task<int> Execute(long modelConfigId, IEnumerable<ModelFeatureParam> parameters,
         IReadOnlyDictionary<long, string?>? featureNames = null, IReadOnlyCollection<long>? deletedFeatureIds = null,
@@ -46,20 +61,30 @@ public class ReplaceModelFeatureParams(IDbConnectionFactory connectionFactory, I
                   FROM ModelFeature mf
                   JOIN FeatureTypeParam ftp
                     ON ftp.FeatureTypeId = mf.FeatureTypeId
-                 WHERE mf.ModelConfigId = @ModelConfigId
-                UNION
-                SELECT mf.Id, ftp.Id
-                  FROM ModelFeature mf
-                  JOIN FeatureTypeParam ftp
-                    ON ftp.FeatureTypeId = @WindowFeatureTypeId
-                 WHERE mf.ModelConfigId = @ModelConfigId
-                   AND mf.Source = @WindowSource";
+                 WHERE mf.ModelConfigId = @ModelConfigId";
             SqlHelper.AddParameter(cmd, "@ModelConfigId", modelConfigId);
-            SqlHelper.AddParameter(cmd, "@WindowFeatureTypeId", AppConstants.WINDOW_FEATURE_TYPE_ID);
-            SqlHelper.AddParameter(cmd, "@WindowSource", WINDOW_SOURCE);
             using var reader = await cmd.ExecuteReaderAsync();
             while (await reader.ReadAsync())
                 allowed.Add((reader.GetInt64(0), reader.GetInt64(1)));
+        }
+
+        using (var cmd = connection.CreateCommand())
+        {
+            cmd.Transaction = transaction;
+            cmd.CommandText = @"
+                SELECT mf.Id, mf.Source, ftp.Id, ftp.ParameterKey
+                  FROM ModelFeature mf
+                  JOIN FeatureType ft
+                    ON ft.Id = mf.FeatureTypeId
+                  JOIN FeatureTypeParam ftp
+                    ON ftp.FeatureTypeId = @WindowFeatureTypeId
+                 WHERE mf.ModelConfigId = @ModelConfigId
+                   AND ft.ContextEnabled = 1";
+            SqlHelper.AddParameter(cmd, "@ModelConfigId", modelConfigId);
+            SqlHelper.AddParameter(cmd, "@WindowFeatureTypeId", AppConstants.WINDOW_FEATURE_TYPE_ID);
+            using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+                allowContextParam(allowed, reader.GetInt64(0), reader.IsDBNull(1) ? null : reader.GetString(1), reader.GetInt64(2), reader.GetString(3));
         }
 
         // Looked up separately: features whose FeatureType has no params don't appear in the join above.
@@ -101,15 +126,25 @@ public class ReplaceModelFeatureParams(IDbConnectionFactory connectionFactory, I
                 }
             }
 
-            var windowParamIds = new List<long>();
+            var contextTypeIds = new HashSet<long>();
             using (var cmd = connection.CreateCommand())
             {
                 cmd.Transaction = transaction;
-                cmd.CommandText = "SELECT Id FROM FeatureTypeParam WHERE FeatureTypeId = @WindowFeatureTypeId";
+                cmd.CommandText = "SELECT Id FROM FeatureType WHERE ContextEnabled = 1";
+                using var reader = await cmd.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                    contextTypeIds.Add(reader.GetInt64(0));
+            }
+
+            var contextParams = new List<(long Id, string Key)>();
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.Transaction = transaction;
+                cmd.CommandText = "SELECT Id, ParameterKey FROM FeatureTypeParam WHERE FeatureTypeId = @WindowFeatureTypeId";
                 SqlHelper.AddParameter(cmd, "@WindowFeatureTypeId", AppConstants.WINDOW_FEATURE_TYPE_ID);
                 using var reader = await cmd.ExecuteReaderAsync();
                 while (await reader.ReadAsync())
-                    windowParamIds.Add(reader.GetInt64(0));
+                    contextParams.Add((reader.GetInt64(0), reader.GetString(1)));
             }
 
             var tempIds = new HashSet<long>();
@@ -120,12 +155,12 @@ public class ReplaceModelFeatureParams(IDbConnectionFactory connectionFactory, I
                 if (!typeParamIds.TryGetValue(feature.FeatureTypeId, out var ids))
                     throw new ArgumentException($"FeatureType {feature.FeatureTypeId} does not exist.");
                 if (!validSources.Contains(feature.Source))
-                    throw new ArgumentException($"Source '{feature.Source}' is not valid; use session, window, prevMinute, currMinute or none (defaults to session).");
+                    throw new ArgumentException($"Source '{feature.Source}' is not valid; use sessionMinute, sessionDay, windowMinute, windowDay, prevMinute, currMinute or none (defaults to sessionMinute).");
                 foreach (var id in ids)
                     allowed.Add((feature.TempId, id));
-                if (feature.Source == WINDOW_SOURCE)
-                    foreach (var id in windowParamIds)
-                        allowed.Add((feature.TempId, id));
+                if (contextTypeIds.Contains(feature.FeatureTypeId))
+                    foreach (var (id, key) in contextParams)
+                        allowContextParam(allowed, feature.TempId, feature.Source, id, key);
             }
         }
 
