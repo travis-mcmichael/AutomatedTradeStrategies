@@ -51,6 +51,7 @@ public static class FeatureComputations
         var last = contextBars.Count - 1;
         if (last == -1) return double.NaN;
         var aggregatedContext = source.Contains("day", StringComparison.CurrentCultureIgnoreCase) ? contextBars.Last() : BarData.Aggregate(contextBars);
+        var currentPrice = ctx.MinuteBars[ctx.SessionDate].Last().Close;
 
         //var current = ctx.Sequence[ctx.J]; // bar to be evaluated (if only evaluating one)
         //var evaluationBars = ctx.Sequence; // bar to be evaluated + previous bar evaluation history
@@ -70,6 +71,12 @@ public static class FeatureComputations
                     Computations.ATR(contextBars, p["long"]));
             case "AvgBodyRatio":
                 return Computations.AverageBodyRatio(contextBars, p["lookback"], ctx.ATR);
+            case "AvgMove":
+                return Computations.AverageMove(contextBars, p["lookback"]);
+            case "AvgDownMove":
+                return Computations.AverageMove([.. contextBars.Where(x => x.Close < x.Open)], p["lookback"]);
+            case "AvgUpMove":
+                return Computations.AverageMove([.. contextBars.Where(x => x.Close > x.Open)], p["lookback"]);
             case "AvgRange":
                 return Computations.AverageRange(contextBars, p["lookback"]);
             case "BodyRatio":
@@ -111,6 +118,26 @@ public static class FeatureComputations
                 return Computations.ConsecutiveDown(contextBars);
             case "ConsecutiveUp":
                 return Computations.ConsecutiveUp(contextBars);
+            case "CurrentPrevHighDiff":
+                return Operations.SafeDiv(
+                    currentPrice - aggregatedContext.High,
+                    ctx.ATR);
+            case "CurrentPrevLowDiff":
+                return Operations.SafeDiv(
+                currentPrice - aggregatedContext.Low,
+                ctx.ATR);
+            case "CurrentPrevOpenDiff":
+                return Operations.SafeDiv(
+                    currentPrice - aggregatedContext.Open,
+                    ctx.ATR);
+            case "CurrentPrevCloseDiff":
+                return Operations.SafeDiv(
+                    currentPrice - aggregatedContext.Close,
+                    ctx.ATR);
+            case "CurrentPrevRangeRatio":
+                return Operations.SafeDiv(
+                    currentPrice - aggregatedContext.Low,
+                    aggregatedContext.High - aggregatedContext.Low);
             case "DayOfWeek":
                 return (int)sessionDate.DayOfWeek;
             case "DayOfMonth":
@@ -195,6 +222,8 @@ public static class FeatureComputations
                 return Computations.RealizedVolatility(contextBars, p["lookback"]);
             case "Return":
                 return Computations.Return(contextBars, p["lookback"]);
+            case "ReturnPrev":
+                return Math.Log(ctx.MinuteBars[ctx.SessionDate].Last().Close / aggregatedContext.Open);
             case "Rsi":
                 return Computations.RSI(contextBars, p["lookback"]);
             case "Sma":

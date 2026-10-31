@@ -73,6 +73,19 @@ public class Computations
         return Operations.SafeDiv(sum, lookback);
     }
 
+    public static double AverageMove(List<BarData> bars, int lookback)
+    {
+        if (bars.Count < lookback) return double.NaN;
+
+        double sum = 0;
+        for (var i = bars.Count - lookback; i < bars.Count; i++)
+        {
+            sum += bars[i].Close - bars[i].Open;
+        }
+
+        return Operations.SafeDiv(sum, lookback);
+    }
+
     /// <summary>
     /// Average of (high - low) over the last <paramref name="lookback"/> bars.
     /// Unlike <see cref="ATR"/> it ignores gaps from the previous close. Returns NaN when there aren't enough bars.
