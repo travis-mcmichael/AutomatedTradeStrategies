@@ -62,7 +62,7 @@ public class ApiInferenceTest
                 List<BarData> barsForActual;
                 double refOpen;
 
-                if (model.BarType == "window" && model.WindowStart != null && model.WindowEnd != null)
+                if (model.WindowStart != null && model.WindowEnd != null)
                 {
                     var winStart = parseWindowTime(model.WindowStart);
                     var winEnd = parseWindowTime(model.WindowEnd);

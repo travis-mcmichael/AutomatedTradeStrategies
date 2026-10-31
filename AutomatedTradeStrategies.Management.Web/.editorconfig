@@ -1,0 +1,14 @@
+root = true
+
+[*.cs]
+indent_style = space
+indent_size = 4
+csharp_new_line_before_open_brace = all
+
+[*.js]
+indent_style = space
+indent_size = 2
+
+[*.cshtml]
+indent_style = space
+indent_size = 2

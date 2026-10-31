@@ -1,0 +1,100 @@
+using System;
+using System.Collections.Generic;
+using System.Configuration;
+using System.Globalization;
+using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
+using AutomatedTrading.Core.Data;
+using AutomatedTrading.Core.Framework;
+using AutomatedTrading.Core.Models;
+
+namespace AutomatedTrading.Core.Import;
+
+public class BarImporter
+{
+    private const string FILE_SUFFIX = ".Last.txt";
+
+    // fileName is the original name, formatted "[instrument] [mm-yy].Last.txt" (e.g. "MES 03-26.Last.txt");
+    // `file` is the path actually read, which may be a temp copy with a different name.
+    public static async Task<int> ImportBarData(
+        string file,
+        string fileName,
+        IDefaultInsertCommand<BarData> barRepository)
+    {
+        var bars = await ParseBarData(file, fileName);
+
+        try
+        {
+            if (bars.Count > 0)
+            {
+                var inserted = await barRepository.Execute(bars);
+                return inserted.Count();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.Message);
+        }
+
+        return 0;
+    }
+
+    // Parses the file without saving anything, so callers can preview what an import would write.
+    public static async Task<List<BarData>> ParseBarData(string file, string fileName)
+    {
+        var bars = new List<BarData>();
+        if (!File.Exists(file))
+            return bars;
+
+        var (instrument, version) = parseFileName(fileName);
+
+        using var reader = new StreamReader(file);
+        string? line;
+        while ((line = await reader.ReadLineAsync()) != null)
+        {
+            if (string.IsNullOrWhiteSpace(line)) continue;
+            var bar = parseBarData(line, instrument, version);
+            if (bar != null) bars.Add(bar);
+        }
+
+        return bars;
+    }
+
+    private static (string Instrument, string Version) parseFileName(string fileName)
+    {
+        var name = Path.GetFileName(fileName);
+        if (!name.EndsWith(FILE_SUFFIX, StringComparison.OrdinalIgnoreCase))
+            throw new FormatException($"'{fileName}' does not match '[instrument] [mm-yy]{FILE_SUFFIX}'.");
+
+        var parts = name.Substring(0, name.Length - FILE_SUFFIX.Length).Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length != 2 || !DateTime.TryParseExact(parts[1], "MM-yy", CultureInfo.InvariantCulture, DateTimeStyles.None, out _))
+            throw new FormatException($"'{fileName}' does not match '[instrument] [mm-yy]{FILE_SUFFIX}'.");
+
+        return (parts[0], parts[1]);
+    }
+
+    private static BarData? parseBarData(string line, string instrument, string version)
+    {
+        var parts = line.Split(';');
+        var timestamp = DateTimeConverter.UtcStringToCentral(parts[0].Replace(" ", ""));
+        var sessionDate = timestamp.Date;
+        if (timestamp.Hour > 16)
+            sessionDate = TradingCalendar.GetNextSessionDate(timestamp.Date);
+
+        return new BarData
+        {
+            Instrument = instrument,
+            InstrumentVersion = version,
+            Timeframe = "1m",
+            Timestamp = timestamp,
+            Open = double.Parse(parts[1], CultureInfo.InvariantCulture),
+            High = double.Parse(parts[2], CultureInfo.InvariantCulture),
+            Low = double.Parse(parts[3], CultureInfo.InvariantCulture),
+            Close = double.Parse(parts[4], CultureInfo.InvariantCulture),
+            Volume = double.Parse(parts[5], CultureInfo.InvariantCulture),
+            SessionDate = $"{sessionDate:yyyyMMdd}",
+            SessionTime = $"{timestamp:HHmmss}"
+        };
+    }
+}

@@ -1,4 +1,5 @@
 using AutomatedTrading.Core.Data;
+using AutomatedTrading.Core.Data.Commands;
 using AutomatedTrading.Core.Data.Queries;
 using AutomatedTrading.Core.Models;
 
@@ -8,7 +9,8 @@ public static class ModelEndpoints
 {
     private static readonly string GET_MODELS = "/models";
     private static readonly string SAVE_MODEL = "/models";
-    private static readonly string SAVE_PARAMETERS = "/models/parameters";
+    private static readonly string GET_FEATURES = "/features";
+    private static readonly string SAVE_PERFORMANCE = "/models/perf";
 
     public static void Map(WebApplication app)
     {
@@ -20,18 +22,40 @@ public static class ModelEndpoints
             return Results.Ok(models);
         });
 
+        _ = app.MapGet(GET_FEATURES, async (
+            GetFeatureTypes getFeatureTypes) =>
+        {
+            var models = await getFeatureTypes.Execute();
+            return Results.Ok(models);
+        });
+
         // Inserts a new ModelConfig, or updates the existing one matched by ModelName.
         // Features/Params are always replaced wholesale with what's in the request.
         app.MapPost(SAVE_MODEL, async (
             ModelConfig req,
-            IDefaultUpdateCommand<ModelConfig> update,
-            IDefaultInsertCommand<ModelConfig> insert) =>
+            UpdateModelConfig updateModelConfig) =>
         {
             if (string.IsNullOrWhiteSpace(req.ModelName))
                 return Results.BadRequest("ModelName is required.");
+            return Results.Ok(await updateModelConfig.Execute(req));
+        });
 
-            var saved = req.Id > 0 ? await update.Execute(req) : await insert.Execute(req);
-            return Results.Ok(saved);
+        app.MapPost(SAVE_PERFORMANCE, async (
+            ModelPerformance req,
+            IDefaultInsertCommand<ModelPerformance> insert,
+            IDefaultUpdateCommand<ModelPerformance> update
+        ) =>
+        {
+            var res = 0L;
+            if (req.Id is 0)
+            {
+                res = await insert.Execute(req);
+            }
+            else
+            {
+                res = await update.Execute(req);
+            }
+            return Results.Ok(res);
         });
     }
 }

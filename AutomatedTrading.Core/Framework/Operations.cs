@@ -7,7 +7,8 @@ public class Operations
 {
     public static double Safe(double? v) => v ?? 0;
 
-    public static double SafeDiv(double a, double b) => b == 0 ? 0 : a / b;
+    /// Division that returns NaN for a zero denominator, so an undefined ratio reads as missing rather than 0.
+    public static double SafeDiv(double a, double b) => b == 0 ? double.NaN : a / b;
         /// <summary>
     /// Converts paths between WSL (/mnt/c/...) and Windows (C:\...) formats
     /// based on the current OS, so the same config works in both environments.

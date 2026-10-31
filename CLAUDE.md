@@ -131,7 +131,6 @@ The API runs on `http://localhost:5244`. **The API must be running before NinjaT
 **`Models/Config/models.json`** — Central config for all ML models. Key fields per entry:
 - `modelName` — key in API response dictionary; also used as subdirectory under `Models/` and the features base dir
 - `target` — `"HIGH"`, `"LOW"`, or `"CLASS"`
-- `barType` — `"session"`, `"window"`, or `"minute"` (metadata for the feature exporter; the API detects trade-day models via feature `source` instead)
 - `active` — whether the API loads and runs this model
 - `export` — whether the feature exporter and ML pipeline include this model
 - `outputLocation` / `featureLocation` — base dirs for model artifacts and `features.csv` (used by Python pipeline)

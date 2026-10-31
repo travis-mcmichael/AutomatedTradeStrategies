@@ -22,6 +22,7 @@ builder.Services.AddSingleton<IDbConnectionFactory>(_ => connectionFactory);
 builder.Services.AddScoped(typeof(IDefaultRepository<>), typeof(DefaultRepository<>));
 builder.Services.AddScoped(typeof(IDefaultInsertCommand<>), typeof(DefaultInsertCommand<>));
 builder.Services.AddScoped(typeof(IDefaultUpdateCommand<>), typeof(DefaultUpdateCommand<>));
+builder.Services.AddScoped(typeof(IDefaultDeleteCommand<>), typeof(DefaultDeleteCommand<>));
 
 // Auto-register every query/command class so new ones don't need to be listed here.
 var queryAndCommandTypes = typeof(IDatabaseEntity).Assembly.GetTypes()
@@ -39,6 +40,7 @@ var models = await new GetAllModelConfigs(
     new DefaultRepository<ModelConfig>(connectionFactory, null),
     new DefaultRepository<ModelFeature>(connectionFactory, null),
     new DefaultRepository<ModelFeatureParam>(connectionFactory, null),
+    new DefaultRepository<ModelPerformance>(connectionFactory, null),
     new DefaultRepository<FeatureType>(connectionFactory, null),
     new DefaultRepository<FeatureTypeParam>(connectionFactory, null)
 ).Execute();

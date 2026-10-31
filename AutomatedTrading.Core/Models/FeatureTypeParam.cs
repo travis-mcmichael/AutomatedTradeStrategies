@@ -9,4 +9,5 @@ public class FeatureTypeParam : IDatabaseEntity
     public long Id { get; set; }
     public long FeatureTypeId { get; set; }
     public string ParameterKey { get; set; } = default!;
+    public string Description { get; set; } = default!;
 }

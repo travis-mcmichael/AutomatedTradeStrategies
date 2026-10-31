@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Data.Common;
 using System.Reflection;
 using AutomatedTrading.Core.Data;
+using AutomatedTrading.Core.Framework;
 
 namespace AutomatedTrading.Core.Utility;
 public class SqlHelper
@@ -40,17 +41,17 @@ public class SqlHelper
     {
         var p = cmd.CreateParameter();
         p.ParameterName = name;
-        p.Value = toDbValue(value);
+        p.Value = ToDbValue(value);
         cmd.Parameters.Add(p);
     }
 
-    // DateTime columns in this schema (e.g. BarData.Timestamp) are stored as Unix epoch
-    // milliseconds, matching InsertBarBatchCommand/GetBarsBySessionDateQuery — not SQLite's
-    // own datetime string handling.
-    private static object toDbValue(object? value) => value switch
+    // DateTime columns in this schema (e.g. BarData.Timestamp) are stored as UTC Unix epoch
+    // milliseconds — not SQLite's own datetime string handling — and read back as US Central
+    // time via MarketTime, independent of the machine's time zone.
+    public static object ToDbValue(object? value) => value switch
     {
         null => DBNull.Value,
-        DateTime dt => new DateTimeOffset(dt.ToUniversalTime()).ToUnixTimeMilliseconds(),
+        DateTime dt => MarketTime.ToUnixMilliseconds(dt),
         _ => value
     };
 
@@ -66,7 +67,7 @@ public class SqlHelper
 
             var targetType = Nullable.GetUnderlyingType(prop.PropertyType) ?? prop.PropertyType;
             object value = targetType == typeof(DateTime)
-                ? DateTimeOffset.FromUnixTimeMilliseconds(reader.GetInt64(ordinal)).LocalDateTime
+                ? MarketTime.FromUnixMilliseconds(reader.GetInt64(ordinal))
                 : Convert.ChangeType(reader.GetValue(ordinal), targetType);
 
             prop.SetValue(entity, value);

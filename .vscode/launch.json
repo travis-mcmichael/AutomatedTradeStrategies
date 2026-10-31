@@ -53,10 +53,10 @@
             "name": "Debug - Web",
             "type": "coreclr",
             "request": "launch",
-            "preLaunchTask": "build: AutomatedTrading.Web",
-            "program": "${workspaceFolder}/AutomatedTrading.Web/bin/Debug/net10.0/AutomatedTrading.Web.dll",
+            "preLaunchTask": "build: AutomatedTradeStrategies.Management.Web",
+            "program": "${workspaceFolder}/AutomatedTradeStrategies.Management.Web/bin/Debug/net10.0/AutomatedTradeStrategies.Management.Web.dll",
             "args": [],
-            "cwd": "${workspaceFolder}/AutomatedTrading.Web",
+            "cwd": "${workspaceFolder}/AutomatedTradeStrategies.Management.Web",
             "console": "integratedTerminal",
             "env": {
                 "ASPNETCORE_ENVIRONMENT": "Development",

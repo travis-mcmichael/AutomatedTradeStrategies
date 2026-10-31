@@ -1,0 +1,1085 @@
+@inject IConfiguration Configuration
+@{
+    ViewData["Title"] = "Home Page";
+}
+
+<ul class="nav nav-tabs mb-3" id="homeTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="home-tab" data-bs-toggle="tab" data-bs-target="#home-pane" type="button"
+                role="tab" aria-controls="home-pane" aria-selected="true">Home</button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="trade-data-tab" data-bs-toggle="tab" data-bs-target="#trade-data-pane"
+                type="button" role="tab" aria-controls="trade-data-pane" aria-selected="false">Trade Data</button>
+    </li>
+</ul>
+<div class="tab-content" id="homeTabsContent">
+    <div class="tab-pane fade show active" id="home-pane" role="tabpanel" aria-labelledby="home-tab" tabindex="0">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <h2 class="mb-0">Models</h2>
+            <button type="button" class="btn btn-sm btn-outline-primary" id="models-add"><i class="bi bi-plus-lg"></i>
+                Add Model</button>
+            </div>
+            <div id="models-table"></div>
+        </div>
+        <div class="tab-pane fade" id="trade-data-pane" role="tabpanel" aria-labelledby="trade-data-tab" tabindex="0">
+            <div id="bar-data-dropzone" class="bar-data-dropzone text-center text-muted p-4 mb-3 rounded">
+                Drag and drop NinjaTrader bar export files here to import
+                <div id="bar-data-dropzone-status" class="mt-2 small"></div>
+            </div>
+            <div class="d-flex align-items-center gap-2 mb-2">
+                <h2 class="mb-0 me-auto">BarData — <span id="bar-data-month"></span></h2>
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="bar-data-prev" title="Previous month"
+                        aria-label="Previous month"><i class="bi bi-chevron-left"></i></button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="bar-data-next" title="Next month"
+                        aria-label="Next month"><i class="bi bi-chevron-right"></i></button>
+            </div>
+            <div id="bar-data-table"></div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="bar-data-modal" tabindex="-1" aria-labelledby="bar-data-modal-title" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="bar-data-modal-title">BarData</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="bar-data-modal-combo" class="form-label">Instrument / Version</label>
+                        <select id="bar-data-modal-combo" class="form-select"></select>
+                    </div>
+                    <div id="bar-data-modal-table"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="bar-import-confirm-modal" tabindex="-1" aria-labelledby="bar-import-confirm-title"
+         aria-hidden="true">
+        <div class="modal-dialog modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="bar-import-confirm-title">Confirm Import</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="bar-import-confirm-body"></div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="bar-import-confirm-btn">Confirm</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="model-edit-modal" tabindex="-1" aria-labelledby="model-edit-title" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <form class="modal-content" id="model-edit-form" novalidate>
+                <div class="modal-header">
+                    <h5 class="modal-title" id="model-edit-title">Edit Model</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" name="id" />
+                    <!-- Generated from appsettings + the fields below (see setGeneratedLocations); not user-editable. -->
+                    <input type="hidden" name="featureLocation" />
+                    <input type="hidden" name="outputLocation" />
+                    <div class="row g-3">
+                        <div class="col-md-9">
+                            <label for="model-edit-modelName" class="form-label">Model Name</label>
+                            <input type="text" class="form-control" id="model-edit-modelName" name="modelName" required />
+                        </div>
+                        <div class="col-md-3">
+                            <label for="model-edit-instrument" class="form-label">Instrument</label>
+                            <input type="text" class="form-control" id="model-edit-instrument" name="instrument" required />
+                        </div>
+                        <div class="col-md-3">
+                            <label for="model-edit-target" class="form-label">Target</label>
+                            <select class="form-select" id="model-edit-target" name="target" required>
+                                <option value="" disabled hidden>Select...</option>
+                                <option value="HIGH">HIGH</option>
+                                <option value="LOW">LOW</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="model-edit-windowStart" class="form-label">Window Start</label>
+                            <input type="text" class="form-control" id="model-edit-windowStart" name="windowStart"
+                                   pattern="\d{5,6}" placeholder="HHmmss" />
+                        </div>
+                        <div class="col-md-3">
+                            <label for="model-edit-windowEnd" class="form-label">Window End</label>
+                            <input type="text" class="form-control" id="model-edit-windowEnd" name="windowEnd"
+                                   pattern="\d{5,6}" placeholder="HHmmss" />
+                        </div>
+                        <div class="col-md-3">
+                            <label for="model-edit-trainingStart" class="form-label">Training Start</label>
+                            <input type="text" class="form-control" id="model-edit-trainingStart" name="trainingStart"
+                                   pattern="\d{8}" placeholder="yyyyMMdd" required />
+                        </div>
+                        <div class="col-md-3">
+                            <label for="model-edit-trainingEnd" class="form-label">Training End</label>
+                            <input type="text" class="form-control" id="model-edit-trainingEnd" name="trainingEnd"
+                                   pattern="\d{8}" placeholder="yyyyMMdd" required />
+                        </div>
+                        <div class="col-md-6 d-flex align-items-end gap-4">
+                            <div class="form-check">
+                                <input type="checkbox" class="form-check-input" id="model-edit-active" name="active" />
+                                <label for="model-edit-active" class="form-check-label">Active</label>
+                            </div>
+                            <div class="form-check">
+                                <input type="checkbox" class="form-check-input" id="model-edit-export" name="export" />
+                                <label for="model-edit-export" class="form-check-label">Export</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="model-edit-error" class="alert alert-danger mt-3 mb-0 d-none" role="alert"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary me-auto" id="model-edit-features">Edit
+                        Features</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary" id="model-edit-save">Save</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="modal fade" id="features-edit-modal" tabindex="-1" aria-labelledby="features-edit-title" aria-hidden="true">
+            <div class="modal-dialog modal-xl modal-dialog-scrollable">
+                <form class="modal-content" id="features-edit-form" novalidate>
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="features-edit-title">Edit Features</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="d-flex justify-content-end mb-2">
+                            <button type="button" class="btn btn-sm btn-outline-primary" id="features-add"><i
+                                class="bi bi-plus-lg"></i> Add Feature</button>
+                            </div>
+                            <table class="table table-sm align-middle">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 3rem;">#</th>
+                                        <th>Feature</th>
+                                        <th>Name</th>
+                                        <th>Source</th>
+                                        <th>Parameters</th>
+                                        <th style="width: 2.5rem;"><span class="visually-hidden">Remove</span></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="features-edit-rows"></tbody>
+                            </table>
+                            <div id="features-edit-error" class="alert alert-danger mt-3 mb-0 d-none" role="alert"></div>
+                        </div>
+                        <div class="modal-footer">
+                            <span id="features-edit-pending" class="me-auto small text-danger d-none"></span>
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-primary" id="features-edit-save">Save</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="modal fade" id="delete-model-modal" tabindex="-1" aria-labelledby="delete-model-title" aria-hidden="true">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="delete-model-title">Delete Model</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p class="mb-2">Delete <strong id="delete-model-name"></strong>?</p>
+                            <p class="mb-0 text-muted small" id="delete-model-details"></p>
+                            <div id="delete-model-error" class="alert alert-danger mt-3 mb-0 d-none" role="alert"></div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="button" class="btn btn-danger" id="delete-model-confirm">Delete</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal fade" id="export-modal" tabindex="-1" aria-labelledby="export-title" aria-hidden="true">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="export-title">Export Features</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div id="export-running" class="d-flex align-items-center gap-3">
+                                <div class="spinner-border text-primary flex-shrink-0" role="status" aria-hidden="true"></div>
+                                <div>
+                                    <div id="export-message"></div>
+                                    <div class="small text-muted">Elapsed: <span id="export-elapsed">0:00</span></div>
+                                </div>
+                            </div>
+                            <div id="export-result" class="alert mb-0 d-none" role="alert"></div>
+                            <div class="small text-muted mt-3" id="export-note">You can close this window; the export keeps running.
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <style>
+                .bar-data-dropzone {
+                    border: 2px dashed #adb5bd;
+                    transition: background-color 0.15s ease, border-color 0.15s ease;
+                }
+
+                .bar-data-dropzone.bar-data-dropzone-active {
+                    background-color: #eef6ff;
+                    border-color: #0d6efd;
+                }
+            </style>
+
+            @section Scripts
+            {
+                <script>
+                    const columns = [
+                        {
+                            title: '', field: 'paramsMismatch', hozAlign: 'center', width: 40, headerSort: false,
+                            // Flags a model where any feature's param count differs from its feature type's param count.
+                            mutator: (value, data) => (data.modelFeatures ?? []).some(f =>
+                                (f.featureType?.featureTypeParams?.length ?? 0) !== (f.modelFeatureParams?.length ?? 0)),
+                            formatter: (cell) => cell.getValue()
+                                ? "<i class='bi bi-exclamation-circle-fill text-danger' title='Feature parameters do not match their feature type'></i>"
+                                : ''
+                        },
+                        { title: 'Model', field: 'modelName' },
+                        { title: 'Version', field: 'version' },
+                        { title: 'Instrument', field: 'instrument' },
+                        { title: 'Target', field: 'target' },
+                        { title: 'Features', field: 'featureCount', hozAlign: 'right', mutator: (value, data) => data.modelFeatures?.length ?? 0 },
+                        {
+                            title: 'Export Features', field: 'featuresExported', hozAlign: 'center', headerSort: false,
+                            formatter: (cell) => {
+                                if (cell.getValue())
+                                    return "<i class='bi bi-check-lg text-success fs-5' title='features.csv is present'></i>";
+                                // Disabled buttons don't show tooltips, so the explanation goes on a wrapping span.
+                                const model = cell.getRow().getData();
+                                const reason = !(model.modelFeatures?.length) ? 'Add features (Edit > Edit Features) before exporting'
+                                    : hasMissingParams(model) ? 'Set all feature parameter values (Edit > Edit Features) before exporting'
+                                        : null;
+                                return reason
+                                    ? `<span class='d-inline-block' tabindex='0' title='${reason}'><button type='button' class='btn btn-sm btn-outline-primary' disabled style='pointer-events: none;'>Export</button></span>`
+                                    : "<button type='button' class='btn btn-sm btn-outline-primary'>Export</button>";
+                            },
+                            cellClick: (e, cell) => {
+                                if (!cell.getValue() && e.target.closest('button:not([disabled])')) startFeatureExport(cell.getRow().getData());
+                            }
+                        },
+                        Defaults.grid.buildEditColumn('id', (data) => openModelEditor(data)),
+                        {
+                            title: '', field: 'id', hozAlign: 'center', width: Defaults.grid.editColumnWidth, headerSort: false,
+                            formatter: () => "<button type='button' class='btn btn-sm btn-outline-danger' title='Delete'><i class='bi bi-trash'></i></button>",
+                            cellClick: (e, cell) => {
+                                if (e.target.closest('button')) confirmDeleteModel(cell.getRow().getData());
+                            }
+                        }
+                    ];
+                    const table = Defaults.grid.buildGrid('#models-table', columns, '/Home/Models');
+
+                    document.getElementById('models-add').addEventListener('click', () => openModelEditor(null));
+
+                    const deleteModelModal = new bootstrap.Modal(document.getElementById('delete-model-modal'));
+                    const deleteModelConfirm = document.getElementById('delete-model-confirm');
+                    const deleteModelError = document.getElementById('delete-model-error');
+                    let modelPendingDelete = null;
+
+                    // Nothing is deleted until the user confirms in the popup.
+                    function confirmDeleteModel(model) {
+                        modelPendingDelete = model;
+                        const features = model.modelFeatures ?? [];
+                        const params = features.reduce((sum, f) => sum + (f.modelFeatureParams?.length ?? 0), 0);
+                        document.getElementById('delete-model-name').textContent = model.modelName;
+                        document.getElementById('delete-model-details').textContent =
+                            `This permanently deletes the model along with its ${features.length} feature${features.length === 1 ? '' : 's'} ` +
+                            `and ${params} parameter value${params === 1 ? '' : 's'}. It can't be undone. Exported files on disk are not removed.`;
+                        deleteModelError.classList.add('d-none');
+                        deleteModelConfirm.disabled = false;
+                        deleteModelModal.show();
+                    }
+
+                    deleteModelConfirm.addEventListener('click', async () => {
+                        if (!modelPendingDelete) return;
+                        deleteModelConfirm.disabled = true;
+                        deleteModelError.classList.add('d-none');
+                        try {
+                            const res = await fetch(`/Home/DeleteModel/${modelPendingDelete.id}`, { method: 'POST' });
+                            if (!res.ok) throw new Error((await res.text()) || `request failed with status ${res.status}`);
+                            modelPendingDelete = null;
+                            deleteModelModal.hide();
+                            table.replaceData();
+                        } catch (err) {
+                            deleteModelError.textContent = `Delete failed: ${err.message}`;
+                            deleteModelError.classList.remove('d-none');
+                            deleteModelConfirm.disabled = false;
+                        }
+                    });
+
+                    // True if any of the model's features lacks a value for one of its feature type's params.
+                    function hasMissingParams(model) {
+                        return (model.modelFeatures ?? []).some(f =>
+                            (f.featureType?.featureTypeParams ?? []).some(tp =>
+                                !(f.modelFeatureParams ?? []).some(p => p.featureTypeParamId === tp.id)));
+                    }
+
+                    const modelEditModal = new bootstrap.Modal(document.getElementById('model-edit-modal'));
+                    const modelEditForm = document.getElementById('model-edit-form');
+                    const modelEditError = document.getElementById('model-edit-error');
+                    const modelEditSave = document.getElementById('model-edit-save');
+
+                    const featureLocationBase = @Json.Serialize(Configuration["featureLocation"]);
+                    const outputLocation = @Json.Serialize(Configuration["outputLocation"]);
+
+                    function setGeneratedLocations() {
+                        const f = modelEditForm.elements;
+                        f.featureLocation.value = `${featureLocationBase}/${f.modelName.value.trim()}`;
+                        f.outputLocation.value = outputLocation;
+                    }
+
+                    // Row data for the model open in the editor; refreshed after feature params are saved.
+                    let currentModel = null;
+
+                    // data is null when adding a new model; it's created on Save, after which features can be added.
+                    function openModelEditor(data) {
+                        currentModel = data;
+                        for (const el of modelEditForm.elements) {
+                            if (!el.name) continue;
+                            if (el.type === 'checkbox') el.checked = !!data?.[el.name];
+                            else el.value = data?.[el.name] ?? '';
+                        }
+                        document.getElementById('model-edit-title').textContent = data ? `Edit Model: ${data.modelName}` : 'New Model';
+                        const editFeatures = document.getElementById('model-edit-features');
+                        editFeatures.disabled = !data;
+                        editFeatures.title = data ? '' : 'Save the new model before adding features';
+                        modelEditForm.classList.remove('was-validated');
+                        modelEditError.classList.add('d-none');
+                        modelEditModal.show();
+                    }
+
+                    modelEditForm.addEventListener('submit', async (e) => {
+                        e.preventDefault();
+                        modelEditForm.classList.add('was-validated');
+                        if (!modelEditForm.checkValidity()) return;
+                        setGeneratedLocations();
+
+                        const payload = {};
+                        for (const el of modelEditForm.elements) {
+                            if (!el.name) continue;
+                            if (el.type === 'checkbox') payload[el.name] = el.checked;
+                            else if (el.name === 'id') payload.id = Number(el.value);
+                            else payload[el.name] = el.value.trim() === '' ? null : el.value.trim();
+                        }
+
+                        modelEditSave.disabled = true;
+                        modelEditError.classList.add('d-none');
+                        try {
+                            const res = await fetch(payload.id ? '/Home/UpdateModel' : '/Home/CreateModel', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(payload)
+                            });
+                            if (!res.ok) throw new Error((await res.text()) || `request failed with status ${res.status}`);
+
+                            modelEditModal.hide();
+                            table.replaceData();
+                        } catch (err) {
+                            modelEditError.textContent = `Save failed: ${err.message}`;
+                            modelEditError.classList.remove('d-none');
+                        } finally {
+                            modelEditSave.disabled = false;
+                        }
+                    });
+
+                    const featuresEditModalEl = document.getElementById('features-edit-modal');
+                    const featuresEditModal = new bootstrap.Modal(featuresEditModalEl);
+                    const featuresEditForm = document.getElementById('features-edit-form');
+                    const featuresEditRows = document.getElementById('features-edit-rows');
+                    const featuresEditError = document.getElementById('features-edit-error');
+                    const featuresEditSave = document.getElementById('features-edit-save');
+
+                    // Bootstrap doesn't support stacked modals, so the model editor is hidden while the features
+                    // editor is open and shown again (with any unsaved edits intact) when it closes.
+                    document.getElementById('model-edit-features').addEventListener('click', () => {
+                        document.getElementById('model-edit-modal').addEventListener('hidden.bs.modal', () => openFeaturesEditor(currentModel), { once: true });
+                        modelEditModal.hide();
+                    });
+                    featuresEditModalEl.addEventListener('hidden.bs.modal', () => modelEditModal.show());
+
+                    const featuresEditPending = document.getElementById('features-edit-pending');
+                    const featuresAddButton = document.getElementById('features-add');
+                    // Features removed in the editor; only deleted from the database when the editor is saved.
+                    let removedFeatureIds = new Set();
+                    // New rows get negative temp ids, which their param inputs reference until the server assigns real ids.
+                    let nextTempFeatureId = -1;
+                    let featureTypesPromise = null;
+                    const FEATURE_SOURCES = [['sessionMinute', 'Session - 1m'], ['sessionDay', 'Session - 1d'], ['windowMinute', 'Window - 1m'], ['windowDay', 'Window - 1d']];
+
+                    function loadFeatureTypes() {
+                        featureTypesPromise ??= fetch('/Home/FeatureTypes').then(async res => {
+                            if (!res.ok) throw new Error((await res.text()) || `request failed with status ${res.status}`);
+                            return (await res.json()).sort((a, b) => a.name.localeCompare(b.name));
+                        });
+                        featureTypesPromise.catch(() => featureTypesPromise = null);
+                        return featureTypesPromise;
+                    }
+
+                    let windowParamsPromise = null;
+                    function loadWindowParams() {
+                        windowParamsPromise ??= fetch('/Home/WindowParams').then(async res => {
+                            if (!res.ok) throw new Error((await res.text()) || `request failed with status ${res.status}`);
+                            return (await res.json()).sort((a, b) => a.parameterKey.localeCompare(b.parameterKey));
+                        });
+                        windowParamsPromise.catch(() => windowParamsPromise = null);
+                        return windowParamsPromise;
+                    }
+
+                    function openFeaturesEditor(model) {
+                        document.getElementById('features-edit-title').textContent = `Edit Features: ${model.modelName}`;
+                        featuresEditRows.replaceChildren();
+                        removedFeatureIds = new Set();
+                        nextTempFeatureId = -1;
+
+                        const features = [...(model.modelFeatures ?? [])].sort((a, b) => a.sortOrder - b.sortOrder);
+                        if (!features.length) {
+                            const row = featuresEditRows.insertRow();
+                            row.className = 'features-empty-row';
+                            const cell = row.insertCell();
+                            cell.colSpan = 6;
+                            cell.className = 'text-muted';
+                            cell.textContent = 'This model has no features.';
+                        }
+                        features.forEach(feature => addFeatureRow(feature));
+
+                        featuresEditForm.classList.remove('was-validated');
+                        featuresEditError.classList.add('d-none');
+                        refreshFeatureRows();
+                        featuresEditModal.show();
+                    }
+
+                    // Builds a table row for an existing feature, or (with no feature) an editable new one.
+                    function addFeatureRow(feature = null) {
+                        featuresEditRows.querySelector('.features-empty-row')?.remove();
+                        const isNew = feature === null;
+                        const featureId = isNew ? nextTempFeatureId-- : feature.id;
+
+                        const row = featuresEditRows.insertRow();
+                        row.dataset.featureId = featureId;
+                        if (isNew) row.dataset.isNew = 'true';
+                        row.insertCell();
+
+                        const featureCell = row.insertCell();
+                        let typeSelect = null;
+                        if (isNew) {
+                            typeSelect = document.createElement('select');
+                            typeSelect.className = 'form-select form-select-sm d-inline-block w-auto feature-type-select';
+                            typeSelect.required = true;
+                            typeSelect.setAttribute('aria-label', 'Feature type');
+                            typeSelect.add(new Option('Select a feature type...', ''));
+                            featureCell.appendChild(typeSelect);
+                        } else {
+                            // The feature type's Description is shown only as this hover tooltip.
+                            const typeName = document.createElement('span');
+                            typeName.textContent = feature.featureType?.name ?? `FeatureType ${feature.featureTypeId}`;
+                            typeName.title = feature.featureType?.description ?? '';
+                            featureCell.appendChild(typeName);
+                        }
+                        const marker = document.createElement('span');
+                        marker.className = 'text-danger fw-bold ms-1 missing-param-marker d-none';
+                        marker.title = 'Missing parameter values';
+                        marker.textContent = '*';
+                        featureCell.appendChild(marker);
+
+                        // Optional, so it isn't part of the missing-value check (which only looks at data-model-feature-id inputs).
+                        const featureNameInput = document.createElement('input');
+                        featureNameInput.type = 'text';
+                        featureNameInput.className = 'form-control form-control-sm model-feature-name';
+                        featureNameInput.placeholder = 'optional';
+                        featureNameInput.setAttribute('aria-label', 'Feature name');
+                        featureNameInput.value = feature?.modelFeatureName ?? '';
+                        row.insertCell().appendChild(featureNameInput);
+
+                        let sourceSelect = null;
+                        const sourceCell = row.insertCell();
+                        if (isNew) {
+                            sourceSelect = document.createElement('select');
+                            sourceSelect.className = 'form-select form-select-sm w-auto feature-source-select';
+                            sourceSelect.setAttribute('aria-label', 'Feature source');
+                            for (const [value, text] of FEATURE_SOURCES) sourceSelect.add(new Option(text, value));
+                            // Stays on Session - 1m and disabled until a context-enabled feature type is picked.
+                            updateSourceSelect(sourceSelect, null);
+                            sourceCell.appendChild(sourceSelect);
+                        } else {
+                            // Show the same label the dropdown uses; sources it doesn't list (e.g. prevMinute) display as stored.
+                            sourceCell.textContent = FEATURE_SOURCES.find(([value]) => value === feature.source)?.[1] ?? feature.source ?? 'daily';
+                        }
+
+                        const paramsCell = row.insertCell();
+
+                        const removeButton = document.createElement('button');
+                        removeButton.type = 'button';
+                        removeButton.className = 'btn btn-sm btn-link text-danger p-0';
+                        removeButton.title = 'Remove feature';
+                        removeButton.setAttribute('aria-label', 'Remove feature');
+                        removeButton.innerHTML = "<i class='bi bi-x-lg'></i>";
+                        removeButton.addEventListener('click', () => removeFeatureRow(row, isNew ? null : featureId));
+                        const removeCell = row.insertCell();
+                        removeCell.className = 'text-center';
+                        removeCell.appendChild(removeButton);
+
+                        if (isNew) {
+                            paramsCell.className = 'text-muted';
+                            paramsCell.textContent = 'Select a feature type';
+                            loadFeatureTypes().then(types => {
+                                for (const type of types) {
+                                    const option = new Option(type.name, type.id);
+                                    option.title = type.description ?? '';
+                                    option.featureType = type;
+                                    typeSelect.add(option);
+                                }
+                            }).catch(err => {
+                                paramsCell.className = 'text-danger';
+                                paramsCell.textContent = `Failed to load feature types: ${err.message}`;
+                            });
+                            typeSelect.addEventListener('change', () => {
+                                typeSelect.title = typeSelect.selectedOptions[0]?.featureType?.description ?? '';
+                                renderParamInputs(paramsCell, featureId, typeSelect.selectedOptions[0]?.featureType ?? null, []);
+                                updateSourceSelect(sourceSelect, typeSelect.selectedOptions[0]?.featureType ?? null);
+                                renderContextParams(paramsCell, featureId, typeSelect.selectedOptions[0]?.featureType ?? null, sourceSelect.value, []);
+                                refreshFeatureRows();
+                            });
+                            sourceSelect.addEventListener('change', () => {
+                                renderContextParams(paramsCell, featureId, typeSelect.selectedOptions[0]?.featureType ?? null, sourceSelect.value, []);
+                                refreshFeatureRows();
+                            });
+                            typeSelect.focus();
+                        } else {
+                            renderParamInputs(paramsCell, featureId, feature.featureType, feature.modelFeatureParams ?? []);
+                            renderContextParams(paramsCell, featureId, feature.featureType, feature.source, feature.modelFeatureParams ?? []);
+                        }
+                        return row;
+                    }
+
+                    // Only context-enabled feature types can pick a source other than Session - 1m; otherwise it's reset.
+                    function updateSourceSelect(sourceSelect, featureType) {
+                        const contextEnabled = featureType?.contextEnabled === true;
+                        sourceSelect.disabled = !contextEnabled;
+                        if (!contextEnabled) sourceSelect.value = 'sessionMinute';
+                    }
+
+                    function renderParamInputs(paramsCell, featureId, featureType, existingParams) {
+                        paramsCell.replaceChildren();
+                        paramsCell.className = '';
+                        if (!featureType) {
+                            paramsCell.className = 'text-muted';
+                            paramsCell.textContent = 'Select a feature type';
+                            return;
+                        }
+
+                        const typeParams = [...(featureType.featureTypeParams ?? [])]
+                            .sort((a, b) => a.parameterKey.localeCompare(b.parameterKey));
+                        if (!typeParams.length) {
+                            paramsCell.className = 'text-muted';
+                            paramsCell.textContent = 'None';
+                            return;
+                        }
+
+                        paramsCell.appendChild(buildParamGroup(featureId, typeParams, existingParams, false));
+                    }
+
+                    // The context fields are optional, so their inputs are flagged to stay out of the missing-value check.
+                    function buildParamGroup(featureId, typeParams, existingParams, optional) {
+                        const group = document.createElement('div');
+                        group.className = 'd-flex flex-wrap gap-2';
+                        for (const typeParam of typeParams) {
+                            const existing = existingParams.find(p => p.featureTypeParamId === typeParam.id);
+                            const inputId = `feature-param-${featureId}-${typeParam.id}`;
+
+                            const wrapper = document.createElement('div');
+                            wrapper.className = 'input-group input-group-sm';
+                            wrapper.style.width = '11rem';
+
+                            const label = document.createElement('label');
+                            label.className = 'input-group-text';
+                            label.htmlFor = inputId;
+                            label.textContent = typeParam.parameterKey;
+
+                            const input = document.createElement('input');
+                            input.type = 'number';
+                            input.step = '1';
+                            input.className = optional ? 'form-control context-param-input' : 'form-control';
+                            input.id = inputId;
+                            input.placeholder = 'not set';
+                            input.dataset.modelFeatureId = featureId;
+                            input.dataset.featureTypeParamId = typeParam.id;
+                            input.value = existing?.paramValue ?? '';
+
+                            wrapper.append(label, input);
+                            group.appendChild(wrapper);
+                        }
+                        return group;
+                    }
+
+                    const SESSION_CONTEXT_KEYS = ['days', 'weeks', 'months'];
+                    const WINDOW_CONTEXT_KEYS = ['start', 'end'];
+
+                    // Context fields for a context-enabled feature type: Session (days, weeks, months) always, and Window
+                    // (start, end) while the source is a window. The fields load on first use, so a token drops a late
+                    // response that a newer change has overtaken.
+                    function renderContextParams(paramsCell, featureId, featureType, source, existingParams) {
+                        paramsCell.querySelectorAll('.context-section').forEach(section => section.remove());
+                        const token = String((Number(paramsCell.dataset.contextToken) || 0) + 1);
+                        paramsCell.dataset.contextToken = token;
+                        if (!featureType?.contextEnabled) return;
+                        const showWindow = source === 'windowMinute' || source === 'windowDay';
+
+                        loadWindowParams().then(contextParams => {
+                            if (paramsCell.dataset.contextToken !== token) return;
+                            const pick = keys => keys.map(key => contextParams.find(p => p.parameterKey === key)).filter(Boolean);
+
+                            const sessionParams = pick(SESSION_CONTEXT_KEYS);
+                            if (sessionParams.length)
+                                paramsCell.appendChild(buildContextSection('Session', 'session-section', buildParamGroup(featureId, sessionParams, existingParams, true)));
+
+                            const windowParams = pick(WINDOW_CONTEXT_KEYS);
+                            if (showWindow && windowParams.length)
+                                paramsCell.appendChild(buildContextSection('Window', 'window-section', buildParamGroup(featureId, windowParams, existingParams, true)));
+                        }).catch(err => {
+                            if (paramsCell.dataset.contextToken !== token) return;
+                            const error = document.createElement('div');
+                            error.className = 'context-section small text-danger mt-2';
+                            error.textContent = `Failed to load context fields: ${err.message}`;
+                            paramsCell.appendChild(error);
+                        });
+                    }
+
+                    function buildContextSection(title, className, group) {
+                        const section = document.createElement('div');
+                        section.className = `context-section ${className} mt-2`;
+                        const heading = document.createElement('div');
+                        heading.className = 'small fw-semibold mb-1';
+                        heading.textContent = title;
+                        section.append(heading, group);
+                        return section;
+                    }
+
+                    featuresAddButton.addEventListener('click', () => {
+                        addFeatureRow().scrollIntoView({ block: 'nearest' });
+                        refreshFeatureRows();
+                    });
+
+                    // featureId is null for a new (unsaved) row, which just disappears.
+                    function removeFeatureRow(row, featureId) {
+                        if (featureId !== null) removedFeatureIds.add(featureId);
+                        row.remove();
+                        refreshFeatureRows();
+                    }
+
+                    // Renumbers the rows, marks each feature with a missing type or blank param input, only enables Save
+                    // once nothing is missing, and summarises pending removals.
+                    function refreshFeatureRows() {
+                        let anyMissing = false;
+                        [...featuresEditRows.rows].forEach((row, i) => {
+                            const marker = row.querySelector('.missing-param-marker');
+                            if (!marker) return;
+                            row.cells[0].textContent = i + 1;
+                            const typeSelect = row.querySelector('.feature-type-select');
+                            const missing = (typeSelect && !typeSelect.value)
+                                || [...row.querySelectorAll('input[data-model-feature-id]:not(.context-param-input)')].some(input => input.value.trim() === '');
+                            marker.classList.toggle('d-none', !missing);
+                            marker.title = typeSelect && !typeSelect.value ? 'Select a feature type' : 'Missing parameter values';
+                            anyMissing ||= missing;
+                        });
+                        featuresEditSave.disabled = anyMissing;
+
+                        const count = removedFeatureIds.size;
+                        featuresEditPending.classList.toggle('d-none', count === 0);
+                        featuresEditPending.textContent = `${count} feature${count === 1 ? '' : 's'} will be deleted on Save.`;
+                    }
+
+                    featuresEditRows.addEventListener('input', refreshFeatureRows);
+
+                    featuresEditForm.addEventListener('submit', async (e) => {
+                        e.preventDefault();
+                        featuresEditForm.classList.add('was-validated');
+                        if (!featuresEditForm.checkValidity()) return;
+
+                        // Blank inputs are skipped: required ones were already checked, and blank window fields are left unset.
+                        const params = [...featuresEditRows.querySelectorAll('input[data-model-feature-id]')]
+                            .filter(input => input.value.trim() !== '')
+                            .map(input => ({
+                                modelFeatureId: Number(input.dataset.modelFeatureId),
+                                featureTypeParamId: Number(input.dataset.featureTypeParamId),
+                                paramValue: Number(input.value)
+                            }));
+
+                        const rows = [...featuresEditRows.rows].filter(row => row.dataset.featureId);
+                        const nameOf = row => row.querySelector('input.model-feature-name').value.trim() || null;
+                        const features = rows.filter(row => !row.dataset.isNew).map(row => ({
+                            modelFeatureId: Number(row.dataset.featureId),
+                            modelFeatureName: nameOf(row)
+                        }));
+                        const newFeatures = rows.filter(row => row.dataset.isNew).map(row => ({
+                            tempId: Number(row.dataset.featureId),
+                            featureTypeId: Number(row.querySelector('.feature-type-select').value),
+                            source: row.querySelector('.feature-source-select').value || null,
+                            modelFeatureName: nameOf(row)
+                        }));
+
+                        featuresEditSave.disabled = true;
+                        featuresEditError.classList.add('d-none');
+                        try {
+                            const res = await fetch('/Home/UpdateFeatureParams', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ modelConfigId: currentModel.id, params, features, newFeatures, deletedFeatureIds: [...removedFeatureIds] })
+                            });
+                            if (!res.ok) throw new Error((await res.text()) || `request failed with status ${res.status}`);
+
+                            await table.replaceData();
+                            currentModel = table.getRow(currentModel.id)?.getData() ?? currentModel;
+                            featuresEditModal.hide();
+                        } catch (err) {
+                            featuresEditError.textContent = `Save failed: ${err.message}`;
+                            featuresEditError.classList.remove('d-none');
+                        } finally {
+                            refreshFeatureRows();
+                        }
+                    });
+
+                    const exportModalEl = document.getElementById('export-modal');
+                    const exportModal = new bootstrap.Modal(exportModalEl);
+                    const exportRunning = document.getElementById('export-running');
+                    const exportMessage = document.getElementById('export-message');
+                    const exportElapsed = document.getElementById('export-elapsed');
+                    const exportResult = document.getElementById('export-result');
+                    const exportNote = document.getElementById('export-note');
+                    const EXPORT_POLL_MS = 2000;
+                    let exportPollTimer = null;
+
+                    // Polling stops when the popup closes; the export itself carries on server-side, and clicking
+                    // Export again for the same model just reattaches to the running job.
+                    exportModalEl.addEventListener('hidden.bs.modal', () => clearTimeout(exportPollTimer));
+
+                    async function startFeatureExport(model) {
+                        clearTimeout(exportPollTimer);
+                        document.getElementById('export-title').textContent = `Export Features: ${model.modelName}`;
+                        showExportStatus({ state: 'Running', message: 'Starting export...' });
+                        exportModal.show();
+
+                        try {
+                            const res = await fetch(`/Home/ExportFeatures/${model.id}`, { method: 'POST' });
+                            if (!res.ok) throw new Error((await res.text()) || `request failed with status ${res.status}`);
+                            await handleExportStatus(model.id, await res.json());
+                        } catch (err) {
+                            showExportStatus({ state: 'Failed', message: err.message });
+                        }
+                    }
+
+                    async function pollFeatureExport(modelId) {
+                        try {
+                            const res = await fetch(`/Home/ExportFeaturesStatus/${modelId}`);
+                            if (!res.ok) throw new Error((await res.text()) || `request failed with status ${res.status}`);
+                            await handleExportStatus(modelId, await res.json());
+                        } catch (err) {
+                            showExportStatus({ state: 'Failed', message: err.message });
+                        }
+                    }
+
+                    async function handleExportStatus(modelId, status) {
+                        showExportStatus(status);
+                        if (status.state === 'Running') {
+                            exportPollTimer = setTimeout(() => pollFeatureExport(modelId), EXPORT_POLL_MS);
+                        } else if (status.state === 'Succeeded') {
+                            await table.replaceData();
+                        }
+                    }
+
+                    function showExportStatus(status) {
+                        const running = status.state === 'Running';
+                        exportRunning.classList.toggle('d-none', !running);
+                        exportNote.classList.toggle('d-none', !running);
+                        exportResult.classList.toggle('d-none', running);
+
+                        if (running) {
+                            exportMessage.textContent = status.message;
+                            const seconds = status.startedAt ? Math.max(0, Math.floor((Date.now() - new Date(status.startedAt)) / 1000)) : 0;
+                            exportElapsed.textContent = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+                            return;
+                        }
+
+                        const succeeded = status.state === 'Succeeded';
+                        exportResult.classList.toggle('alert-success', succeeded);
+                        exportResult.classList.toggle('alert-danger', !succeeded);
+                        exportResult.textContent = succeeded
+                            ? `features.csv was generated successfully. ${status.message}`
+                            : `Export failed: ${status.message}`;
+                    }
+
+                    const barDataColumns = [
+                        {
+                            title: '', field: 'details', width: 40, headerSort: false, hozAlign: 'center',
+                            formatter: (cell) => cell.getRow().getData().details?.length
+                                ? `<i class="bi bi-chevron-${cell.getRow().getElement().classList.contains('bar-data-expanded') ? 'down' : 'right'}"></i>` : '',
+                            cellClick: (e, cell) => {
+                                const row = cell.getRow();
+                                if (!row.getData().details?.length) return;
+                                row.getElement().classList.toggle('bar-data-expanded');
+                                cell.getElement().innerHTML = cell.getRow().getElement().classList.contains('bar-data-expanded')
+                                    ? '<i class="bi bi-chevron-down"></i>' : '<i class="bi bi-chevron-right"></i>';
+                                row.reformat();
+                            }
+                        },
+                        {
+                            title: 'Session Date', field: 'sessionDate',
+                            formatter: (cell) => {
+                                const v = cell.getValue();
+                                return v ? `${v.slice(0, 4)}-${v.slice(4, 6)}-${v.slice(6, 8)}` : '';
+                            }
+                        },
+                        { title: 'Total Bar Count', field: 'barCount', hozAlign: 'right' },
+                        {
+                            title: 'Has Changeover?', field: 'hasChangeover', hozAlign: 'center', headerSort: false,
+                            formatter: (cell) => cell.getValue()
+                                ? '<i class="bi bi-exclamation-circle-fill text-danger" title="Version changeover detected"></i>' : ''
+                        },
+                        {
+                            title: '', field: 'sessionDate', width: 110, hozAlign: 'center', headerSort: false,
+                            formatter: () => '<button type="button" class="btn btn-sm btn-outline-primary">View Data</button>',
+                            cellClick: (e, cell) => openBarDataModal(cell.getRow().getData())
+                        }
+                    ];
+
+                    // Expanded rows render a sub-grid of instrument/version totals under the row's cells.
+                    function barDataRowFormatter(row) {
+                        const el = row.getElement();
+                        el.querySelector('.bar-data-subgrid')?.remove();
+                        if (!el.classList.contains('bar-data-expanded')) return;
+
+                        const holder = document.createElement('div');
+                        holder.className = 'bar-data-subgrid p-2';
+                        el.appendChild(holder);
+                        new Tabulator(holder, {
+                            layout: 'fitColumns',
+                            data: row.getData().details,
+                            columns: [
+                                { title: 'Instrument', field: 'instrument' },
+                                { title: 'Version', field: 'instrumentVersion' },
+                                { title: 'Bar Count', field: 'barCount', hozAlign: 'right' },
+                                { title: 'Total Volume', field: 'volume', hozAlign: 'right', formatter: (cell) => cell.getValue().toLocaleString() }
+                            ]
+                        });
+                    }
+
+                    const barDataModalEl = document.getElementById('bar-data-modal');
+                    const barDataComboSelect = document.getElementById('bar-data-modal-combo');
+                    let barDataModalDate = null;
+                    let barDataModalTable = null;
+
+                    // Every minute of a session, starting at 17:00:00 and wrapping past midnight.
+                    const sessionTimes = Array.from({ length: 1440 }, (_, i) => {
+                        const m = (17 * 60 + i) % 1440;
+                        return `${String(Math.floor(m / 60)).padStart(2, '0')}${String(m % 60).padStart(2, '0')}00`;
+                    });
+
+                    const barDataModalColumns = [
+                        {
+                            title: 'Session Time', field: 'sessionTime', width: 130,
+                            formatter: (cell) => cell.getValue().replace(/(\d\d)(\d\d)(\d\d)/, '$1:$2:$3')
+                        },
+                        { title: 'Open', field: 'open', hozAlign: 'right' },
+                        { title: 'High', field: 'high', hozAlign: 'right' },
+                        { title: 'Low', field: 'low', hozAlign: 'right' },
+                        { title: 'Close', field: 'close', hozAlign: 'right' },
+                        { title: 'Volume', field: 'volume', hozAlign: 'right' }
+                    ];
+
+                    function openBarDataModal(data) {
+                        const v = data.sessionDate;
+                        barDataModalDate = v;
+                        document.getElementById('bar-data-modal-title').textContent =
+                            `BarData — ${v.slice(0, 4)}-${v.slice(4, 6)}-${v.slice(6, 8)}`;
+
+                        barDataComboSelect.innerHTML = '';
+                        for (const d of data.details) {
+                            const option = document.createElement('option');
+                            option.value = JSON.stringify([d.instrument, d.instrumentVersion]);
+                            option.textContent = `${d.instrument} ${d.instrumentVersion}`;
+                            barDataComboSelect.appendChild(option);
+                        }
+                        if (!data.details.length) barDataComboSelect.innerHTML = '<option value="">No bar data</option>';
+
+                        bootstrap.Modal.getOrCreateInstance(barDataModalEl).show();
+                    }
+
+                    // One row per possible session time; times with no bar are left blank.
+                    async function loadBarDataModalRows() {
+                        const rows = sessionTimes.map((t) => ({ sessionTime: t }));
+                        if (barDataComboSelect.value) {
+                            const [instrument, version] = JSON.parse(barDataComboSelect.value);
+                            const params = new URLSearchParams({ sessionDate: barDataModalDate, instrument, instrumentVersion: version });
+                            try {
+                                const res = await fetch(`/Home/BarDataBySession?${params}`);
+                                if (!res.ok) throw new Error(`request failed with status ${res.status}`);
+                                const byTime = new Map((await res.json()).map((b) => [b.sessionTime, b]));
+                                rows.forEach((r, i) => { if (byTime.has(r.sessionTime)) rows[i] = byTime.get(r.sessionTime); });
+                            } catch (err) {
+                                console.error(err);
+                            }
+                        }
+                        barDataModalTable.setData(rows);
+                    }
+
+                    // Built on show: Tabulator can't measure a container inside a hidden modal.
+                    barDataModalEl.addEventListener('shown.bs.modal', () => {
+                        if (barDataModalTable) barDataModalTable.destroy();
+                        barDataModalTable = new Tabulator('#bar-data-modal-table', {
+                            layout: Defaults.grid.layout,
+                            height: '400px',
+                            columns: barDataModalColumns,
+                            data: []
+                        });
+                        barDataModalTable.on('tableBuilt', loadBarDataModalRows);
+                    });
+                    barDataComboSelect.addEventListener('change', () => { if (barDataModalTable) loadBarDataModalRows(); });
+
+                    // Built lazily on first show: Tabulator's fitColumns layout can't measure
+                    // a container that's still display:none inside the inactive tab pane.
+                    let barDataTable = null;
+                    // The month shown in the trade data grid; starts at the current month and can't go past it.
+                    const today = new Date();
+                    let barDataMonth = { year: today.getFullYear(), month: today.getMonth() + 1 };
+                    const barDataUrl = () => `/Home/BarDataCounts?year=${barDataMonth.year}&month=${barDataMonth.month}`;
+                    const isCurrentMonth = () => barDataMonth.year === today.getFullYear() && barDataMonth.month === today.getMonth() + 1;
+
+                    function showBarDataMonth() {
+                        document.getElementById('bar-data-month').textContent =
+                            new Date(barDataMonth.year, barDataMonth.month - 1, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+                        document.getElementById('bar-data-next').disabled = isCurrentMonth();
+                    }
+
+                    function moveBarDataMonth(delta) {
+                        const d = new Date(barDataMonth.year, barDataMonth.month - 1 + delta, 1);
+                        barDataMonth = { year: d.getFullYear(), month: d.getMonth() + 1 };
+                        showBarDataMonth();
+                        barDataTable?.setData(barDataUrl());
+                    }
+
+                    document.getElementById('bar-data-prev').addEventListener('click', () => moveBarDataMonth(-1));
+                    document.getElementById('bar-data-next').addEventListener('click', () => { if (!isCurrentMonth()) moveBarDataMonth(1); });
+                    showBarDataMonth();
+
+                    document.getElementById('trade-data-tab').addEventListener('shown.bs.tab', () => {
+                        if (!barDataTable) {
+                            // One month per page, so the grid itself isn't paginated.
+                            barDataTable = Defaults.grid.buildGrid('#bar-data-table', barDataColumns, barDataUrl(), { pagination: false, height: false, rowFormatter: barDataRowFormatter });
+                            showBarDataMonth();
+                        } else {
+                            barDataTable.redraw(true);
+                        }
+                    });
+
+                    // Keep a stray drop outside the dropzone from navigating the browser to the file.
+                    window.addEventListener('dragover', (e) => e.preventDefault());
+                    window.addEventListener('drop', (e) => e.preventDefault());
+
+                    const dropzone = document.getElementById('bar-data-dropzone');
+                    const dropzoneStatus = document.getElementById('bar-data-dropzone-status');
+
+                    ['dragenter', 'dragover'].forEach((evt) => dropzone.addEventListener(evt, (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        dropzone.classList.add('bar-data-dropzone-active');
+                    }));
+                    ['dragleave', 'drop'].forEach((evt) => dropzone.addEventListener(evt, (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        dropzone.classList.remove('bar-data-dropzone-active');
+                    }));
+
+                    const importModalEl = document.getElementById('bar-import-confirm-modal');
+                    const importModal = bootstrap.Modal.getOrCreateInstance(importModalEl);
+                    const importBody = document.getElementById('bar-import-confirm-body');
+                    const importConfirmBtn = document.getElementById('bar-import-confirm-btn');
+                    let pendingFiles = null;
+
+                    const escapeHtml = (v) => String(v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+                    const renderImportPreview = (previews) => previews.map((p) => {
+                        const heading = `<h6 class="mt-3">${escapeHtml(p.fileName)}</h6>`;
+                        if (p.error) return `${heading}<div class="text-danger small">Skipped: ${escapeHtml(p.error)}</div>`;
+                        if (!p.sessions.length) return `${heading}<div class="text-muted small">No records found.</div>`;
+                        const rows = p.sessions.map((s) => `<tr><td>${escapeHtml(s.sessionDate)}</td><td class="text-end">${s.count.toLocaleString()}</td></tr>`).join('');
+                        const total = p.sessions.reduce((sum, s) => sum + s.count, 0);
+                        return `${heading}<table class="table table-sm"><thead><tr><th>Session Date</th><th class="text-end">Records</th></tr></thead>` +
+                            `<tbody>${rows}</tbody><tfoot><tr><th>Total</th><th class="text-end">${total.toLocaleString()}</th></tr></tfoot></table>`;
+                    }).join('');
+
+                    const buildFormData = (files) => {
+                        const formData = new FormData();
+                        for (const file of files) formData.append('files', file);
+                        return formData;
+                    };
+
+                    importModalEl.addEventListener('hidden.bs.modal', () => {
+                        if (pendingFiles) dropzoneStatus.textContent = 'Import cancelled.';
+                        pendingFiles = null;
+                    });
+
+                    dropzone.addEventListener('drop', async (e) => {
+                        const files = Array.from(e.dataTransfer.files);
+                        if (!files.length) return;
+
+                        dropzoneStatus.textContent = `Reading ${files.length} file(s)...`;
+
+                        try {
+                            const res = await fetch('/Home/PreviewBarImport', { method: 'POST', body: buildFormData(files) });
+                            if (!res.ok) throw new Error(`request failed with status ${res.status}`);
+
+                            const previews = await res.json();
+                            const importable = previews.some((p) => p.sessions.length);
+                            importBody.innerHTML = renderImportPreview(previews);
+                            importConfirmBtn.disabled = !importable;
+                            pendingFiles = files;
+                            importModal.show();
+                        } catch (err) {
+                            dropzoneStatus.textContent = `Import failed: ${err.message}`;
+                        }
+                    });
+
+                    importConfirmBtn.addEventListener('click', async () => {
+                        const files = pendingFiles;
+                        pendingFiles = null;
+                        importModal.hide();
+                        if (!files) return;
+
+                        dropzoneStatus.textContent = `Importing ${files.length} file(s)...`;
+
+                        try {
+                            const res = await fetch('/Home/ImportBarData', { method: 'POST', body: buildFormData(files) });
+                            if (!res.ok) throw new Error(`request failed with status ${res.status}`);
+
+                            const results = await res.json();
+                            const total = results.reduce((sum, r) => sum + r.imported, 0);
+                            const errors = results.filter(r => r.error).map(r => r.error);
+                            dropzoneStatus.textContent = `Imported ${total} bar record(s) from ${results.length} file(s).` +
+                                (errors.length ? ` Skipped: ${errors.join(' ')}` : '');
+
+                            if (barDataTable) barDataTable.setData(barDataUrl());
+                        } catch (err) {
+                            dropzoneStatus.textContent = `Import failed: ${err.message}`;
+                        }
+                    });
+                </script>
+            }

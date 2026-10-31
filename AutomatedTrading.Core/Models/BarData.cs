@@ -16,11 +16,11 @@ public class BarData : IDatabaseEntity
     public double Close { get; set; }
     public double Volume { get; set; }
     public DateTime Timestamp { get; set; }
-    public string? Instrument { get; set; }
     public string? Timeframe { get; set; }
     public string? SessionDate { get; set; }
     public string? SessionTime { get; set; }
-
+    public string? Instrument { get; set; }
+    public string? InstrumentVersion { get; set; }
     public BarData() { }
     public BarData(BarData bar)
     {
@@ -33,6 +33,7 @@ public class BarData : IDatabaseEntity
         Timeframe = bar.Timeframe;
         Timestamp = bar.Timestamp;
         SessionDate = bar.SessionDate;
+        InstrumentVersion = bar.InstrumentVersion;
     }
     public virtual string ToLog()
     {
@@ -41,16 +42,23 @@ public class BarData : IDatabaseEntity
 
     public static BarData Aggregate(List<BarData> bars)
     {
+        if (bars.Count == 0)
+            throw new InvalidOperationException("No bars to aggregate");
+
         var ordered = bars.OrderBy(b => b.Timestamp).ToList();
+        var first = ordered.First();
+        var last = ordered.Last();
         return new BarData
         {
-            Timestamp = ordered.First().Timestamp,
-            SessionDate = ordered.First().SessionDate,
-            Open = ordered.First().Open,
-            Close = ordered.Last().Close,
+            Timestamp = first.Timestamp,
+            SessionDate = first.SessionDate,
+            Open = first.Open,
+            Close = last.Close,
             High = ordered.Max(x => x.High),
             Low = ordered.Min(x => x.Low),
-            Volume = ordered.Sum(x => x.Volume)
+            Volume = ordered.Sum(x => x.Volume),
+            InstrumentVersion = last.InstrumentVersion,
+            Instrument = last.Instrument,
         };
     }
 }

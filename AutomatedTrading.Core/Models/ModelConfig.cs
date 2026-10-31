@@ -14,7 +14,6 @@ public class ModelConfig : IDatabaseEntity
     public string TrainingStart { get; set; } = default!;
     public string TrainingEnd { get; set; } = default!;
     public string Target { get; set; } = default!;
-    public string BarType { get; set; } = default!;
     public string? WindowStart { get; set; }
     public string? WindowEnd { get; set; }
     public string FeatureLocation { get; set; } = default!;
@@ -22,4 +21,5 @@ public class ModelConfig : IDatabaseEntity
     public bool Export { get; set; }
     public bool Active { get; set; }
     public List<ModelFeature> ModelFeatures { get; set; } = [];
+    public ModelPerformance? ModelPerformance { get; set; }
 }

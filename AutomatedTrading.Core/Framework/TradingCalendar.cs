@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 
 namespace AutomatedTrading.Core.Framework;
 
@@ -32,6 +33,23 @@ public static class TradingCalendar
         return prev;
     }
 
+    public static bool IsTradingDay(string date)
+    {
+        if (date.Length == 8)
+        {
+            return IsTradingDay(DateTime.ParseExact(date, AppConstants.DATE_FORMAT, CultureInfo.InvariantCulture));
+        }
+        else if (date.Length == 6)
+        {
+            return IsTradingDay(DateTime.ParseExact(date, "yyMMdd", CultureInfo.InvariantCulture));
+        }
+        else if (date.Length == 4)
+        {
+            return IsTradingDay(DateTime.ParseExact(date, "MMdd", CultureInfo.InvariantCulture));
+        }
+        throw new InvalidCastException($"Bad date string: {date}");
+    }
+
     /// <summary>
     /// Returns true when <paramref name="date"/> is a weekday that is not a
     /// US market holiday.
@@ -42,6 +60,24 @@ public static class TradingCalendar
             return false;
 
         return !GetHolidaysForYear(date.Year).Contains(date.Date);
+    }
+
+    public static bool IsHolidayAdjacent(DateTime date)
+    {
+        var next = date.AddDays(1);
+        while (next.DayOfWeek == DayOfWeek.Saturday || next.DayOfWeek == DayOfWeek.Sunday)
+        {
+            next = next.AddDays(1);
+        }
+        var holidays = GetHolidaysForYear(date.Year);
+        if (holidays.Contains(next))
+            return true;
+        var prev = date.AddDays(-1);
+        while (prev.DayOfWeek == DayOfWeek.Saturday || prev.DayOfWeek == DayOfWeek.Sunday)
+        {
+            prev = prev.AddDays(-1);
+        }
+        return holidays.Contains(prev);
     }
 
     // ─── Holiday computation ──────────────────────────────────────────────────
@@ -96,14 +132,14 @@ public static class TradingCalendar
         holiday.DayOfWeek switch
         {
             DayOfWeek.Saturday => holiday.AddDays(-1),
-            DayOfWeek.Sunday   => holiday.AddDays(1),
-            _                  => holiday,
+            DayOfWeek.Sunday => holiday.AddDays(1),
+            _ => holiday,
         };
 
     /// <summary>Returns the nth occurrence of <paramref name="dow"/> in the given month.</summary>
     private static DateTime NthWeekday(int year, int month, DayOfWeek dow, int n)
     {
-        var first       = new DateTime(year, month, 1);
+        var first = new DateTime(year, month, 1);
         var daysToFirst = ((int)dow - (int)first.DayOfWeek + 7) % 7;
         return first.AddDays(daysToFirst + (n - 1) * 7);
     }
@@ -111,7 +147,7 @@ public static class TradingCalendar
     /// <summary>Returns the last occurrence of <paramref name="dow"/> in the given month.</summary>
     private static DateTime LastWeekday(int year, int month, DayOfWeek dow)
     {
-        var last     = new DateTime(year, month, DateTime.DaysInMonth(year, month));
+        var last = new DateTime(year, month, DateTime.DaysInMonth(year, month));
         var daysBack = ((int)last.DayOfWeek - (int)dow + 7) % 7;
         return last.AddDays(-daysBack);
     }
@@ -134,7 +170,7 @@ public static class TradingCalendar
         int l = (32 + 2 * e + 2 * i - h - k) % 7;
         int m = (a + 11 * h + 22 * l) / 451;
         int month = (h + l - 7 * m + 114) / 31;
-        int day   = (h + l - 7 * m + 114) % 31 + 1;
+        int day = (h + l - 7 * m + 114) % 31 + 1;
         return new DateTime(year, month, day);
     }
 }
