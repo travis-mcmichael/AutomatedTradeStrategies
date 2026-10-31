@@ -261,10 +261,8 @@
                         { title: 'Target', field: 'target' },
                         { title: 'Features', field: 'featureCount', hozAlign: 'right', mutator: (value, data) => data.modelFeatures?.length ?? 0 },
                         {
-                            title: 'Export Features', field: 'featuresExported', hozAlign: 'center', headerSort: false,
+                            title: 'Export Features', hozAlign: 'center', headerSort: false,
                             formatter: (cell) => {
-                                if (cell.getValue())
-                                    return "<i class='bi bi-check-lg text-success fs-5' title='features.csv is present'></i>";
                                 // Disabled buttons don't show tooltips, so the explanation goes on a wrapping span.
                                 const model = cell.getRow().getData();
                                 const reason = !(model.modelFeatures?.length) ? 'Add features (Edit > Edit Features) before exporting'
@@ -275,7 +273,7 @@
                                     : "<button type='button' class='btn btn-sm btn-outline-primary'>Export</button>";
                             },
                             cellClick: (e, cell) => {
-                                if (!cell.getValue() && e.target.closest('button:not([disabled])')) startFeatureExport(cell.getRow().getData());
+                                if (e.target.closest('button:not([disabled])')) startFeatureExport(cell.getRow().getData());
                             }
                         },
                         Defaults.grid.buildEditColumn('id', (data) => openModelEditor(data)),
