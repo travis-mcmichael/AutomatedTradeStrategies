@@ -1,5 +1,5 @@
+import argparse
 import os
-import requests
 import pandas as pd
 import numpy as np
 import xgboost as xgb
@@ -7,31 +7,12 @@ import joblib
 
 from datetime import datetime
 from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import (
-    mean_absolute_error, mean_squared_error, r2_score,
-    accuracy_score, roc_auc_score, precision_score, recall_score,
-)
-
-from api_config import MODELS_ENDPOINT
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
 # ==============================
 # Configuration
 # ==============================
 TODAY = datetime.today().strftime("%Y%m%d")
-
-_response = requests.get(MODELS_ENDPOINT)
-_response.raise_for_status()
-_models = _response.json()
-
-EXECUTION_CONFIGS = [
-    {
-        "name":              model["modelName"],
-        "csv":               os.path.join(model["featureLocation"], "features.csv"),
-        "is_classification": model["target"] == "CLASS",
-    }
-    for model in _models
-    if model["active"] and model["export"]
-]
 
 TRAIN_SPLIT = 0.70
 VAL_SPLIT   = 0.15   # remaining 15% = test
@@ -62,26 +43,10 @@ def evaluate_regression(model, split_name, X_data, y_data):
     print(f"  Less than .25x ATR under:   {quarter_atr_under:.2%}")
 
 
-def evaluate_classification(model, split_name, X_data, y_data):
-    preds = model.predict(X_data)
-    probs = model.predict_proba(X_data)[:, 1]
-
-    acc  = accuracy_score(y_data, preds)
-    auc  = roc_auc_score(y_data, probs)
-    prec = precision_score(y_data, preds, zero_division=0)
-    rec  = recall_score(y_data, preds, zero_division=0)
-
-    print(f"\n=== {split_name} ===")
-    print(f"  Accuracy:   {acc:.4f}")
-    print(f"  AUC:        {auc:.4f}")
-    print(f"  Precision:  {prec:.4f}")
-    print(f"  Recall:     {rec:.4f}")
-
-
 # ==============================
 # Train for one execution type
 # ==============================
-def train_model(name, csv_path, is_classification=False):
+def train_model(name, csv_path, target):
     output_dir    = os.path.join(os.path.dirname(csv_path), TODAY)
     os.makedirs(output_dir, exist_ok=True)
     model_output  = os.path.join(output_dir, "xgb_model.json")
@@ -89,6 +54,7 @@ def train_model(name, csv_path, is_classification=False):
 
     print(f"\n{'='*50}")
     print(f"  Training: {name}")
+    print(f"  Target:   {target}")
     print(f"  CSV:      {csv_path}")
     print(f"{'='*50}")
 
@@ -131,41 +97,22 @@ def train_model(name, csv_path, is_classification=False):
     X_val_scaled = scaler.transform(X_val)
     X_test_scaled = scaler.transform(X_test)
 
-    if is_classification:
-        print("\nTraining XGBoost Classifier (binary:logistic)...")
-        model = xgb.XGBClassifier(
-            n_estimators=400,
-            max_depth=4,
-            learning_rate=0.05,
-            subsample=0.8,
-            colsample_bytree=0.7,
-            gamma=0,
-            reg_alpha=1,
-            reg_lambda=5,
-            tree_method="hist",
-            objective="binary:logistic",
-            eval_metric="logloss",
-            early_stopping_rounds=50,
-            n_jobs=-1,
-            random_state=42,
-        )
-    else:
-        print("\nTraining XGBoost Regressor...")
-        model = xgb.XGBRegressor(
-            n_estimators=400,
-            max_depth=2,
-            learning_rate=0.05,
-            subsample=0.8,
-            colsample_bytree=0.7,
-            gamma=0,
-            reg_alpha=1,
-            reg_lambda=10,
-            tree_method="hist",
-            objective="reg:squarederror",
-            early_stopping_rounds=50,
-            n_jobs=-1,
-            random_state=42,
-        )
+    print("\nTraining XGBoost Regressor...")
+    model = xgb.XGBRegressor(
+        n_estimators=400,
+        max_depth=2,
+        learning_rate=0.05,
+        subsample=0.8,
+        colsample_bytree=0.7,
+        gamma=0,
+        reg_alpha=1,
+        reg_lambda=10,
+        tree_method="hist",
+        objective="reg:squarederror",
+        early_stopping_rounds=50,
+        n_jobs=-1,
+        random_state=42,
+    )
 
     model.fit(
         X_train_scaled,
@@ -177,10 +124,9 @@ def train_model(name, csv_path, is_classification=False):
     print(f"\nBest iteration: {model.best_iteration}  |  Best val score: {model.best_score:.6f}")
 
     # Evaluate
-    _evaluate = evaluate_classification if is_classification else evaluate_regression
-    _evaluate(model, "Train",      X_train_scaled, y_train)
-    _evaluate(model, "Validation", X_val_scaled,   y_val)
-    _evaluate(model, "Test",       X_test_scaled,  y_test)
+    evaluate_regression(model, "Train",      X_train_scaled, y_train)
+    evaluate_regression(model, "Validation", X_val_scaled,   y_val)
+    evaluate_regression(model, "Test",       X_test_scaled,  y_test)
 
     # Feature Importance
     feature_names = df.columns[:-1]
@@ -203,10 +149,19 @@ def train_model(name, csv_path, is_classification=False):
 # ==============================
 # Main
 # ==============================
-for config in EXECUTION_CONFIGS:
-    if not os.path.isfile(config["csv"]):
-        print(f"\nSkipping '{config['name']}': {config['csv']} not found.")
-        continue
-    train_model(config["name"], config["csv"], config["is_classification"])
+def parse_args():
+    parser = argparse.ArgumentParser(description="Train an XGBoost model from a features CSV and save the model and scaler.")
+    parser.add_argument("--name", required=True, help="Model name, shown in the output.")
+    parser.add_argument("--csv", required=True, help="Path to features.csv. The last column is the target.")
+    parser.add_argument("--target", required=True, choices=["HIGH", "LOW"], help="Model target.")
+    return parser.parse_args()
 
-print("\nDone.")
+
+if __name__ == "__main__":
+    args = parse_args()
+    if not os.path.isfile(args.csv):
+        raise SystemExit(f"Cannot train '{args.name}': {args.csv} not found.")
+
+    train_model(args.name, args.csv, args.target)
+
+    print("\nDone.")

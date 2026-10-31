@@ -53,10 +53,6 @@ public static class FeatureComputations
         var aggregatedContext = source.Contains("day", StringComparison.CurrentCultureIgnoreCase) ? contextBars.Last() : BarData.Aggregate(contextBars);
         var currentPrice = ctx.MinuteBars[ctx.SessionDate].Last().Close;
 
-        //var current = ctx.Sequence[ctx.J]; // bar to be evaluated (if only evaluating one)
-        //var evaluationBars = ctx.Sequence; // bar to be evaluated + previous bar evaluation history
-        // these should never be used with BarData.Aggregate() - this step has already been performed
-
         switch (feature.FeatureType?.Name)
         {
             case "Atr":
