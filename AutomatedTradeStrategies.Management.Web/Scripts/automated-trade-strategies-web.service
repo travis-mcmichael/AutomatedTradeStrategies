@@ -1,0 +1,22 @@
+# Install once on the server (deploy.sh only restarts this service, it doesn't create it):
+#   sudo cp automated-trade-strategies-web.service /etc/systemd/system/automated-trade-strategies-web.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now automated-trade-strategies-web
+
+[Unit]
+Description=Automated Trade Strategies Web Application
+After=network.target
+
+[Service]
+WorkingDirectory=/var/www/automated-trade-strategies-web
+ExecStart=/usr/bin/dotnet /var/www/automated-trade-strategies-web/AutomatedTradeStrategies.Management.Web.dll
+Restart=always
+RestartSec=10
+KillSignal=SIGINT
+SyslogIdentifier=automated-trade-strategies-web
+User=www-data
+Environment=ASPNETCORE_ENVIRONMENT=Production
+Environment=ASPNETCORE_URLS=http://127.0.0.1:5000
+
+[Install]
+WantedBy=multi-user.target
