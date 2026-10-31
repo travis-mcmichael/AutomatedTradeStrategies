@@ -1,4 +1,3 @@
-
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -52,7 +51,7 @@ public class FeatureExporter
         // collect the minute bars by session date
         await GetBarsBySession(start, end, minuteBarsBySession!);
 
-        if (!minuteBarsBySession.Any()) return 0;
+        if (minuteBarsBySession.Count == 0) return 0;
 
         // get keys in order by date
         var orderedSessions = minuteBarsBySession.Keys.OrderByDescending(x => x).ToList();
@@ -63,7 +62,7 @@ public class FeatureExporter
         // we loop backwards through session dates and adjust all session dates beyond each changeover by the gap between the two versions' open values.
         // This is to prevent odd price jumps when switching between versions of an instrument.
         var changeovers = await _getChangeovers.Execute(_model.Instrument, start, end);
-        if (changeovers.Any())
+        if (changeovers.Count > 0)
         {
             HandleChangeoverAdjustment(changeovers, orderedSessions, minuteBarsBySession);
         }
@@ -75,9 +74,10 @@ public class FeatureExporter
         using var writer = new StreamWriter(_outputPath);
         try
         {
-            var header = string.Join(",", _model.ModelFeatures.Select(columnName));
-            await writer.WriteLineAsync(header + "," + targetColumnName());
-            rowsWritten = await buildFeatures(minuteBarsBySession, sessionDates, rowsWritten, writer);
+            //var header = "SessionDate, SessionTime, Open, High, Low, Close, Volume," + string.Join(",", _model.ModelFeatures.Select(ColumnName));
+            var header = string.Join(",", _model.ModelFeatures.Select(ColumnName));
+            await writer.WriteLineAsync(header + "," + TargetColumnName());
+            rowsWritten = await BuildFeatures(minuteBarsBySession, sessionDates, rowsWritten, writer);
         }
         catch (Exception ex)
         {
@@ -92,7 +92,7 @@ public class FeatureExporter
     // Produces a unique column name for each feature, appending sorted param values
     // when present so that e.g. Return(lookback=1) → "Return_1" and
     // SmaRatio(fast=5,slow=20) → "SmaRatio_5_20".
-    private static string columnName(ModelFeature feature)
+    private static string ColumnName(ModelFeature feature)
     {
         if (feature.ModelFeatureParams is null || feature.ModelFeatureParams.Count() == 0)
             return feature.FeatureType?.Name ?? "";
@@ -101,7 +101,7 @@ public class FeatureExporter
         return $"{feature.FeatureType?.Name}_{suffix}";
     }
 
-    private double getTarget(BarData barData, double atr)
+    private double GetTarget(BarData barData, double atr)
     {
         switch (_model.Target)
         {
@@ -113,7 +113,7 @@ public class FeatureExporter
         return 0;
     }
 
-    private string targetColumnName() => _model.Target;
+    private string TargetColumnName() => _model.Target;
 
     // Handles both straight windows (e.g. 08:30–16:00) and cross-midnight windows
     // (e.g. 17:00–08:30) where start > end.
@@ -121,7 +121,7 @@ public class FeatureExporter
         start <= end ? time >= start && time < end
                      : time >= start || time < end;
 
-    private async Task<int> buildFeatures(Dictionary<string, List<BarData>> minuteBarsBySession,
+    private async Task<int> BuildFeatures(Dictionary<string, List<BarData>> minuteBarsBySession,
         List<string> sessionDates,
         int written,
         StreamWriter writer)
@@ -136,7 +136,6 @@ public class FeatureExporter
             foreach (var date in sessionDates)
             {
                 if (!minuteBarsBySession.ContainsKey(date)) continue;
-                if (!TradingCalendar.IsTradingDay(date)) continue;
                 var windowBars = minuteBarsBySession[date].Where(bar => InWindow(int.Parse(bar.SessionTime!), start, end)).ToList();
                 if (windowBars.Count > 0)
                     days.Add((date, BarData.Aggregate(windowBars)));
@@ -149,15 +148,20 @@ public class FeatureExporter
         }
 
         if (days.Count == 0 || days.Count < MinLookback) return written;
+        // for (var i = 0; i < MinLookback; i++)
+        // {
+        //     var (date, bar) = days[i];
+        //     await writer.WriteLineAsync($"{bar.SessionDate},{bar.SessionTime},{bar.Open},{bar.High},{bar.Low},{bar.Close},{bar.Volume}");
+        // }
         for (var i = MinLookback; i < days.Count; i++)
         {
             var (date, bar) = days[i];
 
             // ATR as of this row: the MinLookback true ranges ending at this row's bar (needs MinLookback + 1 bars).
-            var atr20 = Computations.ATR(days.GetRange(i - MinLookback, MinLookback + 1).Select(d => d.Bar).ToList(), MinLookback);
+            var atr20 = Computations.ATR([.. days.GetRange(i - MinLookback, MinLookback + 1).Select(d => d.Bar)], MinLookback);
             if (double.IsNaN(atr20) || atr20 == 0) continue;
 
-            var target = getTarget(bar, atr20);
+            var target = GetTarget(bar, atr20);
             var featureValues = FeatureComputations.ParseFeatures(
                _model.ModelFeatures,
                new FeatureContext
@@ -168,6 +172,7 @@ public class FeatureExporter
                ));
             if (featureValues != null)
             {
+                //await writer.WriteLineAsync($"{bar.SessionDate},{bar.SessionTime},{bar.Open},{bar.High},{bar.Low},{bar.Close},{bar.Volume},{string.Join(",", featureValues.Select(f => f.ToString("G6")))},{target:G6}");
                 await writer.WriteLineAsync($"{string.Join(",", featureValues.Select(f => f.ToString("G6")))},{target:G6}");
                 written++;
             }
@@ -181,7 +186,7 @@ public class FeatureExporter
     {
         await _streamBars.ExecuteAsync(_model.Instrument, start, end, bar =>
         {
-            if (bar.SessionDate == null) return Task.CompletedTask;
+            if (bar.SessionDate == null || !TradingCalendar.IsTradingDay(bar.SessionDate)) return Task.CompletedTask;
             if (!minuteBarsBySession.TryGetValue(bar.SessionDate, out var list))
             {
                 list = [];

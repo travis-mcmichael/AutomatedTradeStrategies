@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Data;
 using System.Linq;
 using AutomatedTrading.Core.Models;
 
@@ -18,7 +17,7 @@ public class Computations
     {
         var last = bars.Count - 1;
         if (bars.Count <= lookback) return double.NaN;
-        return Math.Log(bars[last].Close / bars[last - lookback].Close);
+        return Math.Log(bars[last].Close / bars[last - lookback].Open);
     }
 
     public static int ConsecutiveUp(List<BarData> bars)
@@ -348,22 +347,6 @@ public class Computations
         var low = ordered.Min(b => b.Low);
         var lowBarIndex = ordered.IndexOf(ordered.First(b => b.Low == low)!);
         return ordered.Count > 1 ? (double)lowBarIndex / (ordered.Count - 1) : double.NaN;
-    }
-
-    /// <summary>
-    /// How far the session's high rose above its opening price (the first bar's open), in ATR units.
-    /// </summary>
-    public static double HighOpenDiff(BarData source, BarData diff, double atr)
-    {
-        return Operations.SafeDiv(source.High - diff.Open, atr);
-    }
-
-    /// <summary>
-    /// How far the session's low fell below its opening price (the first bar's open), in ATR units, as a positive number.
-    /// </summary>
-    public static double OpenLowDiff(BarData source, BarData diff, double atr)
-    {
-        return Operations.SafeDiv(source.Open - diff.Low, atr);
     }
 
     #endregion

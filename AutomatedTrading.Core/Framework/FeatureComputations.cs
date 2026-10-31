@@ -40,64 +40,17 @@ public static class FeatureComputations
             if (param.FeatureTypeParam != null)
                 p.Add(param.FeatureTypeParam.ParameterKey, param.ParamValue);
         }
-        var source = feature.Source;
-        var contextBars = new List<BarData>(); // bars to be used for context for evaluation.  
-        // Context bars contains all the data for the model's date range, including bars from outside
-        // the model's config window, in raw 1-minute format. 
-
         // get the correct context date to build context bars
         var contextDate = GetContextDate(sessionDate, p);
-
-        var hasWindow = p.TryGetValue("start", out var start);
-        hasWindow = p.TryGetValue("end", out var end) && hasWindow;
-
-        // set the context bars to the correct range
-        switch (source)
-        {
-            case "windowMinute":
-                if (!hasWindow)
-                    throw new InvalidOperationException("Missing window feature parameters");
-
-                var windowBars = ctx.MinuteBars[contextDate.ToString(AppConstants.DATE_FORMAT)]
-                    .Where(x =>
-                        new TradeWindow() { WindowStart = start, WindowEnd = end }
-                        .InWindow(int.Parse(x.SessionTime)))
-                    .OrderBy(x => x.Timestamp)
-                    .ToList();
-                contextBars.AddRange(windowBars);
-                break;
-            case "windowDay":
-                if (!hasWindow)
-                    throw new InvalidOperationException("Missing window feature parameters");
-                var windows = ctx.MinuteBars.Keys
-                    .Where(x => int.Parse(x) <= int.Parse(contextDate.ToString(AppConstants.DATE_FORMAT)))
-                    .Order()
-                    .ToList();
-                foreach (var session in windows)
-                {
-                    contextBars.Add(BarData.Aggregate([.. ctx.MinuteBars[session]
-                        .Where(x =>
-                            new TradeWindow() { WindowStart = start, WindowEnd = end }
-                                .InWindow(int.Parse(x.SessionTime)))]));
-                }
-                break;
-            case "sessionDay":
-                var sessions = ctx.MinuteBars.Keys
-                    .Where(x => int.Parse(x) <= int.Parse(contextDate.ToString(AppConstants.DATE_FORMAT)))
-                    .Order()
-                    .ToList();
-                foreach (var session in sessions)
-                {
-                    contextBars.Add(BarData.Aggregate([.. ctx.MinuteBars[session]]));
-                }
-                break;
-            default:
-                contextBars.AddRange([.. ctx.MinuteBars[contextDate.ToString(AppConstants.DATE_FORMAT)].OrderBy(x => x.Timestamp)]);
-                break;
-        }
+        var source = feature.Source ?? "sessionMinute";
+        // bars to be used for context for evaluation.  
+        // Context bars contains all the data for the model's date range, including bars from outside
+        // the model's config window, in raw 1-minute format. 
+        var contextBars = BuildContextSegment(contextDate, source, ctx, p);
 
         var last = contextBars.Count - 1;
-        var aggregatedContext = source.ToLower().Contains("day") ? contextBars.Last() : BarData.Aggregate(contextBars);
+        if (last == -1) return double.NaN;
+        var aggregatedContext = source.Contains("day", StringComparison.CurrentCultureIgnoreCase) ? contextBars.Last() : BarData.Aggregate(contextBars);
 
         //var current = ctx.Sequence[ctx.J]; // bar to be evaluated (if only evaluating one)
         //var evaluationBars = ctx.Sequence; // bar to be evaluated + previous bar evaluation history
@@ -113,7 +66,7 @@ public static class FeatureComputations
                     BarData.Aggregate(contextBars).Open);
             case "AtrRatio":
                 return Operations.SafeDiv(
-                    Computations.ATR(contextBars, p!["short"]),
+                    Computations.ATR(contextBars, p["short"]),
                     Computations.ATR(contextBars, p["long"]));
             case "AvgBodyRatio":
                 return Computations.AverageBodyRatio(contextBars, p["lookback"], ctx.ATR);
@@ -125,6 +78,10 @@ public static class FeatureComputations
                     Computations.Range(aggregatedContext, ctx.ATR));
             case "BodySize":
                 return Computations.BodySize(aggregatedContext, ctx.ATR);
+            case "CloseLowDiff":
+                return Operations.SafeDiv(
+                    aggregatedContext.Close - aggregatedContext.Low,
+                    ctx.ATR);
             case "CloseOpenDiff":
                 return Operations.SafeDiv(
                     aggregatedContext.Close - aggregatedContext.Open,
@@ -134,17 +91,17 @@ public static class FeatureComputations
             case "ClosePrevCloseDiff":
                 if (contextBars.Count < 2) return double.NaN;
                 return Operations.SafeDiv(
-                    contextBars[contextBars.Count - 1].Close - contextBars[contextBars.Count - 2].Close,
+                    contextBars[last].Close - contextBars[last - 1].Close,
                     ctx.ATR);
             case "ClosePrevHighDiff":
                 if (contextBars.Count < 2) return double.NaN;
                 return Operations.SafeDiv(
-                    contextBars[contextBars.Count - 1].Close - contextBars[contextBars.Count - 2].High,
+                    contextBars[last].Close - contextBars[last - 1].High,
                     ctx.ATR);
             case "ClosePrevLowDiff":
                 if (contextBars.Count < 2) return double.NaN;
                 return Operations.SafeDiv(
-                    contextBars[contextBars.Count - 1].Close - contextBars[contextBars.Count - 2].Low,
+                    contextBars[last].Close - contextBars[last - 1].Low,
                     ctx.ATR);
             case "CloseSmaDiff":
                 return Operations.SafeDiv(
@@ -155,9 +112,9 @@ public static class FeatureComputations
             case "ConsecutiveUp":
                 return Computations.ConsecutiveUp(contextBars);
             case "DayOfWeek":
-                return (int)DateTime.ParseExact(ctx.SessionDate, AppConstants.DATE_FORMAT, null).DayOfWeek;
+                return (int)sessionDate.DayOfWeek;
             case "DayOfMonth":
-                return DateTime.ParseExact(ctx.SessionDate, AppConstants.DATE_FORMAT, null).Day;
+                return sessionDate.Day;
             case "DownCount":
                 return contextBars.Count(x => x.Open > x.Close);
             case "DownVolume":
@@ -170,8 +127,13 @@ public static class FeatureComputations
                 return contextBars.Count(x => x.Open > x.Close) / contextBars.Count;
             case "HighOpenDiff":
                 return Operations.SafeDiv(
-                    contextBars[last].High - aggregatedContext.Open,
+                    aggregatedContext.High - aggregatedContext.Open,
                     ctx.ATR);
+            case "HighCloseDiff":
+                return Operations.SafeDiv(
+                    aggregatedContext.High - aggregatedContext.Close,
+                    ctx.ATR
+                );
             case "HighTimeRatio":
                 return Computations.HighTimeRatio(contextBars);
             case "HolidayAdjacent":
@@ -186,10 +148,10 @@ public static class FeatureComputations
                     Computations.Range(aggregatedContext, ctx.ATR));
             case "MomentumRatio":
                 return Operations.SafeDiv(
-                    Computations.Momentum(contextBars, p!["short"]),
-                    Computations.Momentum(contextBars, p!["long"]));
+                    Computations.Momentum(contextBars, p["short"]),
+                    Computations.Momentum(contextBars, p["long"]));
             case "Month":
-                return DateTime.ParseExact(ctx.SessionDate, AppConstants.DATE_FORMAT, null).Month;
+                return sessionDate.Month;
             case "MovementTrendEfficiency":
                 return Operations.SafeDiv(
                     Math.Abs(aggregatedContext.Open - aggregatedContext.Close),
@@ -209,7 +171,7 @@ public static class FeatureComputations
             case "OpenSmaRatio":
                 return Operations.SafeDiv(
                     contextBars[last].Open,
-                    Computations.SMA(contextBars, p!["lookback"], x => x.Close));
+                    Computations.SMA(contextBars, p["lookback"], x => x.Close));
             case "PrevCloseOpenDiff":
                 if (contextBars.Count < 2) return double.NaN;
                 return contextBars[last - 1].Close - contextBars[last].Open;
@@ -232,14 +194,14 @@ public static class FeatureComputations
             case "RealizedVolatility":
                 return Computations.RealizedVolatility(contextBars, p["lookback"]);
             case "Return":
-                return Computations.Return(contextBars, p!["lookback"]);
+                return Computations.Return(contextBars, p["lookback"]);
             case "Rsi":
-                return Computations.RSI(contextBars, p!["lookback"]);
+                return Computations.RSI(contextBars, p["lookback"]);
             case "Sma":
-                return Computations.SMA(contextBars, p!["lookback"], x => x.Close);
+                return Computations.SMA(contextBars, p["lookback"], x => x.Close);
             case "SmaRatio":
                 return Operations.SafeDiv(
-                    Computations.SMA(contextBars, p!["short"], x => x.Close),
+                    Computations.SMA(contextBars, p["short"], x => x.Close),
                     Computations.SMA(contextBars, p["long"], x => x.Close));
             case "UpCount":
                 return contextBars.Count(x => x.Close > x.Open);
@@ -271,11 +233,11 @@ public static class FeatureComputations
                     contextBars.Skip(contextBars.Count - p["short"]).ToList().Sum(x => x.Volume),
                     contextBars.Skip(contextBars.Count - p["long"]).ToList().Sum(x => x.Volume));
             case "VolumeSma":
-                return Computations.SMA(contextBars, p!["lookback"], x => x.Volume);
+                return Computations.SMA(contextBars, p["lookback"], x => x.Volume);
             case "VolumeTrend":
-                return Computations.VolumeTrend(contextBars, p!["lookback"]);
+                return Computations.VolumeTrend(contextBars, p["lookback"]);
             case "VolumeZScore":
-                return Computations.VolumeZScore(contextBars, p!["lookback"]);
+                return Computations.VolumeZScore(contextBars, p["lookback"]);
             default:
                 throw new ArgumentException($"Unknown/null feature name: '{feature?.FeatureType?.Name}'");
         }
@@ -326,5 +288,66 @@ public static class FeatureComputations
             }
         }
         return prevDate;
+    }
+
+    private static List<BarData> BuildContextSegment(DateTime contextDate, string source, FeatureContext ctx, Dictionary<string, int> p)
+    {
+        // var source = feature.Source;
+        var contextBars = new List<BarData>(); // bars to be used for context for evaluation.  
+        // Context bars contains all the data for the model's date range, including bars from outside
+        // the model's config window, in raw 1-minute format. 
+        var hasWindow = p.TryGetValue("start", out var start);
+        hasWindow = p.TryGetValue("end", out var end) && hasWindow;
+        try
+        {
+            // set the context bars to the correct range
+            switch (source)
+            {
+                case "windowMinute":
+                    if (!hasWindow)
+                        throw new InvalidOperationException("Missing window feature parameters");
+                    var windowBars = ctx.MinuteBars[contextDate.ToString(AppConstants.DATE_FORMAT)]
+                        .Where(x =>
+                            new TradeWindow() { WindowStart = start, WindowEnd = end }
+                            .InWindow(int.Parse(x.SessionTime)))
+                        .OrderBy(x => x.Timestamp)
+                        .ToList();
+                    contextBars.AddRange(windowBars);
+                    break;
+                case "windowDay":
+                    if (!hasWindow)
+                        throw new InvalidOperationException("Missing window feature parameters");
+                    var windows = ctx.MinuteBars.Keys
+                        .Where(x => int.Parse(x) <= int.Parse(contextDate.ToString(AppConstants.DATE_FORMAT)))
+                        .OrderBy(x => x)
+                        .ToList();
+                    foreach (var session in windows)
+                    {
+                        var sessionBars = ctx.MinuteBars[session].Where(x => new TradeWindow() { WindowStart = start, WindowEnd = end }.InWindow(int.Parse(x.SessionTime))).ToList();
+                        if (sessionBars.Count == 0) continue;
+                        contextBars.Add(BarData.Aggregate(sessionBars));
+                    }
+                    break;
+                case "sessionDay":
+                    var sessions = ctx.MinuteBars.Keys
+                        .Where(x => int.Parse(x) <= int.Parse(contextDate.ToString(AppConstants.DATE_FORMAT)))
+                        .OrderBy(x => x)
+                        .ToList();
+                    foreach (var session in sessions)
+                    {
+                        contextBars.Add(BarData.Aggregate([.. ctx.MinuteBars[session]]));
+                    }
+                    break;
+                default:
+                    contextBars.AddRange([.. ctx.MinuteBars[contextDate.ToString(AppConstants.DATE_FORMAT)].OrderBy(x => x.Timestamp)]);
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            throw;
+        }
+
+        return contextBars;
     }
 }
