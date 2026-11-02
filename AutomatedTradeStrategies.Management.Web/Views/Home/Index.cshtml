@@ -204,6 +204,32 @@
                 </div>
             </div>
 
+            <div class="modal fade" id="train-modal" tabindex="-1" aria-labelledby="train-title" aria-hidden="true">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="train-title">Train Model</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div id="train-running" class="d-flex align-items-center gap-3">
+                                <div class="spinner-border text-primary flex-shrink-0" role="status" aria-hidden="true"></div>
+                                <div>
+                                    <div id="train-message"></div>
+                                    <div class="small text-muted">Elapsed: <span id="train-elapsed">0:00</span></div>
+                                </div>
+                            </div>
+                            <div id="train-result" class="alert mb-0 d-none" role="alert"></div>
+                            <pre id="train-output" class="small bg-body-tertiary border rounded p-2 mt-3 mb-0" style="max-height: 320px; overflow: auto; white-space: pre-wrap;"></pre>
+                            <div class="small text-muted mt-3" id="train-note">You can close this window; training keeps running.</div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="modal fade" id="export-modal" tabindex="-1" aria-labelledby="export-title" aria-hidden="true">
                 <div class="modal-dialog">
                     <div class="modal-content">
@@ -274,6 +300,19 @@
                             },
                             cellClick: (e, cell) => {
                                 if (e.target.closest('button:not([disabled])')) startFeatureExport(cell.getRow().getData());
+                            }
+                        },
+                        {
+                            title: 'Train', hozAlign: 'center', headerSort: false,
+                            formatter: (cell) => {
+                                // Disabled buttons don't show tooltips, so the explanation goes on a wrapping span.
+                                const model = cell.getRow().getData();
+                                return model.version
+                                    ? "<button type='button' class='btn btn-sm btn-outline-primary'>Train</button>"
+                                    : "<span class='d-inline-block' tabindex='0' title='Export the features first (Export Features)'><button type='button' class='btn btn-sm btn-outline-primary' disabled style='pointer-events: none;'>Train</button></span>";
+                            },
+                            cellClick: (e, cell) => {
+                                if (e.target.closest('button:not([disabled])')) startTraining(cell.getRow().getData());
                             }
                         },
                         Defaults.grid.buildEditColumn('id', (data) => openModelEditor(data)),
@@ -823,6 +862,74 @@
                         exportResult.textContent = succeeded
                             ? `features.csv was generated successfully. ${status.message}`
                             : `Export failed: ${status.message}`;
+                    }
+
+                    const trainModalEl = document.getElementById('train-modal');
+                    const trainModal = new bootstrap.Modal(trainModalEl);
+                    const trainRunning = document.getElementById('train-running');
+                    const trainMessage = document.getElementById('train-message');
+                    const trainElapsed = document.getElementById('train-elapsed');
+                    const trainResult = document.getElementById('train-result');
+                    const trainOutput = document.getElementById('train-output');
+                    const trainNote = document.getElementById('train-note');
+                    const TRAIN_POLL_MS = 2000;
+                    let trainPollTimer = null;
+
+                    // Polling stops when the popup closes; training carries on server-side, and clicking Train again
+                    // for the same model reattaches to the running job.
+                    trainModalEl.addEventListener('hidden.bs.modal', () => clearTimeout(trainPollTimer));
+
+                    async function startTraining(model) {
+                        clearTimeout(trainPollTimer);
+                        document.getElementById('train-title').textContent = `Train Model: ${model.modelName}`;
+                        showTrainStatus({ state: 'Running', message: 'Starting training...', output: [] });
+                        trainModal.show();
+
+                        try {
+                            const res = await fetch(`/Home/TrainModel/${model.id}`, { method: 'POST' });
+                            if (!res.ok) throw new Error((await res.text()) || `request failed with status ${res.status}`);
+                            await handleTrainStatus(model.id, await res.json());
+                        } catch (err) {
+                            showTrainStatus({ state: 'Failed', message: err.message, output: [] });
+                        }
+                    }
+
+                    async function pollTraining(modelId) {
+                        try {
+                            const res = await fetch(`/Home/TrainModelStatus/${modelId}`);
+                            if (!res.ok) throw new Error((await res.text()) || `request failed with status ${res.status}`);
+                            await handleTrainStatus(modelId, await res.json());
+                        } catch (err) {
+                            showTrainStatus({ state: 'Failed', message: err.message, output: [] });
+                        }
+                    }
+
+                    async function handleTrainStatus(modelId, status) {
+                        showTrainStatus(status);
+                        if (status.state === 'Running') {
+                            trainPollTimer = setTimeout(() => pollTraining(modelId), TRAIN_POLL_MS);
+                        }
+                    }
+
+                    function showTrainStatus(status) {
+                        const running = status.state === 'Running';
+                        trainRunning.classList.toggle('d-none', !running);
+                        trainNote.classList.toggle('d-none', !running);
+                        trainResult.classList.toggle('d-none', running);
+                        trainOutput.textContent = (status.output ?? []).join('\n');
+                        trainOutput.scrollTop = trainOutput.scrollHeight;
+
+                        if (running) {
+                            trainMessage.textContent = status.message;
+                            const seconds = status.startedAt ? Math.max(0, Math.floor((Date.now() - new Date(status.startedAt)) / 1000)) : 0;
+                            trainElapsed.textContent = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+                            return;
+                        }
+
+                        const succeeded = status.state === 'Succeeded';
+                        trainResult.classList.toggle('alert-success', succeeded);
+                        trainResult.classList.toggle('alert-danger', !succeeded);
+                        trainResult.textContent = succeeded ? status.message : `Training failed: ${status.message}`;
                     }
 
                     const barDataColumns = [

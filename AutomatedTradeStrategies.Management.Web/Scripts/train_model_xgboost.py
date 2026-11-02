@@ -46,8 +46,8 @@ def evaluate_regression(model, split_name, X_data, y_data):
 # ==============================
 # Train for one execution type
 # ==============================
-def train_model(name, csv_path, target):
-    output_dir    = os.path.join(os.path.dirname(csv_path), TODAY)
+def train_model(name, csv_path, target, version):
+    output_dir    = os.path.join(os.path.dirname(csv_path), version)
     os.makedirs(output_dir, exist_ok=True)
     model_output  = os.path.join(output_dir, "xgb_model.json")
     scaler_output = os.path.join(output_dir, "scaler.pkl")
@@ -154,6 +154,7 @@ def parse_args():
     parser.add_argument("--name", required=True, help="Model name, shown in the output.")
     parser.add_argument("--csv", required=True, help="Path to features.csv. The last column is the target.")
     parser.add_argument("--target", required=True, choices=["HIGH", "LOW"], help="Model target.")
+    parser.add_argument("--version", default=TODAY, help="Version folder to write the model to. Defaults to today (yyyyMMdd).")
     return parser.parse_args()
 
 
@@ -162,6 +163,6 @@ if __name__ == "__main__":
     if not os.path.isfile(args.csv):
         raise SystemExit(f"Cannot train '{args.name}': {args.csv} not found.")
 
-    train_model(args.name, args.csv, args.target)
+    train_model(args.name, args.csv, args.target, args.version)
 
     print("\nDone.")

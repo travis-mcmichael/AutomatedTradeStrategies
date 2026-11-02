@@ -17,6 +17,8 @@ SyslogIdentifier=automated-trade-strategies-web
 User=www-data
 Environment=ASPNETCORE_ENVIRONMENT=Production
 Environment=ASPNETCORE_URLS=http://127.0.0.1:5000
+# Virtualenv that mlpipeline.sh activates for training. The directory, not its bin/activate file.
+Environment=ONNX_VENV=/opt/venv/onnx-venv
 
 [Install]
 WantedBy=multi-user.target

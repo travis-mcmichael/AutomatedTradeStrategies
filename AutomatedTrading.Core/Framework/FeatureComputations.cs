@@ -120,8 +120,8 @@ public static class FeatureComputations
                     ctx.ATR);
             case "CurrentPrevLowDiff":
                 return Operations.SafeDiv(
-                currentPrice - aggregatedContext.Low,
-                ctx.ATR);
+                    currentPrice - aggregatedContext.Low,
+                    ctx.ATR);
             case "CurrentPrevOpenDiff":
                 return Operations.SafeDiv(
                     currentPrice - aggregatedContext.Open,

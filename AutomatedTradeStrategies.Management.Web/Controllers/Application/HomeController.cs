@@ -22,6 +22,7 @@ public class HomeController(
     ReplaceModelFeatureParams replaceModelFeatureParams,
     DeleteModelConfig deleteModelConfig,
     FeatureExportJobs featureExportJobs,
+    TrainingJobs trainingJobs,
     GetBarDataCountsByDate barDataCountsByDate,
     GetBarsByInstrumentSession barsByInstrumentSession,
     GetVersionChangeovers versionChangeovers,
@@ -143,6 +144,30 @@ public class HomeController(
     {
         var status = featureExportJobs.GetStatus(id);
         return status is null ? NotFound($"No feature export has been started for model {id}.") : Ok(status);
+    }
+
+    // Starts Scripts/mlpipeline.sh for the model (or returns the training already running). Training reads the
+    // features exported for the model's Version, so the model needs a Version first.
+    [HttpPost]
+    public async Task<IActionResult> TrainModel(long id)
+    {
+        if (id <= 0)
+            return BadRequest("A model Id is required.");
+        var model = (await allModelConfigs.Execute()).FirstOrDefault(m => m.Id == id);
+        if (model is null)
+            return NotFound($"Model {id} was not found.");
+        if (string.IsNullOrWhiteSpace(model.Version))
+            return BadRequest("Export the features for this model before training it.");
+        if (featureExportJobs.GetStatus(id)?.State == FeatureExportState.Running)
+            return Conflict("This model's features are being exported. Wait for the export to finish before training it.");
+
+        return Ok(trainingJobs.Start(model));
+    }
+
+    public IActionResult TrainModelStatus(long id)
+    {
+        var status = trainingJobs.GetStatus(id);
+        return status is null ? NotFound($"No training has been started for model {id}.") : Ok(status);
     }
 
     public async Task<IActionResult> FeatureTypes()

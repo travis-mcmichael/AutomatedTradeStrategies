@@ -42,7 +42,7 @@ CSV="$FEATURE_DIR/features.csv"
 MODEL_OUT="$FEATURE_DIR/$MODEL_DATE"   # dated folder that training and export write to
 API_DEST="$OUTPUT_BASE/$NAME/$MODEL_DATE"
 
-source "${ONNX_VENV:-/home/superuser/onnx-env}/bin/activate"
+source "${ONNX_VENV:-/opt/venv/onnx-env}/bin/activate"
 
 # ==============================
 # Step 1: Check features
