@@ -40,17 +40,18 @@ public class DefaultUpdateCommand<T>(IDbConnectionFactory connectionFactory, ILo
         var setProps = values.GetType().GetProperties();
         var whereProps = where.GetType().GetProperties();
 
-        if (setProps.Length is 0 || whereProps.Length is 0)
+        if (setProps.Length is 0)
         {
             logger.LogWarning($"UPDATE for {entity.TableName} exited: SET or WHERE empty");
             return 0;
         }
 
         var setClause = string.Join(", ", setProps.Select(p => $"{p.Name} = @{p.Name}"));
-        var whereClause = string.Join(" AND ", whereProps.Select(p => $"{p.Name} = @where_{p.Name}"));
+        var whereClause = whereProps.Length > 0 ?
+            " WHERE " + string.Join(" AND ", whereProps.Select(p => $"{p.Name} = @where_{p.Name}")) : "";
         var table = SqlHelper.GetTableName(entity);
 
-        var sql = $"UPDATE {table} SET {setClause} WHERE {whereClause}";
+        var sql = $"UPDATE {table} SET {setClause} {whereClause}";
 
         logger.LogInformation($"UPDATE for {table} sql: {sql}");
 

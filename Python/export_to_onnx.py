@@ -1,44 +1,23 @@
+import argparse
 import os
 import json
-import requests
 import xgboost as xgb
 import onnx
 import joblib
-from datetime import datetime
 from onnxmltools import convert_xgboost
 from onnxmltools.convert.common.data_types import FloatTensorType
 
-from api_config import MODELS_ENDPOINT
 
 # ==============================
-# Configuration
+# Export one model
 # ==============================
-TODAY = datetime.today().strftime("%Y%m%d")
-
-_response = requests.get(MODELS_ENDPOINT)
-_response.raise_for_status()
-_models = _response.json()
-
-EXECUTION_CONFIGS = [
-    {
-        "name":              model["modelName"],
-        "dir":               os.path.join(model["featureLocation"], TODAY),
-        "is_classification": model["target"] == "CLASS",
-    }
-    for model in _models
-    if model["active"] and model["export"]
-]
-
-# ==============================
-# Export one execution type
-# ==============================
-def export_model(name, model_input, scaler_input, onnx_output, scaler_output, is_classification=False):
+def export_model(name, model_input, scaler_input, onnx_output, scaler_output):
     print(f"\n{'='*50}")
     print(f"  Exporting: {name}")
     print(f"{'='*50}")
 
     print(f"Loading model from {model_input}...")
-    model = xgb.XGBClassifier() if is_classification else xgb.XGBRegressor()
+    model = xgb.XGBRegressor()
     model.load_model(model_input)
     print(f"  Features: {model.n_features_in_}")
     print(f"  Objective: {model.objective}")
@@ -80,19 +59,28 @@ def export_model(name, model_input, scaler_input, onnx_output, scaler_output, is
 # ==============================
 # Main
 # ==============================
-for config in EXECUTION_CONFIGS:
-    d = config["dir"]
-    model_input = os.path.join(d, "xgb_model.json")
-    scaler_input = os.path.join(d, "scaler.pkl")
+def parse_args():
+    parser = argparse.ArgumentParser(description="Export a trained XGBoost model and its scaler to ONNX and JSON.")
+    parser.add_argument("--name", required=True, help="Model name, shown in the output.")
+    parser.add_argument("--dir", required=True, help="Dated model folder holding xgb_model.json and scaler.pkl. Outputs are written here.")
+    return parser.parse_args()
 
-    if not os.path.isfile(model_input) or not os.path.isfile(scaler_input):
-        missing = [p for p in (model_input, scaler_input) if not os.path.isfile(p)]
-        print(f"\nSkipping '{config['name']}': missing {', '.join(missing)}")
-        continue
 
-    onnx_output = os.path.join(d, "xgb_model.onnx")
-    scaler_output = os.path.join(d, "scaler_params.json")
+if __name__ == "__main__":
+    args = parse_args()
+    model_input = os.path.join(args.dir, "xgb_model.json")
+    scaler_input = os.path.join(args.dir, "scaler.pkl")
 
-    export_model(config["name"], model_input, scaler_input, onnx_output, scaler_output, config["is_classification"])
+    missing = [p for p in (model_input, scaler_input) if not os.path.isfile(p)]
+    if missing:
+        raise SystemExit(f"Cannot export '{args.name}': missing {', '.join(missing)}")
 
-print("\nDone.")
+    export_model(
+        args.name,
+        model_input,
+        scaler_input,
+        os.path.join(args.dir, "xgb_model.onnx"),
+        os.path.join(args.dir, "scaler_params.json"),
+    )
+
+    print("\nDone.")

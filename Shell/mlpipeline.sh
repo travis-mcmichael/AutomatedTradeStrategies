@@ -1,85 +1,99 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Trains and deploys one model. Features must already be exported to <feature-dir>/features.csv
+# (the Management web app's feature export writes it there).
+#
+# Usage: mlpipeline.sh --name <model name> --feature-dir <features folder> --target <HIGH|LOW>
+
 # ==============================
 # Configuration
 # ==============================
 REPO_ROOT="/mnt/c/dev/AutomatedTradeStrategies"
-FEATURES_BASE="/mnt/c/dev/data/features"
-SQLITE_DB="/mnt/c/dev/data/SQLite/home.db"
+OUTPUT_BASE="$REPO_ROOT/Models"   # outputLocation: the API loads <OUTPUT_BASE>/<model name>/<version>/
 MODEL_DATE="$(date +%Y%m%d)"
 PYTHON="python3"
-DOT_NET="/mnt/c/Program Files/dotnet/dotnet.exe"
-dotnet() { "$DOT_NET" "$@"; }
 
-API_MODELS="$REPO_ROOT/AutomatedTrading.Core.Api/Models/$MODEL_DATE"
-
-source /home/superuser/onnx-env/bin/activate
-
-# Models now live in the ModelConfig table (see SQL/ModelConfig.table.sql) rather than
-# Models/Config/models.json — pull the active+export model names from there.
-mapfile -t EXECUTION_TYPES < <($PYTHON -c "
-import sqlite3
-conn = sqlite3.connect('$SQLITE_DB')
-for row in conn.execute('SELECT ModelName FROM ModelConfig WHERE Active = 1 AND Export = 1'):
-    print(row[0])
-")
+usage() {
+    echo "Usage: $0 --name <model name> --feature-dir <features folder> --target <HIGH|LOW>" >&2
+    exit 1
+}
 
 # ==============================
-# Step 1: Export features
+# Arguments
 # ==============================
-echo ""
-echo "======================================================"
-echo "  Step 1: Export features"
-echo "======================================================"
-
-dotnet run --project "$(wslpath -w "$REPO_ROOT/AutomatedTrading.Export.Feature")" \
-    --configuration Release 
-
-# ==============================
-# Step 2: Train XGBoost models
-# ==============================
-echo ""
-echo "======================================================"
-echo "  Step 2: Train XGBoost models"
-echo "======================================================"
-$PYTHON "$REPO_ROOT/Python/train_model_xgboost.py"
-
-# ==============================
-# Step 3: Export models to ONNX
-# ==============================
-echo ""
-echo "======================================================"
-echo "  Step 3: Export models to ONNX"
-echo "======================================================"
-$PYTHON "$REPO_ROOT/Python/export_to_onnx.py"
-
-# ==============================
-# Step 4: Copy models to project
-# ==============================
-echo ""
-echo "======================================================"
-echo "  Step 4: Copy models → project ($MODEL_DATE)"
-echo "======================================================"
-
-for exec_type in "${EXECUTION_TYPES[@]}"; do
-    src="$FEATURES_BASE/$exec_type"
-    onnx_file="$src/xgb_model.onnx"
-    scaler_file="$src/scaler_params.json"
-
-    if [[ ! -f "$onnx_file" || ! -f "$scaler_file" ]]; then
-        echo "  Skipping '$exec_type': model files not found in $src"
-        continue
-    fi
-
-    for dest_base in "$API_MODELS"; do
-        dest="$dest_base/$exec_type"
-        mkdir -p "$dest"
-        cp "$onnx_file"   "$dest/xgb_model.onnx"
-        cp "$scaler_file" "$dest/scaler_params.json"
-        echo "  Copied $exec_type → $dest"
-    done
+NAME=""
+FEATURE_DIR=""
+TARGET=""
+while [[ $# -gt 0 ]]; do
+    [[ $# -ge 2 ]] || usage
+    case "$1" in
+        --name)        NAME="$2";        shift 2 ;;
+        --feature-dir) FEATURE_DIR="$2"; shift 2 ;;
+        --target)      TARGET="$2";      shift 2 ;;
+        *)             usage ;;
+    esac
 done
+
+[[ -n "$NAME" && -n "$FEATURE_DIR" && -n "$TARGET" ]] || usage
+[[ "$TARGET" == "HIGH" || "$TARGET" == "LOW" ]] || usage
+
+CSV="$FEATURE_DIR/features.csv"
+MODEL_OUT="$FEATURE_DIR/$MODEL_DATE"   # dated folder that training and export write to
+API_DEST="$OUTPUT_BASE/$NAME/$MODEL_DATE"
+
+source "${ONNX_VENV:-/opt/venv/onnx-env}/bin/activate"
+
+# ==============================
+# Step 1: Check features
+# ==============================
+echo ""
+echo "======================================================"
+echo "  Step 1: Check features for $NAME"
+echo "======================================================"
+
+if [[ ! -f "$CSV" ]]; then
+    echo "  $CSV not found. Export the features for $NAME from the Management web app first." >&2
+    exit 1
+fi
+
+# ==============================
+# Step 2: Train XGBoost model
+# ==============================
+echo ""
+echo "======================================================"
+echo "  Step 2: Train XGBoost model ($NAME, $TARGET)"
+echo "======================================================"
+$PYTHON "$REPO_ROOT/Python/train_model_xgboost.py" --name "$NAME" --csv "$CSV" --target "$TARGET"
+
+# ==============================
+# Step 3: Export model to ONNX
+# ==============================
+echo ""
+echo "======================================================"
+echo "  Step 3: Export model to ONNX"
+echo "======================================================"
+$PYTHON "$REPO_ROOT/Python/export_to_onnx.py" --name "$NAME" --dir "$MODEL_OUT"
+
+# ==============================
+# Step 4: Copy model to project
+# ==============================
+echo ""
+echo "======================================================"
+echo "  Step 4: Copy model → $API_DEST"
+echo "======================================================"
+
+for file in xgb_model.onnx scaler_params.json; do
+    if [[ ! -f "$MODEL_OUT/$file" ]]; then
+        echo "  $MODEL_OUT/$file not found. Nothing copied." >&2
+        exit 1
+    fi
+done
+
+mkdir -p "$API_DEST"
+cp "$MODEL_OUT/xgb_model.onnx"     "$API_DEST/xgb_model.onnx"
+cp "$MODEL_OUT/scaler_params.json" "$API_DEST/scaler_params.json"
+echo "  Copied $NAME → $API_DEST"
 
 echo ""
 echo "Pipeline complete."
