@@ -12,6 +12,10 @@
         <button class="nav-link" id="trade-data-tab" data-bs-toggle="tab" data-bs-target="#trade-data-pane"
                 type="button" role="tab" aria-controls="trade-data-pane" aria-selected="false">Trade Data</button>
     </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="predictions-tab" data-bs-toggle="tab" data-bs-target="#predictions-pane"
+                type="button" role="tab" aria-controls="predictions-pane" aria-selected="false">Predictions</button>
+    </li>
 </ul>
 <div class="tab-content" id="homeTabsContent">
     <div class="tab-pane fade show active" id="home-pane" role="tabpanel" aria-labelledby="home-tab" tabindex="0">
@@ -35,6 +39,10 @@
                         aria-label="Next month"><i class="bi bi-chevron-right"></i></button>
             </div>
             <div id="bar-data-table"></div>
+        </div>
+        <div class="tab-pane fade" id="predictions-pane" role="tabpanel" aria-labelledby="predictions-tab" tabindex="0">
+            <h2 class="mb-2">Predictions — <span id="predictions-session-date"></span></h2>
+            <div id="predictions-table"></div>
         </div>
     </div>
 
@@ -987,6 +995,41 @@
                             showBarDataMonth();
                         } else {
                             barDataTable.redraw(true);
+                        }
+                    });
+
+                    // Predictions: whether each model has everything it needs to run an inference for the current session.
+                    // Built on first show (Tabulator can't measure a hidden container); reloaded on every later show
+                    // so the readiness and session date stay current.
+                    const escapeAttribute = (text) => text
+                        .replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;');
+
+                    const predictionColumns = [
+                        { title: 'Model', field: 'modelName' },
+                        {
+                            title: 'Inference Ready', field: 'isReady', hozAlign: 'center',
+                            formatter: (cell) => {
+                                const model = cell.getRow().getData();
+                                return model.isReady
+                                    ? "<span class='badge text-bg-success'>Ready</span>"
+                                    : `<span class='badge text-bg-danger' title='${escapeAttribute((model.issues ?? []).join('\n'))}'>Not ready</span>`;
+                            }
+                        }
+                    ];
+
+                    const predictionsUrl = '/Home/Predictions';
+                    let predictionsTable = null;
+                    document.getElementById('predictions-tab').addEventListener('shown.bs.tab', () => {
+                        if (!predictionsTable) {
+                            predictionsTable = Defaults.grid.buildGrid('#predictions-table', predictionColumns, predictionsUrl, {
+                                pagination: false, height: false,
+                                ajaxResponse: (url, params, response) => {
+                                    document.getElementById('predictions-session-date').textContent = response.sessionDate;
+                                    return response.models;
+                                }
+                            });
+                        } else {
+                            predictionsTable.setData(predictionsUrl);
                         }
                     });
 

@@ -10,6 +10,21 @@ public static class TradingCalendar
     private static readonly Dictionary<int, HashSet<DateTime>> _cache = new();
 
     /// <summary>
+    /// The session that is current at <paramref name="centralNow"/> (Central wall-clock time). A session opens at
+    /// SESSION_OPEN_TIME, so from then on the session is the next trading day. Before the open, a weekend or
+    /// holiday rolls forward to the next trading day.
+    /// </summary>
+    public static DateTime SessionDateFor(DateTime centralNow)
+    {
+        var candidate = centralNow.Date;
+        if (centralNow.TimeOfDay >= AppConstants.SESSION_OPEN_TIME)
+            candidate = candidate.AddDays(1);
+        while (!IsTradingDay(candidate))
+            candidate = candidate.AddDays(1);
+        return candidate;
+    }
+
+    /// <summary>
     /// Returns the next trading day after <paramref name="date"/>, skipping
     /// weekends and US market holidays.
     /// </summary>

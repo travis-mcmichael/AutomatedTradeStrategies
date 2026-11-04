@@ -34,12 +34,7 @@ public static class FeatureComputations
     public static double ParseFeatureComputation(ModelFeature feature, FeatureContext ctx)
     {
         var sessionDate = DateTime.ParseExact(ctx.SessionDate, AppConstants.DATE_FORMAT, null);
-        Dictionary<string, int> p = [];
-        foreach (var param in feature.ModelFeatureParams)
-        {
-            if (param.FeatureTypeParam != null)
-                p.Add(param.FeatureTypeParam.ParameterKey, param.ParamValue);
-        }
+        var p = GetParams(feature);
         // get the correct context date to build context bars
         var contextDate = GetContextDate(sessionDate, p);
         var source = feature.Source ?? "sessionMinute";
@@ -244,13 +239,28 @@ public static class FeatureComputations
     }
 
     /// <summary>
+    /// The feature's parameter values keyed by ParameterKey, exactly as the computation reads them.
+    /// Params whose FeatureTypeParam was not loaded are skipped.
+    /// </summary>
+    public static Dictionary<string, int> GetParams(ModelFeature feature)
+    {
+        Dictionary<string, int> p = [];
+        foreach (var param in feature.ModelFeatureParams)
+        {
+            if (param.FeatureTypeParam != null)
+                p.Add(param.FeatureTypeParam.ParameterKey, param.ParamValue);
+        }
+        return p;
+    }
+
+    /// <summary>
     /// Gets context date -> either the date to retrieve 1m bars for OR the end date range of a series of 1d bars.
     /// (used with lookback parameter to get start date).
     /// </summary>
     /// <param name="sessionDate"></param>
     /// <param name="p"></param>
     /// <returns></returns>
-    private static DateTime GetContextDate(DateTime sessionDate, Dictionary<string, int> p)
+    public static DateTime GetContextDate(DateTime sessionDate, Dictionary<string, int> p)
     {
         var prevDate = sessionDate;
         int weeks = 0, months = 0;
