@@ -48,7 +48,22 @@ public class HomeController(
         foreach (var model in (await allModelConfigs.Execute()).OrderBy(m => m.ModelName))
         {
             var readiness = await inferenceReadiness.Execute(model.Id, sessionDate);
-            rows.Add(new { id = model.Id, modelName = model.ModelName, isReady = readiness.IsReady, issues = readiness.Issues });
+            rows.Add(new
+            {
+                id = model.Id,
+                modelName = model.ModelName,
+                isReady = readiness.IsReady,
+                modelIssues = readiness.Issues,
+                features = readiness.Features.Select(f => new
+                {
+                    id = f.ModelFeatureId,
+                    name = f.Name,
+                    featureTypeName = f.FeatureTypeName,
+                    source = f.Source,
+                    isReady = f.IsReady,
+                    issues = f.Issues
+                })
+            });
         }
         return Ok(new { sessionDate = sessionDate.ToString("yyyy-MM-dd"), models = rows });
     }

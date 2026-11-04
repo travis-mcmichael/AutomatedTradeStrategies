@@ -1199,24 +1199,65 @@
                         }
                     });
 
-                    // Predictions: whether each model has everything it needs to run an inference for the current session.
-                    // Built on first show (Tabulator can't measure a hidden container); reloaded on every later show
-                    // so the readiness and session date stay current.
-                    const escapeAttribute = (text) => text
-                        .replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;');
+                    // Predictions: whether each model can run an inference for the current session. A model row expands to its
+                    // features: a green check when a feature has all the data it needs, otherwise its problems in red.
+                    // Built on first show (Tabulator can't measure a hidden container); reloaded on later shows.
+                    const expandedPredictionIds = new Set();
 
-                    const predictionColumns = [
-                        { title: 'Model', field: 'modelName' },
+                    const issueLines = (issues) => issues.map((issue) => `<div>${escapeHtml(issue)}</div>`).join('');
+
+                    const featureColumns = [
+                        { title: 'Feature', field: 'name' },
+                        { title: 'Type', field: 'featureTypeName' },
+                        { title: 'Source', field: 'source' },
                         {
-                            title: 'Inference Ready', field: 'isReady', hozAlign: 'center',
+                            title: 'Status', field: 'isReady', headerSort: false,
                             formatter: (cell) => {
-                                const model = cell.getRow().getData();
-                                return model.isReady
-                                    ? "<span class='badge text-bg-success'>Ready</span>"
-                                    : `<span class='badge text-bg-danger' title='${escapeAttribute((model.issues ?? []).join('\n'))}'>Not ready</span>`;
+                                const feature = cell.getRow().getData();
+                                return feature.isReady
+                                    ? "<i class='bi bi-check-circle-fill text-success' title='Ready'></i>"
+                                    : `<div class='text-danger'>${issueLines(feature.issues)}</div>`;
                             }
                         }
                     ];
+
+                    const predictionColumns = [
+                        expanderColumn(
+                            (m) => m.features.length > 0 || m.modelIssues.length > 0,
+                            (m) => expandedPredictionIds.has(m.id),
+                            (m) => toggleExpanded(expandedPredictionIds, m.id)),
+                        { title: 'Model', field: 'modelName' },
+                        {
+                            title: 'Inference Ready', field: 'isReady', hozAlign: 'center',
+                            formatter: (cell) => cell.getValue()
+                                ? "<span class='badge text-bg-success'>Ready</span>"
+                                : "<span class='badge text-bg-danger'>Not ready</span>"
+                        }
+                    ];
+
+                    // Secondary level: the model-level problems (in red) above a table of its features.
+                    function predictionRowFormatter(row) {
+                        const el = row.getElement();
+                        el.querySelector(':scope > .prediction-subgrid')?.remove();
+                        const model = row.getData();
+                        if (!expandedPredictionIds.has(model.id)) return;
+                        if (model.features.length === 0 && model.modelIssues.length === 0) return;
+
+                        const holder = document.createElement('div');
+                        holder.className = 'prediction-subgrid p-2 ps-4';
+                        if (model.modelIssues.length > 0) {
+                            const issues = document.createElement('div');
+                            issues.className = 'text-danger mb-2';
+                            issues.innerHTML = issueLines(model.modelIssues);
+                            holder.appendChild(issues);
+                        }
+                        if (model.features.length > 0) {
+                            const grid = document.createElement('div');
+                            holder.appendChild(grid);
+                            new Tabulator(grid, { layout: 'fitColumns', data: model.features, columns: featureColumns });
+                        }
+                        el.appendChild(holder);
+                    }
 
                     const predictionsUrl = '/Home/Predictions';
                     let predictionsTable = null;
@@ -1224,6 +1265,7 @@
                         if (!predictionsTable) {
                             predictionsTable = Defaults.grid.buildGrid('#predictions-table', predictionColumns, predictionsUrl, {
                                 pagination: false, height: false,
+                                rowFormatter: predictionRowFormatter,
                                 ajaxResponse: (url, params, response) => {
                                     document.getElementById('predictions-session-date').textContent = response.sessionDate;
                                     return response.models;

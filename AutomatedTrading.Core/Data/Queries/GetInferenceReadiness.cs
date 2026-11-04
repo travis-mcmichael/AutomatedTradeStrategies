@@ -65,13 +65,18 @@ public class GetInferenceReadiness(
             .ToList();
 
         // Each feature's context session, as FeatureComputations.ParseFeatureComputation resolves it.
-        var contexts = new List<(string Label, string Source, DateTime ContextDate, Dictionary<string, int> Params)>();
+        var contexts = new List<(FeatureReadiness Feature, string Source, DateTime ContextDate, Dictionary<string, int> Params)>();
         foreach (var feature in features)
         {
             var label = feature.ModelFeatureName ?? $"Feature {feature.SortOrder}";
-            if (!types.TryGetValue(feature.FeatureTypeId, out var type))
+            var source = feature.Source ?? "sessionMinute";
+            var typeName = types.TryGetValue(feature.FeatureTypeId, out var type) ? type.Name : "unknown type";
+            var readiness = new FeatureReadiness(feature.Id, label, typeName, source);
+            result.Features.Add(readiness);
+
+            if (type is null)
             {
-                result.Issues.Add($"{label}: feature type {feature.FeatureTypeId} does not exist.");
+                readiness.Issues.Add($"Feature type {feature.FeatureTypeId} does not exist.");
                 continue;
             }
 
@@ -83,16 +88,15 @@ public class GetInferenceReadiness(
             foreach (var typeParam in typeParams.Where(t => t.FeatureTypeId == type.Id))
             {
                 if (ownParams.All(p => p.FeatureTypeParamId != typeParam.Id))
-                    result.Issues.Add($"{label} ({type.Name}): parameter '{typeParam.ParameterKey}' is not set.");
+                    readiness.Issues.Add($"Parameter '{typeParam.ParameterKey}' is not set.");
             }
 
             var p2 = FeatureComputations.GetParams(feature);
-            var source = feature.Source ?? "sessionMinute";
             if (IsWindowSource(source) && (!p2.ContainsKey("start") || !p2.ContainsKey("end")))
-                result.Issues.Add($"{label}: source '{source}' needs 'start' and 'end' window parameters.");
+                readiness.Issues.Add($"Source '{source}' needs 'start' and 'end' window parameters.");
 
             var contextDate = FeatureComputations.GetContextDate(sessionDate, p2);
-            contexts.Add((label, source, contextDate, p2));
+            contexts.Add((readiness, source, contextDate, p2));
         }
 
         // ATR lookback sessions, oldest first, ending on the session date.
@@ -114,10 +118,10 @@ public class GetInferenceReadiness(
             result.Issues.Add($"ATR({ATR_LOOKBACK}) needs bars for {ATR_LOOKBACK + 1} sessions ending {Fmt(sessionDate)}; missing {Describe(missingAtr)}.");
 
         var windowCounts = new Dictionary<(int Start, int End), Dictionary<string, int>>();
-        foreach (var (label, source, contextDate, p) in contexts)
+        foreach (var (readiness, source, contextDate, p) in contexts)
         {
             if (!HasBars(counts, contextDate))
-                result.Issues.Add($"{label}: no bars for context session {Fmt(contextDate)}.");
+                readiness.Issues.Add($"No bars for context session {Fmt(contextDate)}.");
 
             if (IsWindowSource(source) && p.TryGetValue("start", out var start) && p.TryGetValue("end", out var end))
             {
@@ -127,11 +131,11 @@ public class GetInferenceReadiness(
                     windowCounts[(start, end)] = inWindow;
                 }
                 if (!inWindow.TryGetValue(Key(contextDate), out var barsInWindow) || barsInWindow == 0)
-                    result.Issues.Add($"{label}: no bars inside window {start:D6}-{end:D6} on {Fmt(contextDate)}.");
+                    readiness.Issues.Add($"No bars inside window {start:D6}-{end:D6} on {Fmt(contextDate)}.");
             }
 
             if (source == "currentMinute" && sessionCount.PreMarket == 0)
-                result.Issues.Add($"{label}: no pre-market bars before {AppConstants.RTHSTART} on {Fmt(sessionDate)}.");
+                readiness.Issues.Add($"No pre-market bars before {AppConstants.RTHSTART} on {Fmt(sessionDate)}.");
         }
 
         return result;
