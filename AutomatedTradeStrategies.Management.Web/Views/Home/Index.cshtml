@@ -204,6 +204,32 @@
                 </div>
             </div>
 
+            <div class="modal fade" id="train-modal" tabindex="-1" aria-labelledby="train-title" aria-hidden="true">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="train-title">Train Model</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div id="train-running" class="d-flex align-items-center gap-3">
+                                <div class="spinner-border text-primary flex-shrink-0" role="status" aria-hidden="true"></div>
+                                <div>
+                                    <div id="train-message"></div>
+                                    <div class="small text-muted">Elapsed: <span id="train-elapsed">0:00</span></div>
+                                </div>
+                            </div>
+                            <div id="train-result" class="alert mb-0 d-none" role="alert"></div>
+                            <pre id="train-output" class="small bg-body-tertiary border rounded p-2 mt-3 mb-0" style="max-height: 320px; overflow: auto; white-space: pre-wrap;"></pre>
+                            <div class="small text-muted mt-3" id="train-note">You can close this window; training keeps running.</div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="modal fade" id="export-modal" tabindex="-1" aria-labelledby="export-title" aria-hidden="true">
                 <div class="modal-dialog">
                     <div class="modal-content">
@@ -245,7 +271,103 @@
             @section Scripts
             {
                 <script>
+                    // Expansion state is kept here, not in the DOM, so it survives paging and reloads of the grid.
+                    const expandedModelIds = new Set();
+                    const expandedPerformanceIds = new Set();
+
+                    function toggleExpanded(set, id) {
+                        if (set.has(id)) set.delete(id); else set.add(id);
+                    }
+
+                    function expanderIcon(expanded) {
+                        return `<i class='bi bi-chevron-${expanded ? 'down' : 'right'}'></i>`;
+                    }
+
+                    const expanderColumn = (hasChildren, isExpanded, toggle) => ({
+                        title: '', hozAlign: 'center', width: 40, headerSort: false,
+                        formatter: (cell) => hasChildren(cell.getRow().getData()) ? expanderIcon(isExpanded(cell.getRow().getData())) : '',
+                        cellClick: (e, cell) => {
+                            const row = cell.getRow();
+                            if (!hasChildren(row.getData())) return;
+                            toggle(row.getData());
+                            row.reformat();
+                        }
+                    });
+
+                    const performanceColumns = [
+                        expanderColumn(
+                            (p) => p.splits?.length > 0,
+                            (p) => expandedPerformanceIds.has(p.id),
+                            (p) => toggleExpanded(expandedPerformanceIds, p.id)),
+                        { title: 'Version', field: 'version' },
+                        { title: 'Trained At', field: 'trainedAt', formatter: (cell) => new Date(cell.getValue()).toLocaleString() },
+                        { title: 'Best Iteration', field: 'bestIteration', hozAlign: 'right' },
+                        { title: 'Best Validation RMSE', field: 'bestValidationScore', hozAlign: 'right', formatter: (cell) => cell.getValue().toFixed(4) },
+                        { title: 'Min', field: 'min', hozAlign: 'right', formatter: (cell) => cell.getValue().toFixed(2) },
+                        { title: 'Max', field: 'max', hozAlign: 'right', formatter: (cell) => cell.getValue().toFixed(2) },
+                        { title: 'Mean', field: 'mean', hozAlign: 'right', formatter: (cell) => cell.getValue().toFixed(2) },
+                        { title: 'Std', field: 'std', hozAlign: 'right', formatter: (cell) => cell.getValue().toFixed(2) }
+                    ];
+
+                    const splitColumns = [
+                        { title: 'Split', field: 'splitName' },
+                        { title: 'Rows', field: 'rowCount', hozAlign: 'right' },
+                        { title: 'MAE', field: 'mae', hozAlign: 'right', formatter: (cell) => cell.getValue().toFixed(4) },
+                        { title: 'RMSE', field: 'rmse', hozAlign: 'right', formatter: (cell) => cell.getValue().toFixed(4) },
+                        {
+                            title: 'R²', field: 'rSquared', hozAlign: 'right',
+                            formatter: (cell) => cell.getValue() == null ? '—' : cell.getValue().toFixed(4)
+                        },
+                        { title: 'Within 10% ATR (over)', field: 'atrLessThanTenPercentOver', hozAlign: 'right', formatter: percentFormatter },
+                        { title: 'Within 10% ATR (under)', field: 'atrLessThanTenPercentUnder', hozAlign: 'right', formatter: percentFormatter },
+                        { title: 'Within 25% ATR (over)', field: 'atrLessThan25PercentOver', hozAlign: 'right', formatter: percentFormatter },
+                        { title: 'Within 25% ATR (under)', field: 'atrLessThan25PercentUnder', hozAlign: 'right', formatter: percentFormatter }
+                    ];
+
+                    function percentFormatter(cell) {
+                        return `${(cell.getValue() * 100).toFixed(1)}%`;
+                    }
+
+                    // Tertiary level: the split metrics of one performance row.
+                    function performanceRowFormatter(row) {
+                        const el = row.getElement();
+                        el.querySelector(':scope > .split-subgrid')?.remove();
+                        const performance = row.getData();
+                        if (!expandedPerformanceIds.has(performance.id) || !performance.splits?.length) return;
+
+                        const holder = document.createElement('div');
+                        holder.className = 'split-subgrid p-2 ps-4';
+                        el.appendChild(holder);
+                        new Tabulator(holder, {
+                            layout: 'fitColumns',
+                            data: performance.splits,
+                            columns: splitColumns
+                        });
+                    }
+
+                    // Secondary level: one row per ModelPerformance, most recent first (the server sorts them).
+                    function modelRowFormatter(row) {
+                        const el = row.getElement();
+                        el.querySelector(':scope > .performance-subgrid')?.remove();
+                        const model = row.getData();
+                        if (!expandedModelIds.has(model.id) || !model.modelPerformances?.length) return;
+
+                        const holder = document.createElement('div');
+                        holder.className = 'performance-subgrid p-2 ps-4';
+                        el.appendChild(holder);
+                        new Tabulator(holder, {
+                            layout: 'fitColumns',
+                            data: model.modelPerformances,
+                            columns: performanceColumns,
+                            rowFormatter: performanceRowFormatter
+                        });
+                    }
+
                     const columns = [
+                        expanderColumn(
+                            (m) => m.modelPerformances?.length > 0,
+                            (m) => expandedModelIds.has(m.id),
+                            (m) => toggleExpanded(expandedModelIds, m.id)),
                         {
                             title: '', field: 'paramsMismatch', hozAlign: 'center', width: 40, headerSort: false,
                             // Flags a model where any feature's param count differs from its feature type's param count.
@@ -261,10 +383,8 @@
                         { title: 'Target', field: 'target' },
                         { title: 'Features', field: 'featureCount', hozAlign: 'right', mutator: (value, data) => data.modelFeatures?.length ?? 0 },
                         {
-                            title: 'Export Features', field: 'featuresExported', hozAlign: 'center', headerSort: false,
+                            title: 'Export Features', hozAlign: 'center', headerSort: false,
                             formatter: (cell) => {
-                                if (cell.getValue())
-                                    return "<i class='bi bi-check-lg text-success fs-5' title='features.csv is present'></i>";
                                 // Disabled buttons don't show tooltips, so the explanation goes on a wrapping span.
                                 const model = cell.getRow().getData();
                                 const reason = !(model.modelFeatures?.length) ? 'Add features (Edit > Edit Features) before exporting'
@@ -275,7 +395,20 @@
                                     : "<button type='button' class='btn btn-sm btn-outline-primary'>Export</button>";
                             },
                             cellClick: (e, cell) => {
-                                if (!cell.getValue() && e.target.closest('button:not([disabled])')) startFeatureExport(cell.getRow().getData());
+                                if (e.target.closest('button:not([disabled])')) startFeatureExport(cell.getRow().getData());
+                            }
+                        },
+                        {
+                            title: 'Train', hozAlign: 'center', headerSort: false,
+                            formatter: (cell) => {
+                                // Disabled buttons don't show tooltips, so the explanation goes on a wrapping span.
+                                const model = cell.getRow().getData();
+                                return model.version
+                                    ? "<button type='button' class='btn btn-sm btn-outline-primary'>Train</button>"
+                                    : "<span class='d-inline-block' tabindex='0' title='Export the features first (Export Features)'><button type='button' class='btn btn-sm btn-outline-primary' disabled style='pointer-events: none;'>Train</button></span>";
+                            },
+                            cellClick: (e, cell) => {
+                                if (e.target.closest('button:not([disabled])')) startTraining(cell.getRow().getData());
                             }
                         },
                         Defaults.grid.buildEditColumn('id', (data) => openModelEditor(data)),
@@ -287,7 +420,7 @@
                             }
                         }
                     ];
-                    const table = Defaults.grid.buildGrid('#models-table', columns, '/Home/Models');
+                    const table = Defaults.grid.buildGrid('#models-table', columns, '/Home/Models', { rowFormatter: modelRowFormatter });
 
                     document.getElementById('models-add').addEventListener('click', () => openModelEditor(null));
 
@@ -825,6 +958,74 @@
                         exportResult.textContent = succeeded
                             ? `features.csv was generated successfully. ${status.message}`
                             : `Export failed: ${status.message}`;
+                    }
+
+                    const trainModalEl = document.getElementById('train-modal');
+                    const trainModal = new bootstrap.Modal(trainModalEl);
+                    const trainRunning = document.getElementById('train-running');
+                    const trainMessage = document.getElementById('train-message');
+                    const trainElapsed = document.getElementById('train-elapsed');
+                    const trainResult = document.getElementById('train-result');
+                    const trainOutput = document.getElementById('train-output');
+                    const trainNote = document.getElementById('train-note');
+                    const TRAIN_POLL_MS = 2000;
+                    let trainPollTimer = null;
+
+                    // Polling stops when the popup closes; training carries on server-side, and clicking Train again
+                    // for the same model reattaches to the running job.
+                    trainModalEl.addEventListener('hidden.bs.modal', () => clearTimeout(trainPollTimer));
+
+                    async function startTraining(model) {
+                        clearTimeout(trainPollTimer);
+                        document.getElementById('train-title').textContent = `Train Model: ${model.modelName}`;
+                        showTrainStatus({ state: 'Running', message: 'Starting training...', output: [] });
+                        trainModal.show();
+
+                        try {
+                            const res = await fetch(`/Home/TrainModel/${model.id}`, { method: 'POST' });
+                            if (!res.ok) throw new Error((await res.text()) || `request failed with status ${res.status}`);
+                            await handleTrainStatus(model.id, await res.json());
+                        } catch (err) {
+                            showTrainStatus({ state: 'Failed', message: err.message, output: [] });
+                        }
+                    }
+
+                    async function pollTraining(modelId) {
+                        try {
+                            const res = await fetch(`/Home/TrainModelStatus/${modelId}`);
+                            if (!res.ok) throw new Error((await res.text()) || `request failed with status ${res.status}`);
+                            await handleTrainStatus(modelId, await res.json());
+                        } catch (err) {
+                            showTrainStatus({ state: 'Failed', message: err.message, output: [] });
+                        }
+                    }
+
+                    async function handleTrainStatus(modelId, status) {
+                        showTrainStatus(status);
+                        if (status.state === 'Running') {
+                            trainPollTimer = setTimeout(() => pollTraining(modelId), TRAIN_POLL_MS);
+                        }
+                    }
+
+                    function showTrainStatus(status) {
+                        const running = status.state === 'Running';
+                        trainRunning.classList.toggle('d-none', !running);
+                        trainNote.classList.toggle('d-none', !running);
+                        trainResult.classList.toggle('d-none', running);
+                        trainOutput.textContent = (status.output ?? []).join('\n');
+                        trainOutput.scrollTop = trainOutput.scrollHeight;
+
+                        if (running) {
+                            trainMessage.textContent = status.message;
+                            const seconds = status.startedAt ? Math.max(0, Math.floor((Date.now() - new Date(status.startedAt)) / 1000)) : 0;
+                            trainElapsed.textContent = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+                            return;
+                        }
+
+                        const succeeded = status.state === 'Succeeded';
+                        trainResult.classList.toggle('alert-success', succeeded);
+                        trainResult.classList.toggle('alert-danger', !succeeded);
+                        trainResult.textContent = succeeded ? status.message : `Training failed: ${status.message}`;
                     }
 
                     const barDataColumns = [

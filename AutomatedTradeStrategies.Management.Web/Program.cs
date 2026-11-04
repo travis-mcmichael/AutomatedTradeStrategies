@@ -4,6 +4,7 @@ using AutomatedTrading.Core.Framework.DataLayer;
 using AutomatedTrading.Core.Framework.DataLayer.Sqlite;
 using AutomatedTrading.Core.Models;
 using AutomatedTradeStrategies.Management.Web.Services;
+using AutomatedTrading.Core.Framework;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -39,6 +40,8 @@ foreach (var type in queryAndCommandTypes)
 
 // Singleton so background feature exports (and their status) outlive the request that started them.
 builder.Services.AddSingleton<FeatureExportJobs>();
+// Same for model training (Scripts/mlpipeline.sh).
+builder.Services.AddSingleton<TrainingJobs>();
 
 var app = builder.Build();
 

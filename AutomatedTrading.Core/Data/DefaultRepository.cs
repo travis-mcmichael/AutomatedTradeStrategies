@@ -16,11 +16,11 @@ public class DefaultRepository<T>(IDbConnectionFactory connectionFactory, ILogge
         var entity = new T();
         var tableName = SqlHelper.GetTableName(entity);
 
-        if (filters == null || filters.Count == 0)
-        {
-            logger?.LogWarning($"No filter criteria added for {tableName} query.");
-            return [];
-        }
+        // if (filters == null || filters.Count == 0)
+        // {
+        //     logger?.LogWarning($"No filter criteria added for {tableName} query.");
+        //     return [];
+        // }
 
         logger?.LogInformation($"DefaultRepository.GetDataAsync() for table {tableName}");
 
@@ -48,7 +48,11 @@ public class DefaultRepository<T>(IDbConnectionFactory connectionFactory, ILogge
         }
 
         var sql = new StringBuilder($" SELECT {selectList} FROM {tableName} ");
-        sql.Append($" WHERE {string.Join(" AND ", where)}");
+        if (where.Count > 0)
+        {
+            sql.Append($" WHERE {string.Join(" AND ", where)}");
+        }
+
         if (orderby is not null or "") sql.Append($" ORDER BY {orderby} ");
         var final = sql.ToString();
         cmd.CommandText = final;

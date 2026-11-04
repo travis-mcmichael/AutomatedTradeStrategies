@@ -10,4 +10,9 @@
     <ProjectReference Include="..\AutomatedTrading.Core\AutomatedTrading.Core.csproj" />
   </ItemGroup>
 
+  <!-- Training runs Scripts/mlpipeline.sh from the deployed site, so the scripts are published with it. -->
+  <ItemGroup>
+    <Content Include="Scripts\**" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

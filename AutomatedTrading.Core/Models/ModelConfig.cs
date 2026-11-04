@@ -21,5 +21,6 @@ public class ModelConfig : IDatabaseEntity
     public bool Export { get; set; }
     public bool Active { get; set; }
     public List<ModelFeature> ModelFeatures { get; set; } = [];
-    public ModelPerformance? ModelPerformance { get; set; }
+    // Every trained version of the model, most recent first.
+    public List<ModelPerformance> ModelPerformances { get; set; } = [];
 }

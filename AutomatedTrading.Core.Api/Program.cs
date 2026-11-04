@@ -8,6 +8,7 @@ using AutomatedTrading.Core.Framework.DataLayer.Sqlite;
 using AutomatedTrading.Core.Data;
 using AutomatedTrading.Core.Data.Queries;
 using AutomatedTrading.Core.Models;
+using AutomatedTrading.Core.Framework;
 
 Logger.Configure();
 
@@ -16,7 +17,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddOpenApi();
 
 // Data access
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")!;
+var connectionString = Operations.NormalizePath(builder.Configuration.GetConnectionString("DefaultConnection")!);
 var connectionFactory = new SqliteConnectionFactory(connectionString);
 builder.Services.AddSingleton<IDbConnectionFactory>(_ => connectionFactory);
 builder.Services.AddScoped(typeof(IDefaultRepository<>), typeof(DefaultRepository<>));
@@ -41,6 +42,7 @@ var models = await new GetAllModelConfigs(
     new DefaultRepository<ModelFeature>(connectionFactory, null),
     new DefaultRepository<ModelFeatureParam>(connectionFactory, null),
     new DefaultRepository<ModelPerformance>(connectionFactory, null),
+    new DefaultRepository<ModelPerformanceSplit>(connectionFactory, null),
     new DefaultRepository<FeatureType>(connectionFactory, null),
     new DefaultRepository<FeatureTypeParam>(connectionFactory, null)
 ).Execute();
