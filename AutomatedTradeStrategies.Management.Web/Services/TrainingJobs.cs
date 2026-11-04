@@ -1,8 +1,9 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Globalization;
 using System.Text.Json.Serialization;
-using AutomatedTrading.Core.Framework;
 using AutomatedTrading.Core.Models;
+using Microsoft.Data.Sqlite;
 
 namespace AutomatedTradeStrategies.Management.Web.Services;
 
@@ -19,7 +20,7 @@ public record TrainingStatus(
 
 // Runs Scripts/mlpipeline.sh in the background for a model (training can take minutes) and tracks the latest
 // status per model in memory so the page can poll it. At most one training runs per model.
-public class TrainingJobs(IWebHostEnvironment environment, ILogger<TrainingJobs> logger)
+public class TrainingJobs(IWebHostEnvironment environment, IConfiguration configuration, ILogger<TrainingJobs> logger)
 {
     private const int OUTPUT_LINES_KEPT = 40;
     private readonly ConcurrentDictionary<long, TrainingStatus> jobs = new();
@@ -77,22 +78,34 @@ public class TrainingJobs(IWebHostEnvironment environment, ILogger<TrainingJobs>
             if (!File.Exists(script))
                 throw new FileNotFoundException($"{script} was not found. Check that the Scripts folder was published.");
 
-            var startInfo = new ProcessStartInfo("/bin/bash")
+            // mlpipeline.sh is a Linux bash script (/mnt paths, Linux venv). On Windows it runs inside WSL via wsl.exe.
+            var startInfo = new ProcessStartInfo(OperatingSystem.IsWindows() ? "wsl.exe" : "/bin/bash")
             {
                 WorkingDirectory = scriptsDirectory,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
             };
-            startInfo.ArgumentList.Add(script);
+            if (OperatingSystem.IsWindows())
+            {
+                // --exec passes the arguments straight to bash without a shell in between.
+                startInfo.ArgumentList.Add("--exec");
+                startInfo.ArgumentList.Add("/bin/bash");
+            }
+            startInfo.ArgumentList.Add(scriptPath(script));
             startInfo.ArgumentList.Add("--name");
             startInfo.ArgumentList.Add(model.ModelName);
             startInfo.ArgumentList.Add("--feature-dir");
-            startInfo.ArgumentList.Add(Operations.NormalizePath(model.FeatureLocation));
+            startInfo.ArgumentList.Add(scriptPath(model.FeatureLocation));
             startInfo.ArgumentList.Add("--target");
             startInfo.ArgumentList.Add(model.Target);
             startInfo.ArgumentList.Add("--version");
             startInfo.ArgumentList.Add(model.Version);
+            // The same database the web app reads, so the performance row lands where the model list is loaded from.
+            startInfo.ArgumentList.Add("--db");
+            startInfo.ArgumentList.Add(databasePath());
+            startInfo.ArgumentList.Add("--model-config-id");
+            startInfo.ArgumentList.Add(model.Id.ToString(CultureInfo.InvariantCulture));
 
             using var process = new Process { StartInfo = startInfo };
             process.OutputDataReceived += (_, e) => { if (e.Data is not null) addLine(e.Data); };
@@ -119,5 +132,23 @@ public class TrainingJobs(IWebHostEnvironment environment, ILogger<TrainingJobs>
             logger.LogError(ex, "Training failed for ModelConfigId {ModelConfigId}", model.Id);
             update(TrainingState.Failed, ex.Message);
         }
+    }
+
+    // The SQLite file named by DefaultConnection, as a path the script can open.
+    private string databasePath()
+    {
+        var connectionString = configuration.GetConnectionString("DefaultConnection")
+            ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+        return scriptPath(new SqliteConnectionStringBuilder(connectionString).DataSource);
+    }
+
+    // Converts a path for mlpipeline.sh. On Windows the script runs under WSL, so C:\dev\x becomes /mnt/c/dev/x.
+    private static string scriptPath(string path)
+    {
+        if (!OperatingSystem.IsWindows())
+            return path;
+        if (path.Length >= 3 && char.IsLetter(path[0]) && path[1] == ':' && (path[2] == '\\' || path[2] == '/'))
+            return $"/mnt/{char.ToLowerInvariant(path[0])}{path[2..].Replace('\\', '/')}";
+        return path.Replace('\\', '/');
     }
 }

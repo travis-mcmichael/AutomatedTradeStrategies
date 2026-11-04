@@ -271,7 +271,103 @@
             @section Scripts
             {
                 <script>
+                    // Expansion state is kept here, not in the DOM, so it survives paging and reloads of the grid.
+                    const expandedModelIds = new Set();
+                    const expandedPerformanceIds = new Set();
+
+                    function toggleExpanded(set, id) {
+                        if (set.has(id)) set.delete(id); else set.add(id);
+                    }
+
+                    function expanderIcon(expanded) {
+                        return `<i class='bi bi-chevron-${expanded ? 'down' : 'right'}'></i>`;
+                    }
+
+                    const expanderColumn = (hasChildren, isExpanded, toggle) => ({
+                        title: '', hozAlign: 'center', width: 40, headerSort: false,
+                        formatter: (cell) => hasChildren(cell.getRow().getData()) ? expanderIcon(isExpanded(cell.getRow().getData())) : '',
+                        cellClick: (e, cell) => {
+                            const row = cell.getRow();
+                            if (!hasChildren(row.getData())) return;
+                            toggle(row.getData());
+                            row.reformat();
+                        }
+                    });
+
+                    const performanceColumns = [
+                        expanderColumn(
+                            (p) => p.splits?.length > 0,
+                            (p) => expandedPerformanceIds.has(p.id),
+                            (p) => toggleExpanded(expandedPerformanceIds, p.id)),
+                        { title: 'Version', field: 'version' },
+                        { title: 'Trained At', field: 'trainedAt', formatter: (cell) => new Date(cell.getValue()).toLocaleString() },
+                        { title: 'Best Iteration', field: 'bestIteration', hozAlign: 'right' },
+                        { title: 'Best Validation RMSE', field: 'bestValidationScore', hozAlign: 'right', formatter: (cell) => cell.getValue().toFixed(4) },
+                        { title: 'Min', field: 'min', hozAlign: 'right', formatter: (cell) => cell.getValue().toFixed(2) },
+                        { title: 'Max', field: 'max', hozAlign: 'right', formatter: (cell) => cell.getValue().toFixed(2) },
+                        { title: 'Mean', field: 'mean', hozAlign: 'right', formatter: (cell) => cell.getValue().toFixed(2) },
+                        { title: 'Std', field: 'std', hozAlign: 'right', formatter: (cell) => cell.getValue().toFixed(2) }
+                    ];
+
+                    const splitColumns = [
+                        { title: 'Split', field: 'splitName' },
+                        { title: 'Rows', field: 'rowCount', hozAlign: 'right' },
+                        { title: 'MAE', field: 'mae', hozAlign: 'right', formatter: (cell) => cell.getValue().toFixed(4) },
+                        { title: 'RMSE', field: 'rmse', hozAlign: 'right', formatter: (cell) => cell.getValue().toFixed(4) },
+                        {
+                            title: 'R²', field: 'rSquared', hozAlign: 'right',
+                            formatter: (cell) => cell.getValue() == null ? '—' : cell.getValue().toFixed(4)
+                        },
+                        { title: 'Within 10% ATR (over)', field: 'atrLessThanTenPercentOver', hozAlign: 'right', formatter: percentFormatter },
+                        { title: 'Within 10% ATR (under)', field: 'atrLessThanTenPercentUnder', hozAlign: 'right', formatter: percentFormatter },
+                        { title: 'Within 25% ATR (over)', field: 'atrLessThan25PercentOver', hozAlign: 'right', formatter: percentFormatter },
+                        { title: 'Within 25% ATR (under)', field: 'atrLessThan25PercentUnder', hozAlign: 'right', formatter: percentFormatter }
+                    ];
+
+                    function percentFormatter(cell) {
+                        return `${(cell.getValue() * 100).toFixed(1)}%`;
+                    }
+
+                    // Tertiary level: the split metrics of one performance row.
+                    function performanceRowFormatter(row) {
+                        const el = row.getElement();
+                        el.querySelector(':scope > .split-subgrid')?.remove();
+                        const performance = row.getData();
+                        if (!expandedPerformanceIds.has(performance.id) || !performance.splits?.length) return;
+
+                        const holder = document.createElement('div');
+                        holder.className = 'split-subgrid p-2 ps-4';
+                        el.appendChild(holder);
+                        new Tabulator(holder, {
+                            layout: 'fitColumns',
+                            data: performance.splits,
+                            columns: splitColumns
+                        });
+                    }
+
+                    // Secondary level: one row per ModelPerformance, most recent first (the server sorts them).
+                    function modelRowFormatter(row) {
+                        const el = row.getElement();
+                        el.querySelector(':scope > .performance-subgrid')?.remove();
+                        const model = row.getData();
+                        if (!expandedModelIds.has(model.id) || !model.modelPerformances?.length) return;
+
+                        const holder = document.createElement('div');
+                        holder.className = 'performance-subgrid p-2 ps-4';
+                        el.appendChild(holder);
+                        new Tabulator(holder, {
+                            layout: 'fitColumns',
+                            data: model.modelPerformances,
+                            columns: performanceColumns,
+                            rowFormatter: performanceRowFormatter
+                        });
+                    }
+
                     const columns = [
+                        expanderColumn(
+                            (m) => m.modelPerformances?.length > 0,
+                            (m) => expandedModelIds.has(m.id),
+                            (m) => toggleExpanded(expandedModelIds, m.id)),
                         {
                             title: '', field: 'paramsMismatch', hozAlign: 'center', width: 40, headerSort: false,
                             // Flags a model where any feature's param count differs from its feature type's param count.
@@ -324,7 +420,7 @@
                             }
                         }
                     ];
-                    const table = Defaults.grid.buildGrid('#models-table', columns, '/Home/Models');
+                    const table = Defaults.grid.buildGrid('#models-table', columns, '/Home/Models', { rowFormatter: modelRowFormatter });
 
                     document.getElementById('models-add').addEventListener('click', () => openModelEditor(null));
 

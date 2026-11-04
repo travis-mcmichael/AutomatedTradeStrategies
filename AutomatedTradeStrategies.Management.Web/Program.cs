@@ -4,6 +4,7 @@ using AutomatedTrading.Core.Framework.DataLayer;
 using AutomatedTrading.Core.Framework.DataLayer.Sqlite;
 using AutomatedTrading.Core.Models;
 using AutomatedTradeStrategies.Management.Web.Services;
+using AutomatedTrading.Core.Framework;
 
 var builder = WebApplication.CreateBuilder(args);
 

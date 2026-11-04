@@ -4,7 +4,7 @@ set -euo pipefail
 # Trains and deploys one model. Features must already be exported to <feature-dir>/features.csv
 # (the Management web app's feature export writes it there).
 #
-# Usage: mlpipeline.sh --name <model name> --feature-dir <features folder> --target <HIGH|LOW> [--version <yyyyMMdd>]
+# Usage: mlpipeline.sh --name <model name> --feature-dir <features folder> --target <HIGH|LOW> --db <sqlite file> --model-config-id <id> [--version <yyyyMMdd>]
 
 # ==============================
 # Configuration
@@ -17,7 +17,7 @@ VENV_DIR="${ONNX_VENV:-/opt/venv/onnx-venv}"
 PYTHON="$VENV_DIR/bin/python"
 
 usage() {
-    echo "Usage: $0 --name <model name> --feature-dir <features folder> --target <HIGH|LOW> [--version <yyyyMMdd>]" >&2
+    echo "Usage: $0 --name <model name> --feature-dir <features folder> --target <HIGH|LOW> --db <sqlite file> --model-config-id <id> [--version <yyyyMMdd>]" >&2
     exit 1
 }
 
@@ -27,21 +27,26 @@ usage() {
 NAME=""
 FEATURE_DIR=""
 TARGET=""
+DB=""
+MODEL_CONFIG_ID=""
 VERSION="$MODEL_DATE"
 while [[ $# -gt 0 ]]; do
     [[ $# -ge 2 ]] || usage
     case "$1" in
-        --name)        NAME="$2";        shift 2 ;;
-        --feature-dir) FEATURE_DIR="$2"; shift 2 ;;
-        --target)      TARGET="$2";      shift 2 ;;
-        --version)     VERSION="$2";     shift 2 ;;
-        *)             usage ;;
+        --name)            NAME="$2";            shift 2 ;;
+        --feature-dir)     FEATURE_DIR="$2";     shift 2 ;;
+        --target)          TARGET="$2";          shift 2 ;;
+        --db)              DB="$2";              shift 2 ;;
+        --model-config-id) MODEL_CONFIG_ID="$2"; shift 2 ;;
+        --version)         VERSION="$2";         shift 2 ;;
+        *)                 usage ;;
     esac
 done
 
-[[ -n "$NAME" && -n "$FEATURE_DIR" && -n "$TARGET" ]] || usage
+[[ -n "$NAME" && -n "$FEATURE_DIR" && -n "$TARGET" && -n "$DB" && -n "$MODEL_CONFIG_ID" ]] || usage
 [[ "$TARGET" == "HIGH" || "$TARGET" == "LOW" ]] || usage
 [[ "$VERSION" =~ ^[0-9]{8}$ ]] || usage
+[[ "$MODEL_CONFIG_ID" =~ ^[0-9]+$ ]] || usage
 
 CSV="$FEATURE_DIR/features.csv"
 MODEL_OUT="$FEATURE_DIR/$VERSION"   # dated folder that training and export write to
@@ -69,7 +74,8 @@ echo ""
 echo "======================================================"
 echo "  Step 2: Train XGBoost model ($NAME, $TARGET)"
 echo "======================================================"
-$PYTHON "$SCRIPT_DIR/train_model_xgboost.py" --name "$NAME" --csv "$CSV" --target "$TARGET" --version "$VERSION"
+$PYTHON "$SCRIPT_DIR/train_model_xgboost.py" --name "$NAME" --csv "$CSV" --target "$TARGET" --version "$VERSION" \
+    --db "$DB" --model-config-id "$MODEL_CONFIG_ID"
 
 # ==============================
 # Step 3: Export model to ONNX
