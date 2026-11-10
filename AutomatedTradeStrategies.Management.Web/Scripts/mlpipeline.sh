@@ -30,6 +30,8 @@ TARGET=""
 DB=""
 MODEL_CONFIG_ID=""
 VERSION="$MODEL_DATE"
+# Kept before the parsing loop below shifts the arguments away.
+SUBMITTED_COMMAND="$0 $*"
 while [[ $# -gt 0 ]]; do
     [[ $# -ge 2 ]] || usage
     case "$1" in
@@ -47,6 +49,15 @@ done
 [[ "$TARGET" == "HIGH" || "$TARGET" == "LOW" ]] || usage
 [[ "$VERSION" =~ ^[0-9]{8}$ ]] || usage
 [[ "$MODEL_CONFIG_ID" =~ ^[0-9]+$ ]] || usage
+
+# Show exactly what was submitted, so the training output records the options used.
+echo ""
+echo "======================================================"
+echo "  Options"
+echo "======================================================"
+echo "  Command:           $SUBMITTED_COMMAND"
+printf '  %-18s %s\n' "--name" "$NAME" "--feature-dir" "$FEATURE_DIR" "--target" "$TARGET" \
+    "--version" "$VERSION" "--db" "$DB" "--model-config-id" "$MODEL_CONFIG_ID"
 
 CSV="$FEATURE_DIR/features.csv"
 MODEL_OUT="$FEATURE_DIR/$VERSION"   # dated folder that training and export write to

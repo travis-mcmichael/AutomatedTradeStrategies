@@ -38,7 +38,7 @@ public class GetInferenceReadiness(
     public async Task<InferenceReadiness> Execute(long modelConfigId, DateTime sessionDate)
     {
         var result = new InferenceReadiness();
-        var all = new Dictionary<string, object> { { "1", "1" } };
+        var all = new Dictionary<string, object> { { "1", 1 } };
 
         var model = (await modelConfigs.GetDataAsync(new Dictionary<string, object> { { "Id", modelConfigId } })).FirstOrDefault();
         if (model is null)

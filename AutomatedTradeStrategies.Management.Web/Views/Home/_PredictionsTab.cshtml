@@ -1,84 +1,108 @@
-            <h2 class="mb-2">Predictions — <span id="predictions-session-date"></span></h2>
-            <div id="predictions-table"></div>
+<h2 class="mb-2">Predictions — <span id="predictions-session-date"></span></h2>
+<div id="predictions-table"></div>
+
+<div class="modal fade" id="readiness-modal" tabindex="-1" aria-labelledby="readiness-modal-title" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="readiness-modal-title">Inference readiness</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="readiness-modal-body"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
 
 <script>
-document.addEventListener('DOMContentLoaded', () => {
-    // Predictions: whether each model can run an inference for the current session. A model row expands to its
-    // features: a green check when a feature has all the data it needs, otherwise its problems in red.
-    // Built on first show (Tabulator can't measure a hidden container); reloaded on later shows.
-    const expandedPredictionIds = new Set();
+    document.addEventListener('DOMContentLoaded', () => {
+        // Predictions: a model list with a Run Inference button per row. The button checks that model's inference
+        // readiness for the current session (GetInferenceReadiness) and shows the result in a popup.
+        // Built on first show (Tabulator can't measure a hidden container); reloaded on later shows.
+        const readinessModal = new bootstrap.Modal(document.getElementById('readiness-modal'));
+        const readinessTitle = document.getElementById('readiness-modal-title');
+        const readinessBody = document.getElementById('readiness-modal-body');
+        let readinessRequest = 0; // Only the most recent button press is shown when several are clicked.
 
-    const issueLines = (issues) => issues.map((issue) => `<div>${Defaults.escapeHtml(issue)}</div>`).join('');
+        const issueLines = (issues) => issues.map((issue) => `<div>${Defaults.escapeHtml(issue)}</div>`).join('');
 
-    const featureColumns = [
-        { title: 'Feature', field: 'name' },
-        { title: 'Type', field: 'featureTypeName' },
-        { title: 'Source', field: 'source' },
-        {
-            title: 'Status', field: 'isReady', headerSort: false,
-            formatter: (cell) => {
-                const feature = cell.getRow().getData();
-                return feature.isReady
+        const readinessStatus = (ready) => ready
+            ? "<span class='badge text-bg-success'>Ready</span>"
+            : "<span class='badge text-bg-danger'>Not ready</span>";
+
+        const featureRows = (features) => features.map((feature) => `
+            <tr>
+                <td>${Defaults.escapeHtml(feature.name)}</td>
+                <td>${Defaults.escapeHtml(feature.featureTypeName)}</td>
+                <td>${Defaults.escapeHtml(feature.source)}</td>
+                <td>${feature.isReady
                     ? "<i class='bi bi-check-circle-fill text-success' title='Ready'></i>"
-                    : `<div class='text-danger'>${issueLines(feature.issues)}</div>`;
+                    : `<div class='text-danger'>${issueLines(feature.issues)}</div>`}</td>
+            </tr>`).join('');
+
+        function renderReadiness(model, result) {
+            const modelIssues = result.modelIssues.length
+                ? `<div class='text-danger mb-3'>${issueLines(result.modelIssues)}</div>`
+                : '';
+            const features = result.features.length
+                ? `<table class='table table-sm align-top'>
+                       <thead><tr><th>Feature</th><th>Type</th><th>Source</th><th>Status</th></tr></thead>
+                       <tbody>${featureRows(result.features)}</tbody>
+                   </table>`
+                : "<div class='text-muted'>No features are configured.</div>";
+            readinessBody.innerHTML = `
+                <div class='d-flex align-items-center gap-2 mb-3'>
+                    ${readinessStatus(result.isReady)}
+                    <span class='text-muted'>Session ${Defaults.escapeHtml(result.sessionDate)}</span>
+                </div>
+                ${modelIssues}
+                ${features}`;
+        }
+
+        async function runInference(model) {
+            const request = ++readinessRequest;
+            readinessTitle.textContent = `${model.modelName} — Inference readiness`;
+            readinessBody.innerHTML = "<div class='text-muted'><span class='spinner-border spinner-border-sm me-2'></span>Checking readiness...</div>";
+            readinessModal.show();
+
+            try {
+                const res = await fetch(`/Home/ModelReadiness/${model.id}`);
+                if (!res.ok) throw new Error(`request failed with status ${res.status}`);
+                const result = await res.json();
+                if (request === readinessRequest) renderReadiness(model, result);
+            } catch (err) {
+                if (request === readinessRequest)
+                    readinessBody.innerHTML = `<div class='alert alert-danger mb-0'>Readiness check failed: ${Defaults.escapeHtml(err.message)}</div>`;
             }
         }
-    ];
 
-    const predictionColumns = [
-        Defaults.grid.expanderColumn(
-            (m) => m.features.length > 0 || m.modelIssues.length > 0,
-            (m) => expandedPredictionIds.has(m.id),
-            (m) => Defaults.grid.toggleExpanded(expandedPredictionIds, m.id)),
-        { title: 'Model', field: 'modelName' },
-        {
-            title: 'Inference Ready', field: 'isReady', hozAlign: 'center',
-            formatter: (cell) => cell.getValue()
-                ? "<span class='badge text-bg-success'>Ready</span>"
-                : "<span class='badge text-bg-danger'>Not ready</span>"
-        }
-    ];
-
-    // Secondary level: the model-level problems (in red) above a table of its features.
-    function predictionRowFormatter(row) {
-        const el = row.getElement();
-        el.querySelector(':scope > .prediction-subgrid')?.remove();
-        const model = row.getData();
-        if (!expandedPredictionIds.has(model.id)) return;
-        if (model.features.length === 0 && model.modelIssues.length === 0) return;
-
-        const holder = document.createElement('div');
-        holder.className = 'prediction-subgrid p-2 ps-4';
-        if (model.modelIssues.length > 0) {
-            const issues = document.createElement('div');
-            issues.className = 'text-danger mb-2';
-            issues.innerHTML = issueLines(model.modelIssues);
-            holder.appendChild(issues);
-        }
-        if (model.features.length > 0) {
-            const grid = document.createElement('div');
-            holder.appendChild(grid);
-            new Tabulator(grid, { layout: 'fitColumns', data: model.features, columns: featureColumns });
-        }
-        el.appendChild(holder);
-    }
-
-    const predictionsUrl = '/Home/Predictions';
-    let predictionsTable = null;
-    document.getElementById('predictions-tab').addEventListener('shown.bs.tab', () => {
-        if (!predictionsTable) {
-            predictionsTable = Defaults.grid.buildGrid('#predictions-table', predictionColumns, predictionsUrl, {
-                pagination: false, height: false,
-                rowFormatter: predictionRowFormatter,
-                ajaxResponse: (url, params, response) => {
-                    document.getElementById('predictions-session-date').textContent = response.sessionDate;
-                    return response.models;
+        const predictionColumns = [
+            { title: 'Model', field: 'modelName', widthGrow: 3 },
+            {
+                title: '', field: 'id', hozAlign: 'center', headerSort: false,
+                formatter: () => "<button type='button' class='btn btn-sm btn-outline-primary'>Run Inference</button>",
+                cellClick: (e, cell) => {
+                    if (e.target.closest('button')) runInference(cell.getRow().getData());
                 }
-            });
-        } else {
-            predictionsTable.setData(predictionsUrl);
-        }
-    });
+            }
+        ];
 
-});
+        const predictionsUrl = '/Home/Predictions';
+        let predictionsTable = null;
+        document.getElementById('predictions-tab').addEventListener('shown.bs.tab', () => {
+            if (!predictionsTable) {
+                predictionsTable = Defaults.grid.buildGrid('#predictions-table', predictionColumns, predictionsUrl, {
+                    pagination: false, height: false,
+                    ajaxResponse: (url, params, response) => {
+                        document.getElementById('predictions-session-date').textContent = response.sessionDate;
+                        return response.models;
+                    }
+                });
+            } else {
+                predictionsTable.setData(predictionsUrl);
+            }
+        });
+    });
 </script>
