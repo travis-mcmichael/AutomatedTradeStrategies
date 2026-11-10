@@ -200,7 +200,7 @@ public class FeatureExporter
     // Builds a back-adjusted continuous series: each session keeps only its active contract's bars
     // (the old version before a roll date, the new version from it onward), shifted by the sum of every
     // roll after it so prices line up with the newest contract. Sessions left with no bars are dropped.
-    private static void HandleChangeoverAdjustment(IList<VersionChangeover> changeovers, IList<string> orderedSessions, Dictionary<string, List<BarData>> minuteBarsBySession)
+    public static void HandleChangeoverAdjustment(IList<VersionChangeover> changeovers, IList<string> orderedSessions, Dictionary<string, List<BarData>> minuteBarsBySession)
     {
         var rolls = changeovers.OrderBy(c => c.SessionDate, StringComparer.Ordinal).ToList();
         foreach (var session in orderedSessions)
