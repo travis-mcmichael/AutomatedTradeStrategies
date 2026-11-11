@@ -9,7 +9,7 @@ namespace AutomatedTrading.Core.Framework;
 /// All data required to evaluate a single feature. Daily context is always required;
 /// PrevMinuteBars and CurrentMinuteBars are needed only for features with those sources.
 /// </summary>
-public class FeatureContext(double atr, string sessionDate, Dictionary<string, List<BarData>> minuteBars)
+public class FeatureContext(double atr, string sessionDate, Dictionary<string, List<BarData>> minuteBars, string modelWindowStart)
 {
     /// <summary>
     /// Average True Range
@@ -17,6 +17,7 @@ public class FeatureContext(double atr, string sessionDate, Dictionary<string, L
     public double ATR { get; set; } = atr;
     public string SessionDate { get; set; } = sessionDate;
     public Dictionary<string, List<BarData>> MinuteBars { get; set; } = minuteBars;
+    public string ModelWindowStart { get; set; } = modelWindowStart;
 }
 
 public static class FeatureComputations
@@ -41,6 +42,11 @@ public static class FeatureComputations
         // bars to be used for context for evaluation.  
         // Context bars contains all the data for the model's date range, including bars from outside
         // the model's config window, in raw 1-minute format. 
+        if (ctx.MinuteBars.TryGetValue(ctx.SessionDate, out List<BarData>? value) && ctx.ModelWindowStart != "")
+        {
+            var modelStart = int.Parse(ctx.ModelWindowStart);
+            ctx.MinuteBars[ctx.SessionDate] = [.. value.Where(x => int.Parse(x.SessionTime) < modelStart).OrderBy(x => x.SessionTime)];
+        }
         var contextBars = BuildContextSegment(contextDate, source, ctx, p);
 
         var last = contextBars.Count - 1;

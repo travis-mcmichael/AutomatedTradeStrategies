@@ -61,7 +61,7 @@ public class GetInferencePrediction(
 
             if (!bySession.TryGetValue(sessionKey, out var sessionBars) || sessionBars.Count == 0)
                 return InferencePrediction.Failed(label, $"There are no bars for {label}.");
-            sessionBars = sessionBars.OrderBy(b => b.Timestamp).ToList();
+            sessionBars = [.. sessionBars.OrderBy(b => b.Timestamp)];
 
             var hasWindow = model.WindowStart is not null && model.WindowEnd is not null;
             var windowStart = hasWindow ? int.Parse(model.WindowStart!) : 0;
@@ -109,7 +109,7 @@ public class GetInferencePrediction(
 
             var open = sequence.Last().Open;
             var features = FeatureComputations.ParseFeatures(model.ModelFeatures,
-                new FeatureContext(atr, sessionKey, snapshot));
+                new FeatureContext(atr, sessionKey, snapshot, model.WindowStart ?? ""));
             var raw = evaluator.RunInference(evaluator.Scale(features)) * atr;
             if (raw == 0)
                 return InferencePrediction.Failed(label, "The model returned no output. The evaluator logs a feature count mismatch if that is the cause.");
