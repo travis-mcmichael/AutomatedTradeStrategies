@@ -79,7 +79,7 @@ public class GetInferencePrediction(
             foreach (var pair in bySession)
             {
                 snapshot[pair.Key] = pair.Key == sessionKey
-                    ? sessionBars.Where(b => timeOf(b) <= cut).ToList()
+                    ? [.. sessionBars.Where(b => timeOf(b) <= cut)]
                     : pair.Value;
             }
 
@@ -98,7 +98,7 @@ public class GetInferencePrediction(
                     sequence.Add(BarData.Aggregate(pair.Value.OrderBy(b => b.Timestamp).ToList()));
                 }
             }
-            sequence = sequence.OrderBy(b => b.Timestamp).ToList();
+            sequence = [.. sequence.OrderBy(b => b.Timestamp)];
             if (sequence.Count == 0)
                 return InferencePrediction.Failed(label, "No sequence of sessions could be built for the trigger.");
 
@@ -109,7 +109,7 @@ public class GetInferencePrediction(
 
             var open = sequence.Last().Open;
             var features = FeatureComputations.ParseFeatures(model.ModelFeatures,
-                new FeatureContext(atr, sessionKey, snapshot, model.WindowStart ?? ""));
+                new FeatureContext(atr, sessionKey, snapshot, model.WindowStart ?? "", model.WindowEnd ?? ""));
             var raw = evaluator.RunInference(evaluator.Scale(features)) * atr;
             if (raw == 0)
                 return InferencePrediction.Failed(label, "The model returned no output. The evaluator logs a feature count mismatch if that is the cause.");

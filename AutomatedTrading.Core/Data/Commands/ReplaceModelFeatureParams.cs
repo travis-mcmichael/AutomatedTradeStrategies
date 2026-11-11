@@ -21,7 +21,7 @@ public class ReplaceModelFeatureParams(IDbConnectionFactory connectionFactory, I
     // Must match the popup's FEATURE_SOURCES values and the switch in FeatureComputations.
     private const string SESSION_SOURCE = "sessionMinute";
     private static readonly HashSet<string> windowSources = ["windowMinute", "windowDay"];
-    private static readonly HashSet<string?> validSources = [null, "prevMinute", "currMinute", SESSION_SOURCE, "sessionDay", .. windowSources];
+    private static readonly HashSet<string?> validSources = [null, SESSION_SOURCE, "sessionDay", .. windowSources];
 
     // Context fields are FeatureTypeParams with no FeatureType (FeatureTypeId = WINDOW_FEATURE_TYPE_ID). Days/weeks/months
     // apply to every context-enabled feature; start/end only when the source is a window.
@@ -155,7 +155,7 @@ public class ReplaceModelFeatureParams(IDbConnectionFactory connectionFactory, I
                 if (!typeParamIds.TryGetValue(feature.FeatureTypeId, out var ids))
                     throw new ArgumentException($"FeatureType {feature.FeatureTypeId} does not exist.");
                 if (!validSources.Contains(feature.Source))
-                    throw new ArgumentException($"Source '{feature.Source}' is not valid; use sessionMinute, sessionDay, windowMinute, windowDay, prevMinute, currMinute or none (defaults to sessionMinute).");
+                    throw new ArgumentException($"Source '{feature.Source}' is not valid; use sessionMinute, sessionDay, windowMinute, windowDay, or none (defaults to sessionMinute).");
                 foreach (var id in ids)
                     allowed.Add((feature.TempId, id));
                 if (contextTypeIds.Contains(feature.FeatureTypeId))

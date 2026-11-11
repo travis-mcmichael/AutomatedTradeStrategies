@@ -9,15 +9,37 @@ namespace AutomatedTrading.Core.Framework;
 /// All data required to evaluate a single feature. Daily context is always required;
 /// PrevMinuteBars and CurrentMinuteBars are needed only for features with those sources.
 /// </summary>
-public class FeatureContext(double atr, string sessionDate, Dictionary<string, List<BarData>> minuteBars, string modelWindowStart)
+public class FeatureContext
 {
     /// <summary>
     /// Average True Range
     /// </summary>
-    public double ATR { get; set; } = atr;
-    public string SessionDate { get; set; } = sessionDate;
-    public Dictionary<string, List<BarData>> MinuteBars { get; set; } = minuteBars;
-    public string ModelWindowStart { get; set; } = modelWindowStart;
+    public double ATR { get; set; }
+    public string SessionDate { get; set; }
+    public Dictionary<string, List<BarData>> Data { get; set; }
+    public FeatureContext(double atr, string sessionDate, Dictionary<string, List<BarData>> minuteBars,
+        string modelWindowStart = null, string modelWindowEnd = null)
+    {
+        ATR = atr;
+        SessionDate = sessionDate;
+        // Shallow copy: only the current session's list is replaced, so the caller's dictionary (shared across rows
+        // in the exporter) and the prior sessions are left untouched.
+        Data = new Dictionary<string, List<BarData>>(minuteBars);
+
+        // Only the current session is cut. Its bars from the window open onward have not happened yet when the
+        // trigger fires, so they are dropped. The cut is chronological (by Timestamp), not by time of day, so a
+        // window that wraps midnight (e.g. 17:00-08:30) is handled correctly.
+        if (!string.IsNullOrEmpty(modelWindowStart) && !string.IsNullOrEmpty(modelWindowEnd)
+            && minuteBars.TryGetValue(sessionDate, out var current))
+        {
+            var window = new TradeWindow { WindowStart = int.Parse(modelWindowStart), WindowEnd = int.Parse(modelWindowEnd) };
+            var ordered = current.OrderBy(x => x.Timestamp).ToList();
+            var windowOpen = ordered.FindIndex(x => window.InWindow(int.Parse(x.SessionTime)));
+            if (windowOpen < 0)
+                throw new InvalidOperationException($"No bars for {sessionDate} fall inside the model window {modelWindowStart}-{modelWindowEnd}.");
+            Data[sessionDate] = ordered.Take(windowOpen).ToList();
+        }
+    }
 }
 
 public static class FeatureComputations
@@ -42,17 +64,12 @@ public static class FeatureComputations
         // bars to be used for context for evaluation.  
         // Context bars contains all the data for the model's date range, including bars from outside
         // the model's config window, in raw 1-minute format. 
-        if (ctx.MinuteBars.TryGetValue(ctx.SessionDate, out List<BarData>? value) && ctx.ModelWindowStart != "")
-        {
-            var modelStart = int.Parse(ctx.ModelWindowStart);
-            ctx.MinuteBars[ctx.SessionDate] = [.. value.Where(x => int.Parse(x.SessionTime) < modelStart).OrderBy(x => x.SessionTime)];
-        }
-        var contextBars = BuildContextSegment(contextDate, source, ctx, p);
+        var contextBars = BuildContextSegment(contextDate, source, ctx.Data, p);
 
         var last = contextBars.Count - 1;
         if (last == -1) return double.NaN;
         var aggregatedContext = source.Contains("day", StringComparison.CurrentCultureIgnoreCase) ? contextBars.Last() : BarData.Aggregate(contextBars);
-        var currentPrice = ctx.MinuteBars[ctx.SessionDate].Last().Close;
+        var currentPrice = ctx.Data[ctx.SessionDate].Last().Close;
 
         switch (feature.FeatureType?.Name)
         {
@@ -220,7 +237,7 @@ public static class FeatureComputations
             case "Return":
                 return Computations.Return(contextBars, p["lookback"]);
             case "ReturnPrev":
-                return Math.Log(ctx.MinuteBars[ctx.SessionDate].Last().Close / aggregatedContext.Open);
+                return Math.Log(currentPrice / aggregatedContext.Open);
             case "Rsi":
                 return Computations.RSI(contextBars, p["lookback"]);
             case "Sma":
@@ -331,7 +348,7 @@ public static class FeatureComputations
         return prevDate;
     }
 
-    private static List<BarData> BuildContextSegment(DateTime contextDate, string source, FeatureContext ctx, Dictionary<string, int> p)
+    private static List<BarData> BuildContextSegment(DateTime contextDate, string source, Dictionary<string, List<BarData>> dataSegment, Dictionary<string, int> p)
     {
         // var source = feature.Source;
         var contextBars = new List<BarData>(); // bars to be used for context for evaluation.  
@@ -347,7 +364,7 @@ public static class FeatureComputations
                 case "windowMinute":
                     if (!hasWindow)
                         throw new InvalidOperationException("Missing window feature parameters");
-                    var windowBars = ctx.MinuteBars[contextDate.ToString(AppConstants.DATE_FORMAT)]
+                    var windowBars = dataSegment[contextDate.ToString(AppConstants.DATE_FORMAT)]
                         .Where(x =>
                             new TradeWindow() { WindowStart = start, WindowEnd = end }
                             .InWindow(int.Parse(x.SessionTime)))
@@ -358,29 +375,29 @@ public static class FeatureComputations
                 case "windowDay":
                     if (!hasWindow)
                         throw new InvalidOperationException("Missing window feature parameters");
-                    var windows = ctx.MinuteBars.Keys
+                    var windows = dataSegment.Keys
                         .Where(x => int.Parse(x) <= int.Parse(contextDate.ToString(AppConstants.DATE_FORMAT)))
                         .OrderBy(x => x)
                         .ToList();
                     foreach (var session in windows)
                     {
-                        var sessionBars = ctx.MinuteBars[session].Where(x => new TradeWindow() { WindowStart = start, WindowEnd = end }.InWindow(int.Parse(x.SessionTime))).ToList();
+                        var sessionBars = dataSegment[session].Where(x => new TradeWindow() { WindowStart = start, WindowEnd = end }.InWindow(int.Parse(x.SessionTime))).ToList();
                         if (sessionBars.Count == 0) continue;
                         contextBars.Add(BarData.Aggregate(sessionBars));
                     }
                     break;
                 case "sessionDay":
-                    var sessions = ctx.MinuteBars.Keys
+                    var sessions = dataSegment.Keys
                         .Where(x => int.Parse(x) <= int.Parse(contextDate.ToString(AppConstants.DATE_FORMAT)))
                         .OrderBy(x => x)
                         .ToList();
                     foreach (var session in sessions)
                     {
-                        contextBars.Add(BarData.Aggregate([.. ctx.MinuteBars[session]]));
+                        contextBars.Add(BarData.Aggregate([.. dataSegment[session]]));
                     }
                     break;
                 default:
-                    contextBars.AddRange([.. ctx.MinuteBars[contextDate.ToString(AppConstants.DATE_FORMAT)].OrderBy(x => x.Timestamp)]);
+                    contextBars.AddRange([.. dataSegment[contextDate.ToString(AppConstants.DATE_FORMAT)].OrderBy(x => x.Timestamp)]);
                     break;
             }
         }

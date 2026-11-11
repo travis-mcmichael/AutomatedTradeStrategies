@@ -169,7 +169,8 @@ public class FeatureExporter
                    atr20,
                    date,
                    minuteBarsBySession,
-                   _model.WindowStart ?? ""
+                   _model.WindowStart ?? "",
+                   _model.WindowEnd ?? ""
                ));
             if (featureValues != null)
             {
