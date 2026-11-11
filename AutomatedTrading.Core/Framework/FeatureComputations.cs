@@ -69,7 +69,16 @@ public static class FeatureComputations
         var last = contextBars.Count - 1;
         if (last == -1) return double.NaN;
         var aggregatedContext = source.Contains("day", StringComparison.CurrentCultureIgnoreCase) ? contextBars.Last() : BarData.Aggregate(contextBars);
-        var currentPrice = ctx.Data[ctx.SessionDate].Last().Close;
+        var currentPrice = double.MinValue;
+        if (ctx.Data[ctx.SessionDate].Count > 0)
+        {
+            currentPrice = ctx.Data[ctx.SessionDate].Last().Close;
+        }
+        else
+        {
+            var lastSessionKey = TradingCalendar.GetPreviousSessionDate(sessionDate).ToString(AppConstants.DATE_FORMAT);
+            currentPrice = ctx.Data[lastSessionKey].Last().Close;
+        }
 
         switch (feature.FeatureType?.Name)
         {
