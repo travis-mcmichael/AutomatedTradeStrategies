@@ -5,7 +5,6 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using AutomatedTrading.Core.Framework;
-using AutomatedTrading.Core.Framework.DataLayer;
 using AutomatedTrading.Core.Models;
 using AutomatedTrading.Core.Utility;
 
@@ -22,7 +21,7 @@ public class GetInferencePrediction(
     GetInferenceReadiness readiness,
     GetAllModelConfigs allModelConfigs,
     GetVersionChangeovers versionChangeovers,
-    IDbConnectionFactory connectionFactory)
+    GetBarsInSessionRange barsInRange)
 {
     private const int ATR_SPAN = 20;            // InferenceService.ATR_SPAN
     private const string TIME_FORMAT = "HH:mm:ss";
@@ -51,13 +50,13 @@ public class GetInferencePrediction(
         {
             var earliest = earliestNeeded(model, sessionDate);
             var sessionKey = Key(sessionDate);
-            var bySession = (await loadBars(model.Instrument, Key(earliest), sessionKey))
+            var bySession = (await barsInRange.Execute(model.Instrument, Key(earliest), sessionKey))
                 .GroupBy(b => b.SessionDate!)
                 .ToDictionary(g => g.Key, g => g.ToList());
 
             var changeovers = await versionChangeovers.Execute(model.Instrument, earliest, sessionDate);
             if (changeovers.Count > 0)
-                FeatureExporter.HandleChangeoverAdjustment(changeovers, bySession.Keys.OrderByDescending(k => k, StringComparer.Ordinal).ToList(), bySession);
+                FeatureExporter.HandleChangeoverAdjustment(changeovers, [.. bySession.Keys.OrderByDescending(k => k, StringComparer.Ordinal)], bySession);
 
             if (!bySession.TryGetValue(sessionKey, out var sessionBars) || sessionBars.Count == 0)
                 return InferencePrediction.Failed(label, $"There are no bars for {label}.");
@@ -95,7 +94,7 @@ public class GetInferencePrediction(
                 else
                 {
                     if (pair.Value.Count == 0) continue;
-                    sequence.Add(BarData.Aggregate(pair.Value.OrderBy(b => b.Timestamp).ToList()));
+                    sequence.Add(BarData.Aggregate([.. pair.Value.OrderBy(b => b.Timestamp)]));
                 }
             }
             sequence = [.. sequence.OrderBy(b => b.Timestamp)];
@@ -179,46 +178,4 @@ public class GetInferencePrediction(
     }
 
     private static string Key(DateTime date) => date.ToString(AppConstants.DATE_FORMAT, CultureInfo.InvariantCulture);
-
-    // Bars for the instrument from one session through another, in time order. Non-trading sessions are dropped, as in export.
-    private async Task<List<BarData>> loadBars(string instrument, string from, string to)
-    {
-        using var connection = connectionFactory.CreateConnection();
-        using var cmd = connection.CreateCommand();
-        cmd.CommandText = @"
-            SELECT Timeframe, Timestamp, SessionDate, SessionTime, Open, High, Low, Close, Volume, Instrument, InstrumentVersion
-              FROM BarData
-             WHERE Instrument = @Instrument
-               AND SessionDate BETWEEN @From AND @To
-             ORDER BY Timestamp";
-
-        SqlHelper.AddParameter(cmd, "@Instrument", instrument);
-        SqlHelper.AddParameter(cmd, "@From", from);
-        SqlHelper.AddParameter(cmd, "@To", to);
-
-        await connection.OpenAsync();
-
-        var bars = new List<BarData>();
-        using var reader = await cmd.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
-        {
-            var bar = new BarData
-            {
-                Timeframe = reader.GetString(0),
-                Timestamp = MarketTime.FromUnixMilliseconds(reader.GetInt64(1)),
-                SessionDate = reader.IsDBNull(2) ? null : reader.GetString(2),
-                SessionTime = reader.IsDBNull(3) ? null : reader.GetString(3),
-                Open = reader.GetDouble(4),
-                High = reader.GetDouble(5),
-                Low = reader.GetDouble(6),
-                Close = reader.GetDouble(7),
-                Volume = reader.GetDouble(8),
-                Instrument = reader.GetString(9),
-                InstrumentVersion = reader.GetString(10),
-            };
-            if (bar.SessionDate is not null && TradingCalendar.IsTradingDay(bar.SessionDate))
-                bars.Add(bar);
-        }
-        return bars;
-    }
 }

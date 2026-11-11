@@ -4,7 +4,6 @@ using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 using AutomatedTrading.Core.Framework;
-using AutomatedTrading.Core.Framework.DataLayer;
 using AutomatedTrading.Core.Models;
 using AutomatedTrading.Core.Utility;
 
@@ -16,7 +15,7 @@ namespace AutomatedTrading.Core.Data.Queries;
 // Optionally restricted to a TradeWindow, aggregated as training does (the window's open is its first bar's open).
 public class GetSessionOutcome(
     GetVersionChangeovers versionChangeovers,
-    IDbConnectionFactory connectionFactory)
+    GetBarsInSessionRange barsInRange)
 {
     // Sessions back from the session date that are scanned for contract rolls. Only the roll history matters here;
     // the session's own bars are the only ones loaded.
@@ -33,7 +32,7 @@ public class GetSessionOutcome(
 
         try
         {
-            var bars = await loadSessionBars(instrument, sessionKey);
+            var bars = await barsInRange.Execute(instrument, sessionKey, sessionKey);
             if (bars.Count == 0)
                 return SessionOutcome.Failed(label, $"There are no bars for {label}.");
 
@@ -96,45 +95,6 @@ public class GetSessionOutcome(
             HighTime = FormatTime(timeOf(ordered.First(b => b.High == high))),
             LowTime = FormatTime(timeOf(ordered.First(b => b.Low == low))),
         };
-    }
-
-    // Bars for one instrument and session date, in time order. Mirrors GetInferencePrediction's loadBars.
-    private async Task<List<BarData>> loadSessionBars(string instrument, string sessionDate)
-    {
-        using var connection = connectionFactory.CreateConnection();
-        using var cmd = connection.CreateCommand();
-        cmd.CommandText = @"
-            SELECT Timeframe, Timestamp, SessionDate, SessionTime, Open, High, Low, Close, Volume, Instrument, InstrumentVersion
-              FROM BarData
-             WHERE Instrument = @Instrument
-               AND SessionDate = @SessionDate
-             ORDER BY Timestamp";
-
-        SqlHelper.AddParameter(cmd, "@Instrument", instrument);
-        SqlHelper.AddParameter(cmd, "@SessionDate", sessionDate);
-
-        await connection.OpenAsync();
-
-        var bars = new List<BarData>();
-        using var reader = await cmd.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
-        {
-            bars.Add(new BarData
-            {
-                Timeframe = reader.GetString(0),
-                Timestamp = MarketTime.FromUnixMilliseconds(reader.GetInt64(1)),
-                SessionDate = reader.IsDBNull(2) ? null : reader.GetString(2),
-                SessionTime = reader.IsDBNull(3) ? null : reader.GetString(3),
-                Open = reader.GetDouble(4),
-                High = reader.GetDouble(5),
-                Low = reader.GetDouble(6),
-                Close = reader.GetDouble(7),
-                Volume = reader.GetDouble(8),
-                Instrument = reader.GetString(9),
-                InstrumentVersion = reader.GetString(10),
-            });
-        }
-        return bars;
     }
 
     private static int timeOf(BarData bar) =>
