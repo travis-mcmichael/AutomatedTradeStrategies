@@ -108,6 +108,8 @@ public static class FeatureComputations
                     Computations.Range(aggregatedContext, ctx.ATR));
             case "BodySize":
                 return Computations.BodySize(aggregatedContext, ctx.ATR);
+            case "Close":
+                return aggregatedContext.Close;
             case "CloseLowDiff":
                 return Operations.SafeDiv(
                     aggregatedContext.Close - aggregatedContext.Low,
@@ -175,6 +177,8 @@ public static class FeatureComputations
                     ctx.ATR);
             case "GreenRatio":
                 return contextBars.Count(x => x.Open > x.Close) / contextBars.Count;
+            case "High":
+                return aggregatedContext.High;
             case "HighOpenDiff":
                 return Operations.SafeDiv(
                     aggregatedContext.High - aggregatedContext.Open,
@@ -188,6 +192,8 @@ public static class FeatureComputations
                 return Computations.HighTimeRatio(contextBars);
             case "HolidayAdjacent":
                 return TradingCalendar.IsHolidayAdjacent(sessionDate) ? 1 : 0;
+            case "Low":
+                return aggregatedContext.Low;
             case "LowTimeRatio":
                 return Computations.LowTimeRatio(contextBars);
             case "LowerWick":
@@ -206,6 +212,8 @@ public static class FeatureComputations
                 return Operations.SafeDiv(
                     Math.Abs(aggregatedContext.Open - aggregatedContext.Close),
                     Computations.AbsoluteMovement(contextBars));
+            case "Open":
+                return aggregatedContext.Open;
             case "OpenLowDiff":
                 return Operations.SafeDiv(
                     contextBars[last].Open - aggregatedContext.Low,

@@ -69,23 +69,76 @@
             predictionRun.disabled = false;
         }
 
-        function renderPrediction(result) {
-            if (!result.succeeded) {
-                predictionResult.innerHTML = `<div class='alert alert-warning mb-0'>${Defaults.escapeHtml(result.error)}</div>`;
-                return;
-            }
-            const level = result.target === 'HIGH' ? 'Predicted high' : 'Predicted low';
+        const MISSING = "<span class='text-muted fst-italic'>Missing Data</span>";
+        const hasNumber = (v) => typeof v === 'number' && Number.isFinite(v);
+        const num = (v) => hasNumber(v) ? v.toFixed(2) : MISSING;
+        const text = (v) => (v === null || v === undefined || v === '') ? MISSING : Defaults.escapeHtml(v);
+        const fieldRow = (label, valueHtml) => `<tr><th class='pe-4'>${label}</th><td>${valueHtml}</td></tr>`;
+        const panel = (title, rows) => `
+            <div class='col-md-6'>
+                <h6 class='mb-2'>${title}</h6>
+                <table class='table table-sm mb-0'><tbody>${rows.join('')}</tbody></table>
+            </div>`;
+
+        // Prediction fields show Missing Data when the prediction failed.
+        function predictionRows(p) {
+            const ok = p?.succeeded === true;
+            const levelLabel = p?.target === 'LOW' ? 'Predicted low' : 'Predicted high';
+            return [
+                fieldRow('Session', ok ? text(p.sessionDate) : MISSING),
+                fieldRow('As of bar', ok ? text(p.asOfTime) : MISSING),
+                fieldRow('Open', ok ? num(p.open) : MISSING),
+                fieldRow('ATR(20)', ok ? num(p.atr) : MISSING),
+                fieldRow('Move from open', ok ? `${num(p.move)} points` : MISSING),
+                fieldRow(levelLabel, ok ? `<strong>${num(p.level)}</strong>` : MISSING),
+            ];
+        }
+
+        // Actual fields come from the window when the model has one, otherwise the whole session. Any field whose
+        // data is not there yet (no bars, no bars in the window, or the request failed) shows Missing Data.
+        function actualRows(o, p) {
+            const ok = o?.succeeded === true;
+            const windowed = ok && o.windowStart != null;
+            const range = ok ? (windowed ? o.window : o.session) : null;
+            const have = range != null;
+            const r = range ?? {};
+            const target = p?.succeeded === true ? p.target : null;
+            const actualLevel = target === 'LOW' ? r.low : r.high;
+            const hasLevel = have && target !== null && hasNumber(actualLevel);
+            const period = !ok ? MISSING
+                : windowed ? (have ? `${text(o.windowStart)} – ${text(o.windowEnd)}` : MISSING)
+                : (have ? 'Whole session' : MISSING);
+            const error = hasLevel && p.succeeded ? `${(p.level - actualLevel).toFixed(2)} points` : MISSING;
+            return [
+                fieldRow('Session', ok ? text(o.sessionDate) : MISSING),
+                fieldRow('Period', period),
+                fieldRow('Open', have ? num(r.open) : MISSING),
+                fieldRow('High', have ? `${num(r.high)} at ${text(r.highTime)}` : MISSING),
+                fieldRow('Low', have ? `${num(r.low)} at ${text(r.lowTime)}` : MISSING),
+                fieldRow('Close', have ? num(r.close) : MISSING),
+                fieldRow('Up from open', have ? `${num(r.upMove)} points` : MISSING),
+                fieldRow('Down from open', have ? `${num(r.downMove)} points` : MISSING),
+                fieldRow(target === 'LOW' ? 'Actual low' : 'Actual high',
+                    hasLevel ? `<strong>${num(actualLevel)}</strong>` : MISSING),
+                fieldRow('Predicted minus actual', error),
+                fieldRow('Bars', have ? `${r.barCount} (${text(r.firstTime)} – ${text(r.lastTime)})` : MISSING),
+            ];
+        }
+
+        function renderPrediction(prediction, outcome) {
+            const messages = [];
+            if (prediction && !prediction.succeeded) messages.push(prediction.error);
+            if (!outcome) messages.push('The actual outcome could not be loaded.');
+            else if (!outcome.succeeded) messages.push(outcome.error);
+            const alerts = messages
+                .map((m) => `<div class='alert alert-warning py-1 mb-2'>${Defaults.escapeHtml(m ?? '')}</div>`)
+                .join('');
             predictionResult.innerHTML = `
-                <table class='table table-sm w-auto mb-0'>
-                    <tbody>
-                        <tr><th class='pe-4'>Session</th><td>${Defaults.escapeHtml(result.sessionDate)}</td></tr>
-                        <tr><th class='pe-4'>As of bar</th><td>${Defaults.escapeHtml(result.asOfTime)}</td></tr>
-                        <tr><th class='pe-4'>Open</th><td>${result.open.toFixed(2)}</td></tr>
-                        <tr><th class='pe-4'>ATR(20)</th><td>${result.atr.toFixed(2)}</td></tr>
-                        <tr><th class='pe-4'>Move from open</th><td>${result.move.toFixed(2)} points</td></tr>
-                        <tr><th class='pe-4'>${level}</th><td><strong>${result.level.toFixed(2)}</strong></td></tr>
-                    </tbody>
-                </table>`;
+                ${alerts}
+                <div class='row g-3'>
+                    ${panel('Prediction', predictionRows(prediction))}
+                    ${panel('Actual', actualRows(outcome, prediction))}
+                </div>`;
         }
 
         async function runPrediction() {
@@ -96,12 +149,20 @@
             predictionRun.disabled = true;
             predictionResult.innerHTML = "<div class='text-muted'><span class='spinner-border spinner-border-sm me-2'></span>Running inference...</div>";
 
-            try {
-                const url = `/Home/ModelPrediction/${model.id}?sessionDate=${encodeURIComponent(date)}`;
+            const query = `?sessionDate=${encodeURIComponent(date)}`;
+            const getJson = async (url) => {
                 const res = await fetch(url);
                 if (!res.ok) throw new Error(`request failed with status ${res.status}`);
-                const result = await res.json();
-                if (request === predictionRequest) renderPrediction(result);
+                return res.json();
+            };
+
+            try {
+                // The outcome is shown beside the prediction; if it can't be loaded, the prediction still shows.
+                const [prediction, outcome] = await Promise.all([
+                    getJson(`/Home/ModelPrediction/${model.id}${query}`),
+                    getJson(`/Home/ModelOutcome/${model.id}${query}`).catch(() => null),
+                ]);
+                if (request === predictionRequest) renderPrediction(prediction, outcome);
             } catch (err) {
                 if (request === predictionRequest)
                     predictionResult.innerHTML = `<div class='alert alert-danger mb-0'>Inference failed: ${Defaults.escapeHtml(err.message)}</div>`;
