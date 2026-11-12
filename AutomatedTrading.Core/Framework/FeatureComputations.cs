@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using AutomatedTrading.Core.Framework.Logging;
 using AutomatedTrading.Core.Models;
 
 namespace AutomatedTrading.Core.Framework;
@@ -37,7 +38,8 @@ public class FeatureContext
             var windowOpen = ordered.FindIndex(x => window.InWindow(int.Parse(x.SessionTime)));
             if (windowOpen < 0)
                 throw new InvalidOperationException($"No bars for {sessionDate} fall inside the model window {modelWindowStart}-{modelWindowEnd}.");
-            Data[sessionDate] = ordered.Take(windowOpen).ToList();
+            List<BarData> data = [.. ordered.Take(windowOpen)];
+            Data[sessionDate] = data;
         }
     }
 }
@@ -94,6 +96,10 @@ public static class FeatureComputations
                     Computations.ATR(contextBars, p["long"]));
             case "AvgBodyRatio":
                 return Computations.AverageBodyRatio(contextBars, p["lookback"], ctx.ATR);
+            case "AvgHighMove":
+                return Operations.SafeDiv(Computations.AverageHighMove(contextBars, p["lookback"]), ctx.ATR);
+            case "AvgLowMove":
+                return Operations.SafeDiv(Computations.AverageLowMove(contextBars, p["lookback"]), ctx.ATR);
             case "AvgMove":
                 return Computations.AverageMove(contextBars, p["lookback"]);
             case "AvgDownMove":
@@ -410,6 +416,16 @@ public static class FeatureComputations
                         .ToList();
                     foreach (var session in sessions)
                     {
+                        if (!dataSegment.ContainsKey(session))
+                        {
+                            Logger.Warn("Data segment for {session} not found. Verify data and session before using.");
+                            continue;
+                        }
+                        if (dataSegment[session].Count == 0)
+                        {
+                            Logger.Warn("No data found for {session}. Verify data and session before using.");
+                            continue;
+                        }
                         contextBars.Add(BarData.Aggregate([.. dataSegment[session]]));
                     }
                     break;

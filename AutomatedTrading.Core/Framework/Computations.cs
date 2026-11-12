@@ -73,6 +73,34 @@ public class Computations
         return Operations.SafeDiv(sum, lookback);
     }
 
+    public static double AverageHighMove(List<BarData> bars, int lookback)
+    {
+        if (bars.Count < lookback) return double.NaN;
+        double sum = 0;
+
+        for (var i = bars.Count - lookback; i < bars.Count; i++)
+        {
+            sum += bars[i].High - bars[i].Open;
+        }
+
+        return Operations.SafeDiv(sum, lookback);
+
+    }
+
+    public static double AverageLowMove(List<BarData> bars, int lookback)
+    {
+        if (bars.Count < lookback) return double.NaN;
+        double sum = 0;
+
+        for (var i = bars.Count - lookback; i < bars.Count; i++)
+        {
+            sum += bars[i].Low - bars[i].Open;
+        }
+
+        return Operations.SafeDiv(sum, lookback);
+
+    }
+
     public static double AverageMove(List<BarData> bars, int lookback)
     {
         if (bars.Count < lookback) return double.NaN;
