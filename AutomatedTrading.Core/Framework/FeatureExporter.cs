@@ -129,6 +129,8 @@ public class FeatureExporter
         // One entry per session that has bars in the model's window (or the whole session), oldest first. Each bar is
         // stored with its date so a session without window bars can't push the other rows out of line with their dates.
         var days = new List<(string Date, BarData Bar)>();
+        // Built after the changeover adjustment, so every row shares the same prior-session aggregates.
+        var aggregates = new SessionAggregateCache(minuteBarsBySession);
         if (_model.WindowStart != null && _model.WindowEnd != null)
         {
             var start = int.Parse(_model.WindowStart!);
@@ -162,24 +164,32 @@ public class FeatureExporter
             if (double.IsNaN(atr20) || atr20 == 0) continue;
 
             var target = GetTarget(bar, atr20);
-            var featureValues = FeatureComputations.ParseFeatures(
-               _model.ModelFeatures,
-               new FeatureContext
-               (
-                   atr20,
-                   date,
-                   minuteBarsBySession,
-                   _model.WindowStart ?? "",
-                   _model.WindowEnd ?? ""
-               ));
-            if (featureValues != null)
+            try
             {
-                //await writer.WriteLineAsync($"{bar.SessionDate},{bar.SessionTime},{bar.Open},{bar.High},{bar.Low},{bar.Close},{bar.Volume},{string.Join(",", featureValues.Select(f => f.ToString("G6")))},{target:G6}");
-                await writer.WriteLineAsync($"{string.Join(",", featureValues.Select(f => f.ToString("G6")))},{target:G6}");
-                written++;
+                var featureValues = FeatureComputations.ParseFeatures(
+                    _model.ModelFeatures,
+                    new FeatureContext
+                    (
+                        atr20,
+                        date,
+                        minuteBarsBySession,
+                        _model.WindowStart ?? "",
+                        _model.WindowEnd ?? "",
+                        aggregates
+                        ));
+                if (featureValues != null)
+                {
+                    //await writer.WriteLineAsync($"{bar.SessionDate},{bar.SessionTime},{bar.Open},{bar.High},{bar.Low},{bar.Close},{bar.Volume},{string.Join(",", featureValues.Select(f => f.ToString("G6")))},{target:G6}");
+                    await writer.WriteLineAsync($"{string.Join(",", featureValues.Select(f => f.ToString("G6")))},{target:G6}");
+                    written++;
+                }
+                if (written % 100 == 0)
+                    Console.WriteLine($"  {written} rows written...");
             }
-            if (written % 100 == 0)
-                Console.WriteLine($"  {written} rows written...");
+            catch (Exception ex)
+            {
+                throw;
+            }
         }
         return written;
     }

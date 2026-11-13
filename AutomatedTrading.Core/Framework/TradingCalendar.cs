@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
 
@@ -6,8 +7,10 @@ namespace AutomatedTrading.Core.Framework;
 
 public static class TradingCalendar
 {
-    // Holiday sets are computed once per year and cached.
-    private static readonly Dictionary<int, HashSet<DateTime>> _cache = new();
+    // Holiday sets are computed once per year and cached. Concurrent: exports and API requests can call in parallel.
+    private static readonly ConcurrentDictionary<int, HashSet<DateTime>> _cache = new();
+    // Parsed yyyyMMdd strings are checked once each; the bar loops call IsTradingDay(string) for every bar.
+    private static readonly ConcurrentDictionary<string, bool> _tradingDayCache = new();
 
     /// <summary>
     /// The session that is current at <paramref name="centralNow"/> (Central wall-clock time). A session opens at
@@ -52,7 +55,7 @@ public static class TradingCalendar
     {
         if (date.Length == 8)
         {
-            return IsTradingDay(DateTime.ParseExact(date, AppConstants.DATE_FORMAT, CultureInfo.InvariantCulture));
+            return _tradingDayCache.GetOrAdd(date, d => IsTradingDay(DateTime.ParseExact(d, AppConstants.DATE_FORMAT, CultureInfo.InvariantCulture)));
         }
         else if (date.Length == 6)
         {
@@ -97,11 +100,10 @@ public static class TradingCalendar
 
     // ─── Holiday computation ──────────────────────────────────────────────────
 
-    private static HashSet<DateTime> GetHolidaysForYear(int year)
-    {
-        if (_cache.TryGetValue(year, out var cached))
-            return cached;
+    private static HashSet<DateTime> GetHolidaysForYear(int year) => _cache.GetOrAdd(year, ComputeHolidaysForYear);
 
+    private static HashSet<DateTime> ComputeHolidaysForYear(int year)
+    {
         var holidays = new HashSet<DateTime>
         {
             // New Year's Day — Jan 1
@@ -135,7 +137,6 @@ public static class TradingCalendar
             Observed(new DateTime(year, 12, 25)),
         };
 
-        _cache[year] = holidays;
         return holidays;
     }
 
