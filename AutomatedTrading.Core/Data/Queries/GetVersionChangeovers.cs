@@ -18,12 +18,14 @@ namespace AutomatedTrading.Core.Data.Queries;
 public class GetVersionChangeovers(IDbConnectionFactory connectionFactory)
 {
     private const string VERSION_FORMAT = "MM-yy";
+    private const int FULL_DAY_BAR_COUNT = 1300;
 
     private class DailyVersion
     {
         public string SessionDate = default!;
         public string Version = default!;
         public double Volume;
+        public int BarCount;
     }
 
     public async Task<IList<VersionChangeover>> Execute(string instrument, DateTime start, DateTime end)
@@ -52,7 +54,7 @@ public class GetVersionChangeovers(IDbConnectionFactory connectionFactory)
             var changeoverDate = oldDays.Keys
                 .Where(newDays.ContainsKey)
                 .OrderBy(d => d, StringComparer.Ordinal)
-                .FirstOrDefault(d => newDays[d].Volume > oldDays[d].Volume);
+                .FirstOrDefault(d => newDays[d].Volume > oldDays[d].Volume && TradingCalendar.IsTradingDay(d));
 
             if (changeoverDate == null) continue;
 
@@ -75,7 +77,8 @@ public class GetVersionChangeovers(IDbConnectionFactory connectionFactory)
         cmd.CommandText = @"
             SELECT b.SessionDate,
                    b.InstrumentVersion,
-                   SUM(b.Volume) AS TotalVolume
+                   SUM(b.Volume) AS TotalVolume,
+                   COUNT(b.Id) As BarCount
               FROM BarData b
              WHERE b.Instrument = @Instrument
                AND b.SessionDate BETWEEN @Start AND @End
@@ -91,12 +94,15 @@ public class GetVersionChangeovers(IDbConnectionFactory connectionFactory)
         using var reader = await cmd.ExecuteReaderAsync();
         while (await reader.ReadAsync())
         {
-            rows.Add(new DailyVersion
+            var dailyVersion = new DailyVersion
             {
                 SessionDate = reader.GetString(0),
                 Version = reader.GetString(1),
-                Volume = reader.GetDouble(2)
-            });
+                Volume = reader.GetDouble(2),
+                BarCount = reader.GetInt32(3),
+            };
+            if (dailyVersion.BarCount >= FULL_DAY_BAR_COUNT)
+                rows.Add(dailyVersion);
         }
 
         return rows;

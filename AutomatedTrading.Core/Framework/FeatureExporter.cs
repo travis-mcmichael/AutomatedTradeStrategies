@@ -129,6 +129,8 @@ public class FeatureExporter
         // One entry per session that has bars in the model's window (or the whole session), oldest first. Each bar is
         // stored with its date so a session without window bars can't push the other rows out of line with their dates.
         var days = new List<(string Date, BarData Bar)>();
+        // Built after the changeover adjustment, so every row shares the same prior-session aggregates.
+        var aggregates = new SessionAggregateCache(minuteBarsBySession);
         if (_model.WindowStart != null && _model.WindowEnd != null)
         {
             var start = int.Parse(_model.WindowStart!);
@@ -162,22 +164,32 @@ public class FeatureExporter
             if (double.IsNaN(atr20) || atr20 == 0) continue;
 
             var target = GetTarget(bar, atr20);
-            var featureValues = FeatureComputations.ParseFeatures(
-               _model.ModelFeatures,
-               new FeatureContext
-               (
-                   atr20,
-                   date,
-                   minuteBarsBySession
-               ));
-            if (featureValues != null)
+            try
             {
-                //await writer.WriteLineAsync($"{bar.SessionDate},{bar.SessionTime},{bar.Open},{bar.High},{bar.Low},{bar.Close},{bar.Volume},{string.Join(",", featureValues.Select(f => f.ToString("G6")))},{target:G6}");
-                await writer.WriteLineAsync($"{string.Join(",", featureValues.Select(f => f.ToString("G6")))},{target:G6}");
-                written++;
+                var featureValues = FeatureComputations.ParseFeatures(
+                    _model.ModelFeatures,
+                    new FeatureContext
+                    (
+                        atr20,
+                        date,
+                        minuteBarsBySession,
+                        _model.WindowStart ?? "",
+                        _model.WindowEnd ?? "",
+                        aggregates
+                        ));
+                if (featureValues != null)
+                {
+                    //await writer.WriteLineAsync($"{bar.SessionDate},{bar.SessionTime},{bar.Open},{bar.High},{bar.Low},{bar.Close},{bar.Volume},{string.Join(",", featureValues.Select(f => f.ToString("G6")))},{target:G6}");
+                    await writer.WriteLineAsync($"{string.Join(",", featureValues.Select(f => f.ToString("G6")))},{target:G6}");
+                    written++;
+                }
+                if (written % 100 == 0)
+                    Console.WriteLine($"  {written} rows written...");
             }
-            if (written % 100 == 0)
-                Console.WriteLine($"  {written} rows written...");
+            catch (Exception ex)
+            {
+                throw;
+            }
         }
         return written;
     }
@@ -200,7 +212,7 @@ public class FeatureExporter
     // Builds a back-adjusted continuous series: each session keeps only its active contract's bars
     // (the old version before a roll date, the new version from it onward), shifted by the sum of every
     // roll after it so prices line up with the newest contract. Sessions left with no bars are dropped.
-    private static void HandleChangeoverAdjustment(IList<VersionChangeover> changeovers, IList<string> orderedSessions, Dictionary<string, List<BarData>> minuteBarsBySession)
+    public static void HandleChangeoverAdjustment(IList<VersionChangeover> changeovers, IList<string> orderedSessions, Dictionary<string, List<BarData>> minuteBarsBySession)
     {
         var rolls = changeovers.OrderBy(c => c.SessionDate, StringComparer.Ordinal).ToList();
         foreach (var session in orderedSessions)

@@ -40,5 +40,26 @@ const Defaults = {
                 }
             };
         },
+        expanderIcon: (expanded) => `<i class='bi bi-chevron-${expanded ? 'down' : 'right'}'></i>`,
+        expanderColumn: (hasChildren, isExpanded, toggle) => ({
+            title: '',
+            hozAlign: 'center',
+            width: Defaults.grid.editColumnWidth,
+            headerSort: false,
+            formatter: (cell) => hasChildren(cell.getRow().getData()) ? Defaults.grid.expanderIcon(isExpanded(cell.getRow().getData())) : '',
+            cellClick: (e, cell) => {
+                const row = cell.getRow();
+                if (!hasChildren(row.getData())) return;
+                toggle(row.getData());
+                row.reformat();
+            }
+        }),
+        percentFormatter: (cell) => `${(cell.getValue() * 100).toFixed(1)}%`,
+        toggleExpanded: (set, id) => {
+            if (set.has(id)) set.delete(id); 
+            else set.add(id);
+        },
     },
+    // Escapes text for use inside HTML element content or attribute values.
+    escapeHtml: (v) => String(v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])),
 };

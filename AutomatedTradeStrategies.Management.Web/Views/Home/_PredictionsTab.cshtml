@@ -1,0 +1,271 @@
+<h2 class="mb-2">Predictions — <span id="predictions-session-date"></span></h2>
+<div id="predictions-table"></div>
+
+<div class="modal fade" data-bs-backdrop="static" id="readiness-modal" tabindex="-1" aria-labelledby="readiness-modal-title" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="readiness-modal-title">Inference readiness</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="d-flex align-items-end gap-2 mb-3">
+                    <div>
+                        <label for="readiness-session-date" class="form-label mb-1">Session date</label>
+                        <input type="date" class="form-control form-control-sm" id="readiness-session-date">
+                    </div>
+                    <button type="button" class="btn btn-sm btn-primary" id="readiness-check">Check Readiness</button>
+                </div>
+                <div id="readiness-result"></div>
+                <div id="prediction-section" class="mt-3 d-none">
+                    <button type="button" class="btn btn-sm btn-success" id="prediction-run">Get Inference</button>
+                    <div id="prediction-result" class="mt-3"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // Predictions: a model list with a Run Inference button per row. The button opens a popup with a session date
+        // input. Readiness (GetInferenceReadiness) is only checked when Check Readiness is pressed, for the date in the input.
+        // Built on first show (Tabulator can't measure a hidden container); reloaded on later shows.
+        const readinessModal = new bootstrap.Modal(document.getElementById('readiness-modal'));
+        const readinessTitle = document.getElementById('readiness-modal-title');
+        const readinessDate = document.getElementById('readiness-session-date');
+        const readinessCheck = document.getElementById('readiness-check');
+        const readinessResult = document.getElementById('readiness-result');
+        let popupModel = null;          // The model the popup was opened for.
+        let currentSessionDate = null;  // The current session from the model list; the popup's default date.
+        let readinessRequest = 0;       // Only the most recent check is shown when several are started.
+        const predictionSection = document.getElementById('prediction-section');
+        const predictionRun = document.getElementById('prediction-run');
+        const predictionResult = document.getElementById('prediction-result');
+        let predictionDate = null;      // The date the last passing check ran for; Get Inference predicts for this date.
+        let predictionRequest = 0;      // Only the most recent Get Inference is shown.
+
+        const issueLines = (issues) => issues.map((issue) => `<div>${Defaults.escapeHtml(issue)}</div>`).join('');
+
+        const featureRows = (features) => features.map((feature) => `
+            <tr>
+                <td>${Defaults.escapeHtml(feature.name)}</td>
+                <td>${Defaults.escapeHtml(feature.featureTypeName)}</td>
+                <td>${Defaults.escapeHtml(feature.source)}</td>
+                <td>${feature.isReady
+                    ? "<i class='bi bi-check-circle-fill text-success' title='Ready'></i>"
+                    : `<div class='text-danger'>${issueLines(feature.issues)}</div>`}</td>
+            </tr>`).join('');
+
+        // Hides the Get Inference result and discards any prediction still in flight.
+        function clearPrediction() {
+            predictionRequest++;
+            predictionDate = null;
+            predictionSection.classList.add('d-none');
+            predictionResult.innerHTML = '';
+            predictionRun.disabled = false;
+        }
+
+        const MISSING = "<span class='text-muted fst-italic'>Missing Data</span>";
+        const hasNumber = (v) => typeof v === 'number' && Number.isFinite(v);
+        const num = (v) => hasNumber(v) ? v.toFixed(2) : MISSING;
+        const text = (v) => (v === null || v === undefined || v === '') ? MISSING : Defaults.escapeHtml(v);
+        const fieldRow = (label, valueHtml) => `<tr><th class='pe-4'>${label}</th><td>${valueHtml}</td></tr>`;
+        const panel = (title, rows) => `
+            <div class='col-md-6'>
+                <h6 class='mb-2'>${title}</h6>
+                <table class='table table-sm mb-0'><tbody>${rows.join('')}</tbody></table>
+            </div>`;
+
+        // Prediction fields show Missing Data when the prediction failed.
+        function predictionRows(p) {
+            const ok = p?.succeeded === true;
+            const levelLabel = p?.target === 'LOW' ? 'Predicted low' : 'Predicted high';
+            return [
+                fieldRow('Session', ok ? text(p.sessionDate) : MISSING),
+                fieldRow('As of bar', ok ? text(p.asOfTime) : MISSING),
+                fieldRow('Open', ok ? num(p.open) : MISSING),
+                fieldRow('ATR(20)', ok ? num(p.atr) : MISSING),
+                fieldRow('Move from open', ok ? `${num(p.move)} points` : MISSING),
+                fieldRow(levelLabel, ok ? `<strong>${num(p.level)}</strong>` : MISSING),
+            ];
+        }
+
+        // Actual fields come from the window when the model has one, otherwise the whole session. Any field whose
+        // data is not there yet (no bars, no bars in the window, or the request failed) shows Missing Data.
+        function actualRows(o, p) {
+            const ok = o?.succeeded === true;
+            const windowed = ok && o.windowStart != null;
+            const range = ok ? (windowed ? o.window : o.session) : null;
+            const have = range != null;
+            const r = range ?? {};
+            const target = p?.succeeded === true ? p.target : null;
+            const actualLevel = target === 'LOW' ? r.low : r.high;
+            const hasLevel = have && target !== null && hasNumber(actualLevel);
+            const period = !ok ? MISSING
+                : windowed ? (have ? `${text(o.windowStart)} – ${text(o.windowEnd)}` : MISSING)
+                : (have ? 'Whole session' : MISSING);
+            const error = hasLevel && p.succeeded ? `${(p.level - actualLevel).toFixed(2)} points` : MISSING;
+            return [
+                fieldRow('Session', ok ? text(o.sessionDate) : MISSING),
+                fieldRow('Period', period),
+                fieldRow('Open', have ? num(r.open) : MISSING),
+                fieldRow('High', have ? `${num(r.high)} at ${text(r.highTime)}` : MISSING),
+                fieldRow('Low', have ? `${num(r.low)} at ${text(r.lowTime)}` : MISSING),
+                fieldRow('Close', have ? num(r.close) : MISSING),
+                fieldRow('Up from open', have ? `${num(r.upMove)} points` : MISSING),
+                fieldRow('Down from open', have ? `${num(r.downMove)} points` : MISSING),
+                fieldRow(target === 'LOW' ? 'Actual low' : 'Actual high',
+                    hasLevel ? `<strong>${num(actualLevel)}</strong>` : MISSING),
+                fieldRow('Predicted minus actual', error),
+                fieldRow('Bars', have ? `${r.barCount} (${text(r.firstTime)} – ${text(r.lastTime)})` : MISSING),
+            ];
+        }
+
+        function renderPrediction(prediction, outcome) {
+            const messages = [];
+            if (prediction && !prediction.succeeded) messages.push(prediction.error);
+            if (!outcome) messages.push('The actual outcome could not be loaded.');
+            else if (!outcome.succeeded) messages.push(outcome.error);
+            const alerts = messages
+                .map((m) => `<div class='alert alert-warning py-1 mb-2'>${Defaults.escapeHtml(m ?? '')}</div>`)
+                .join('');
+            predictionResult.innerHTML = `
+                ${alerts}
+                <div class='row g-3'>
+                    ${panel('Prediction', predictionRows(prediction))}
+                    ${panel('Actual', actualRows(outcome, prediction))}
+                </div>`;
+        }
+
+        async function runPrediction() {
+            if (!popupModel || !predictionDate) return;
+            const request = ++predictionRequest;
+            const model = popupModel;
+            const date = predictionDate;
+            predictionRun.disabled = true;
+            predictionResult.innerHTML = "<div class='text-muted'><span class='spinner-border spinner-border-sm me-2'></span>Running inference...</div>";
+
+            const query = `?sessionDate=${encodeURIComponent(date)}`;
+            const getJson = async (url) => {
+                const res = await fetch(url);
+                if (!res.ok) throw new Error(`request failed with status ${res.status}`);
+                return res.json();
+            };
+
+            try {
+                // The outcome is shown beside the prediction; if it can't be loaded, the prediction still shows.
+                const [prediction, outcome] = await Promise.all([
+                    getJson(`/Home/ModelPrediction/${model.id}${query}`),
+                    getJson(`/Home/ModelOutcome/${model.id}${query}`).catch(() => null),
+                ]);
+                if (request === predictionRequest) renderPrediction(prediction, outcome);
+            } catch (err) {
+                if (request === predictionRequest)
+                    predictionResult.innerHTML = `<div class='alert alert-danger mb-0'>Inference failed: ${Defaults.escapeHtml(err.message)}</div>`;
+            } finally {
+                if (request === predictionRequest) predictionRun.disabled = false;
+            }
+        }
+
+        predictionRun.addEventListener('click', runPrediction);
+        readinessDate.addEventListener('change', clearPrediction);
+
+        function renderReadiness(result) {
+            const status = result.isReady
+                ? "<span class='badge text-bg-success'>Ready</span>"
+                : "<span class='badge text-bg-danger'>Not ready</span>";
+            const modelIssues = result.modelIssues.length
+                ? `<div class='text-danger mb-3'>${issueLines(result.modelIssues)}</div>`
+                : '';
+            const features = result.features.length
+                ? `<table class='table table-sm align-top'>
+                       <thead><tr><th>Feature</th><th>Type</th><th>Source</th><th>Status</th></tr></thead>
+                       <tbody>${featureRows(result.features)}</tbody>
+                   </table>`
+                : "<div class='text-muted'>No features are configured.</div>";
+            readinessResult.innerHTML = `
+                <div class='d-flex align-items-center gap-2 mb-3'>
+                    ${status}
+                    <span class='text-muted'>Session ${Defaults.escapeHtml(result.sessionDate)}</span>
+                </div>
+                ${modelIssues}
+                ${features}`;
+
+            predictionSection.classList.toggle('d-none', !result.isReady);
+            predictionDate = result.isReady ? result.sessionDate : null;
+            predictionResult.innerHTML = '';
+        }
+
+        // Opening the popup does not check readiness; it only sets the model, the default date, and a prompt.
+        function openReadinessPopup(model) {
+            popupModel = model;
+            readinessRequest++; // Discards any check still in flight from a previous popup.
+            clearPrediction();
+            readinessTitle.textContent = `${model.modelName} — Inference readiness`;
+            readinessDate.value = currentSessionDate ?? '';
+            readinessResult.innerHTML = "<div class='text-muted'>Choose a session date and press Check Readiness.</div>";
+            readinessModal.show();
+        }
+
+        async function checkReadiness() {
+            if (!popupModel) return;
+            if (!readinessDate.value) {
+                readinessResult.innerHTML = "<div class='alert alert-warning mb-0'>Choose a session date first.</div>";
+                return;
+            }
+
+            const request = ++readinessRequest;
+            const model = popupModel;
+            clearPrediction();
+            readinessCheck.disabled = true;
+            readinessResult.innerHTML = "<div class='text-muted'><span class='spinner-border spinner-border-sm me-2'></span>Checking readiness...</div>";
+
+            try {
+                const url = `/Home/ModelReadiness/${model.id}?sessionDate=${encodeURIComponent(readinessDate.value)}`;
+                const res = await fetch(url);
+                if (!res.ok) throw new Error(`request failed with status ${res.status}`);
+                const result = await res.json();
+                if (request === readinessRequest) renderReadiness(result);
+            } catch (err) {
+                if (request === readinessRequest)
+                    readinessResult.innerHTML = `<div class='alert alert-danger mb-0'>Readiness check failed: ${Defaults.escapeHtml(err.message)}</div>`;
+            } finally {
+                if (request === readinessRequest) readinessCheck.disabled = false;
+            }
+        }
+
+        readinessCheck.addEventListener('click', checkReadiness);
+
+        const predictionColumns = [
+            { title: 'Model', field: 'modelName', widthGrow: 3 },
+            {
+                title: '', field: 'id', hozAlign: 'center', headerSort: false,
+                formatter: () => "<button type='button' class='btn btn-sm btn-outline-primary'>Run Inference</button>",
+                cellClick: (e, cell) => {
+                    if (e.target.closest('button')) openReadinessPopup(cell.getRow().getData());
+                }
+            }
+        ];
+
+        const predictionsUrl = '/Home/Predictions';
+        let predictionsTable = null;
+        document.getElementById('predictions-tab').addEventListener('shown.bs.tab', () => {
+            if (!predictionsTable) {
+                predictionsTable = Defaults.grid.buildGrid('#predictions-table', predictionColumns, predictionsUrl, {
+                    pagination: false, height: false,
+                    ajaxResponse: (url, params, response) => {
+                        currentSessionDate = response.sessionDate;
+                        document.getElementById('predictions-session-date').textContent = response.sessionDate;
+                        return response.models;
+                    }
+                });
+            } else {
+                predictionsTable.setData(predictionsUrl);
+            }
+        });
+    });
+</script>
